@@ -4,6 +4,7 @@ import type { Model } from 'mongoose';
 import { AuthMemberDto } from '../../libs/dto/auth/auth-member';
 import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
+import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MemberStatus } from '../../libs/enums/member.enum';
 import { AuthService } from '../auth/auth.service';
 
@@ -49,6 +50,53 @@ export class MemberService {
 
 		const accessToken = await this.authService.generateJwtToken(member);
 		return this.toAuthMember(member, accessToken);
+	}
+
+	public async updateMember(currentMember: any, input: MemberUpdate): Promise<any> {
+		if (!currentMember?._id) {
+			throw new UnauthorizedException('Invalid credentials');
+		}
+
+		const updateData = this.buildUpdatePayload(input, false);
+		return this.updateMemberById(currentMember._id, updateData);
+	}
+
+	public async updateMemberByAdmin(input: MemberUpdate): Promise<any> {
+		if (!input._id) {
+			throw new BadRequestException('Member id is required');
+		}
+
+		const updateData = this.buildUpdatePayload(input, true);
+		return this.updateMemberById(input._id, updateData);
+	}
+
+	private buildUpdatePayload(input: MemberUpdate, isAdmin: boolean): Record<string, unknown> {
+		const updateData: Record<string, unknown> = { ...input };
+		delete updateData._id;
+
+		if (!isAdmin) {
+			delete updateData.memberStatus;
+			delete updateData.subscriptionTier;
+		}
+
+		return updateData;
+	}
+
+	private async updateMemberById(memberId: string, updateData: Record<string, unknown>): Promise<any> {
+		if (updateData.memberNick) {
+			const existing = await this.memberModel.findOne({ memberNick: updateData.memberNick });
+			if (existing && String(existing._id) !== String(memberId)) {
+				throw new BadRequestException('Already used member nick');
+			}
+		}
+
+		const updatedMember = await this.memberModel.findByIdAndUpdate(memberId, updateData, { new: true }).exec();
+
+		if (!updatedMember) {
+			throw new BadRequestException('Member not found');
+		}
+
+		return updatedMember;
 	}
 
 	private toAuthMember(member: any, accessToken: string): AuthMemberDto {
