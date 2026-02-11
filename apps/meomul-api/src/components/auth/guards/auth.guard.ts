@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
-import { Message } from '../../../libs/enums/common';
+import { Messages } from '../../../libs/messages';
 import { AuthService } from '../auth.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
@@ -26,12 +26,12 @@ export class AuthGuard implements CanActivate {
 		const authHeader = req?.headers?.authorization ?? req?.headers?.Authorization;
 
 		if (!authHeader || typeof authHeader !== 'string') {
-			throw new UnauthorizedException(Message.TOKEN_NOT_EXIST);
+			throw new UnauthorizedException(Messages.TOKEN_NOT_EXIST);
 		}
 
 		const [type, token] = authHeader.split(' ');
 		if (type !== 'Bearer' || !token) {
-			throw new UnauthorizedException(Message.TOKEN_NOT_EXIST);
+			throw new UnauthorizedException(Messages.TOKEN_NOT_EXIST);
 		}
 
 		const member = await this.authService.verifyToken(token);

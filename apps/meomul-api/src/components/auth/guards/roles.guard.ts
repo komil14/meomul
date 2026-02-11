@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
-import { Message } from '../../../libs/enums/common';
+import { Messages } from '../../../libs/messages';
 import { MemberType } from '../../../libs/enums/member.enum';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
@@ -20,11 +20,11 @@ export class RolesGuard implements CanActivate {
 		const member = gqlContext.getContext().req?.member;
 
 		if (!member) {
-			throw new UnauthorizedException(Message.NOT_AUTHENTICATED);
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
 		}
 
 		if (!roles.includes(member.memberType)) {
-			throw new ForbiddenException(Message.ONLY_SPECIFIC_ROLES_ALLOWED);
+			throw new ForbiddenException(Messages.ONLY_SPECIFIC_ROLES_ALLOWED);
 		}
 
 		return true;
