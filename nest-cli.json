@@ -1,8 +1,32 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
+  "sourceRoot": "apps/meomul-api/src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/meomul-api/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/meomul-api",
+  "projects": {
+    "meomul-api": {
+      "type": "application",
+      "root": "apps/meomul-api",
+      "entryFile": "main",
+      "sourceRoot": "apps/meomul-api/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/meomul-api/tsconfig.app.json"
+      }
+    },
+    "meomul-batch": {
+      "type": "application",
+      "root": "apps/meomul-batch",
+      "entryFile": "main",
+      "sourceRoot": "apps/meomul-batch/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/meomul-batch/tsconfig.app.json"
+      }
+    }
   }
 }

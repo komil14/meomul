@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
-export class AppService {
+export class MeomulBatchService {
   getHello(): string {
-    return 'Hello World!';
+    return 'Welcome to Meomul Batch server!';
   }
 }
