@@ -5,13 +5,17 @@ import { AuthMemberDto } from '../../libs/dto/auth/auth-member';
 import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
 import { MemberUpdate } from '../../libs/dto/member/member.update';
+import { MembersDto } from '../../libs/dto/common/members';
+import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { MemberStatus } from '../../libs/enums/member.enum';
+import { Messages } from '../../libs/messages';
+import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class MemberService {
 	constructor(
-		@InjectModel('Member') private readonly memberModel: Model<any>,
+		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
 		private readonly authService: AuthService,
 	) {}
 
@@ -20,7 +24,7 @@ export class MemberService {
 			$or: [{ memberNick: input.memberNick }, { memberPhone: input.memberPhone }],
 		});
 		if (existing) {
-			throw new BadRequestException('Already used member nick or phone');
+			throw new BadRequestException(Messages.USED_MEMBER_NICK_OR_PHONE);
 		}
 
 		const memberPassword = await this.authService.hashPassword(input.memberPassword);
@@ -36,38 +40,62 @@ export class MemberService {
 		const member = await this.memberModel.findOne({ memberNick: input.memberNick }).select('+memberPassword').exec();
 
 		if (!member || member.memberStatus === MemberStatus.DELETE) {
-			throw new UnauthorizedException('Invalid credentials');
+			throw new UnauthorizedException(Messages.NO_MEMBER_NICK);
 		}
 
 		if (member.memberStatus === MemberStatus.BLOCK) {
-			throw new UnauthorizedException('User is blocked');
+			throw new UnauthorizedException(Messages.BLOCKED_USER);
+		}
+
+		if (!member.memberPassword) {
+			throw new UnauthorizedException(Messages.WRONG_PASSWORD);
 		}
 
 		const isMatch = await this.authService.comparePassword(input.memberPassword, member.memberPassword);
 		if (!isMatch) {
-			throw new UnauthorizedException('Invalid credentials');
+			throw new UnauthorizedException(Messages.WRONG_PASSWORD);
 		}
 
 		const accessToken = await this.authService.generateJwtToken(member);
 		return this.toAuthMember(member, accessToken);
 	}
 
-	public async updateMember(currentMember: any, input: MemberUpdate): Promise<any> {
+	public async updateMember(currentMember: MemberJwtPayload, input: MemberUpdate): Promise<MemberDocument> {
 		if (!currentMember?._id) {
-			throw new UnauthorizedException('Invalid credentials');
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
 		}
 
 		const updateData = this.buildUpdatePayload(input, false);
 		return this.updateMemberById(currentMember._id, updateData);
 	}
 
-	public async updateMemberByAdmin(input: MemberUpdate): Promise<any> {
+	public async updateMemberByAdmin(input: MemberUpdate): Promise<MemberDocument> {
 		if (!input._id) {
-			throw new BadRequestException('Member id is required');
+			throw new BadRequestException(Messages.BAD_REQUEST);
 		}
 
 		const updateData = this.buildUpdatePayload(input, true);
 		return this.updateMemberById(input._id, updateData);
+	}
+
+	public async getAllMembersByAdmin(input: PaginationInput): Promise<MembersDto> {
+		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
+		const skip = (page - 1) * limit;
+
+		const [list, total] = await Promise.all([
+			this.memberModel
+				.find()
+				.sort({ [sort]: direction })
+				.skip(skip)
+				.limit(limit)
+				.exec(),
+			this.memberModel.countDocuments().exec(),
+		]);
+
+		return {
+			list,
+			metaCounter: { total },
+		};
 	}
 
 	private buildUpdatePayload(input: MemberUpdate, isAdmin: boolean): Record<string, unknown> {
@@ -82,24 +110,24 @@ export class MemberService {
 		return updateData;
 	}
 
-	private async updateMemberById(memberId: string, updateData: Record<string, unknown>): Promise<any> {
+	private async updateMemberById(memberId: string, updateData: Record<string, unknown>): Promise<MemberDocument> {
 		if (updateData.memberNick) {
 			const existing = await this.memberModel.findOne({ memberNick: updateData.memberNick });
 			if (existing && String(existing._id) !== String(memberId)) {
-				throw new BadRequestException('Already used member nick');
+				throw new BadRequestException(Messages.USED_MEMBER_NICK_OR_PHONE);
 			}
 		}
 
 		const updatedMember = await this.memberModel.findByIdAndUpdate(memberId, updateData, { new: true }).exec();
 
 		if (!updatedMember) {
-			throw new BadRequestException('Member not found');
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
 		}
 
 		return updatedMember;
 	}
 
-	private toAuthMember(member: any, accessToken: string): AuthMemberDto {
+	private toAuthMember(member: MemberDocument, accessToken: string): AuthMemberDto {
 		const memberObject = typeof member.toObject === 'function' ? member.toObject() : { ...member };
 		delete memberObject.memberPassword;
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compare, genSalt, hash } from 'bcryptjs';
+import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 
 @Injectable()
 export class AuthService {
@@ -15,8 +16,9 @@ export class AuthService {
 		return compare(plainPassword, hashedPassword);
 	}
 
-	public async generateJwtToken(member: any): Promise<string> {
+	public async generateJwtToken(member: MemberDocument): Promise<string> {
 		return this.jwtService.signAsync({
+			_id: member._id?.toString?.() ?? member._id,
 			sub: member._id?.toString?.() ?? member._id,
 			memberNick: member.memberNick,
 			memberType: member.memberType,
@@ -25,7 +27,7 @@ export class AuthService {
 		});
 	}
 
-	public async verifyToken(token: string): Promise<any> {
+	public async verifyToken(token: string): Promise<MemberJwtPayload> {
 		return this.jwtService.verifyAsync(token);
 	}
 }
