@@ -98,6 +98,19 @@ export class MemberService {
 		};
 	}
 
+	public async getMember(currentMember: MemberJwtPayload): Promise<MemberDocument> {
+		if (!currentMember?._id) {
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
+		}
+
+		const member = await this.memberModel.findById(currentMember._id).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		return member;
+	}
+
 	private buildUpdatePayload(input: MemberUpdate, isAdmin: boolean): Record<string, unknown> {
 		const updateData: Record<string, unknown> = { ...input };
 		delete updateData._id;
@@ -118,7 +131,9 @@ export class MemberService {
 			}
 		}
 
-		const updatedMember = await this.memberModel.findByIdAndUpdate(memberId, updateData, { new: true }).exec();
+		const updatedMember = await this.memberModel
+			.findByIdAndUpdate(memberId, updateData, { returnDocument: 'after' })
+			.exec();
 
 		if (!updatedMember) {
 			throw new BadRequestException(Messages.NO_MEMBER_NICK);

@@ -19,15 +19,25 @@ export class MemberResolver {
 	@Mutation(() => AuthMemberDto)
 	@Public()
 	public async signupMember(@Args('input') input: MemberInput): Promise<AuthMemberDto> {
-		console.log('Mutation signup');
-		return this.memberService.signup(input);
+		try {
+			console.log('Mutation signup');
+			return this.memberService.signup(input);
+		} catch (error) {
+			console.error('Mutation signup failed', error);
+			throw error;
+		}
 	}
 
 	@Mutation(() => AuthMemberDto)
 	@Public()
 	public async loginMember(@Args('input') input: LoginInput): Promise<AuthMemberDto> {
-		console.log('Mutation login');
-		return this.memberService.login(input);
+		try {
+			console.log('Mutation login');
+			return this.memberService.login(input);
+		} catch (error) {
+			console.error('Mutation login failed', error);
+			throw error;
+		}
 	}
 
 	@Mutation(() => MemberDto)
@@ -35,18 +45,47 @@ export class MemberResolver {
 		@CurrentMember() currentMember: any,
 		@Args('input') input: MemberUpdate,
 	): Promise<MemberDto> {
-		return this.memberService.updateMember(currentMember, input);
+		try {
+			console.log('Mutation updateMember', currentMember?._id ?? 'unknown');
+			return this.memberService.updateMember(currentMember, input);
+		} catch (error) {
+			console.error('Mutation updateMember failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
 	}
 
 	@Mutation(() => MemberDto)
 	@Roles(MemberType.ADMIN)
 	public async updateMemberByAdmin(@Args('input') input: MemberUpdate): Promise<MemberDto> {
-		return this.memberService.updateMemberByAdmin(input);
+		try {
+			console.log('Mutation updateMemberByAdmin');
+			return this.memberService.updateMemberByAdmin(input);
+		} catch (error) {
+			console.error('Mutation updateMemberByAdmin failed', error);
+			throw error;
+		}
 	}
 
 	@Query(() => MembersDto)
 	@Roles(MemberType.ADMIN)
 	public async getAllMembersByAdmin(@Args('input') input: PaginationInput): Promise<MembersDto> {
-		return this.memberService.getAllMembersByAdmin(input);
+		try {
+			console.log('Query getAllMembersByAdmin');
+			return this.memberService.getAllMembersByAdmin(input);
+		} catch (error) {
+			console.error('Query getAllMembersByAdmin failed', error);
+			throw error;
+		}
+	}
+
+	@Query(() => MemberDto)
+	public async getMember(@CurrentMember() currentMember: any): Promise<MemberDto> {
+		try {
+			console.log('Query getMember', currentMember?._id ?? 'unknown');
+			return this.memberService.getMember(currentMember);
+		} catch (error) {
+			console.error('Query getMember failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
 	}
 }
