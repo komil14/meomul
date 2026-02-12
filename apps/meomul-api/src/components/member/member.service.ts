@@ -7,6 +7,7 @@ import { MemberInput } from '../../libs/dto/member/member.input';
 import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MembersDto } from '../../libs/dto/common/members';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
+import { ResponseDto } from '../../libs/dto/common/response';
 import { MemberStatus } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
@@ -109,6 +110,22 @@ export class MemberService {
 		}
 
 		return member;
+	}
+
+	public async checkAuth(currentMember: MemberJwtPayload): Promise<MemberDocument> {
+		return this.getMember(currentMember);
+	}
+
+	public async checkAuthRoles(currentMember: MemberJwtPayload): Promise<ResponseDto> {
+		if (!currentMember?._id) {
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
+		}
+
+		return {
+			success: true,
+			message: 'OK',
+			data: currentMember._id,
+		};
 	}
 
 	private buildUpdatePayload(input: MemberUpdate, isAdmin: boolean): Record<string, unknown> {

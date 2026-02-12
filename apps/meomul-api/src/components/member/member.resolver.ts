@@ -6,6 +6,7 @@ import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MemberDto } from '../../libs/dto/member/member';
 import { MembersDto } from '../../libs/dto/common/members';
 import { PaginationInput } from '../../libs/dto/common/pagination';
+import { ResponseDto } from '../../libs/dto/common/response';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -85,6 +86,32 @@ export class MemberResolver {
 			return this.memberService.getMember(currentMember);
 		} catch (error) {
 			console.error('Query getMember failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	@Query(() => String)
+	public async checkAuth(@CurrentMember() currentMember: any): Promise<string> {
+		try {
+			console.log('Query checkAuth', currentMember?._id ?? 'unknown');
+			const memberNick = currentMember?.memberNick ?? 'unknown';
+			const memberType = currentMember?.memberType ?? 'unknown';
+			const memberId = currentMember?._id ?? 'unknown';
+			return `Wassup ${memberNick}, you are ${memberType} and your id ( ${memberId} )`;
+		} catch (error) {
+			console.error('Query checkAuth failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	@Query(() => ResponseDto)
+	@Roles(MemberType.ADMIN)
+	public async checkAuthRoles(@CurrentMember() currentMember: any): Promise<ResponseDto> {
+		try {
+			console.log('Query checkAuthRoles', currentMember?._id ?? 'unknown');
+			return this.memberService.checkAuthRoles(currentMember);
+		} catch (error) {
+			console.error('Query checkAuthRoles failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}
