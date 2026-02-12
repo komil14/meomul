@@ -139,7 +139,6 @@ const BookingSchema = new Schema(
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
     qrCode: String,
   },
@@ -152,6 +151,5 @@ const BookingSchema = new Schema(
 // Indexes
 BookingSchema.index({ guestId: 1, bookingStatus: 1 });
 BookingSchema.index({ hotelId: 1, checkInDate: 1 });
-BookingSchema.index({ bookingCode: 1 });
 
 export default BookingSchema;

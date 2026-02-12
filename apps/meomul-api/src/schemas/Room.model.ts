@@ -110,4 +110,19 @@ RoomSchema.index({ hotelId: 1, roomType: 1 });
 RoomSchema.index({ roomStatus: 1 });
 RoomSchema.index({ 'lastMinuteDeal.isActive': 1, 'lastMinuteDeal.validUntil': 1 });
 
+// Compound unique index for room number per hotel (only when roomNumber exists)
+RoomSchema.index(
+  {
+    hotelId: 1,
+    roomNumber: 1
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      roomNumber: { $exists: true, $ne: null },
+      roomStatus: { $ne: 'INACTIVE' }
+    }
+  }
+);
+
 export default RoomSchema;

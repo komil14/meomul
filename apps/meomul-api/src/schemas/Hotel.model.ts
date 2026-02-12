@@ -232,4 +232,17 @@ HotelSchema.index({ suitableFor: 1 });
 HotelSchema.index({ hotelRank: -1 });
 HotelSchema.index({ hotelRating: -1 });
 
+// Compound unique index to prevent duplicate hotels (same title + location + address)
+HotelSchema.index(
+  {
+    hotelTitle: 1,
+    hotelLocation: 1,
+    'detailedLocation.address': 1
+  },
+  {
+    unique: true,
+    partialFilterExpression: { hotelStatus: { $ne: 'DELETE' } }
+  }
+);
+
 export default HotelSchema;

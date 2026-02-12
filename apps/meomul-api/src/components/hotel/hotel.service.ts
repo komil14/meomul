@@ -33,6 +33,20 @@ export class HotelService {
 			throw new ForbiddenException(Messages.NOT_AUTHENTICATED);
 		}
 
+		// Check for duplicate hotel (same title + location + address)
+		const existingHotel = await this.hotelModel
+			.findOne({
+				hotelTitle: input.hotelTitle,
+				hotelLocation: input.hotelLocation,
+				'detailedLocation.address': input.detailedLocation.address,
+				hotelStatus: { $ne: HotelStatus.DELETE },
+			})
+			.exec();
+
+		if (existingHotel) {
+			throw new BadRequestException('A hotel with this title and address already exists in this location');
+		}
+
 		// Calculate Safe Stay Certification
 		const safeStayCertified = this.calculateSafeStayCertification(input.safetyFeatures as unknown as Record<string, unknown>);
 
