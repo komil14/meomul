@@ -9,6 +9,7 @@ import { AppResolver } from './app.resolver';
 import { ComponentsModule } from './components/components.module';
 import { AuthModule } from './components/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
+import { SocketModule } from './socket/socket.module';
 import { GraphqlExceptionFilter } from './libs/interceptor/graphql-exception.filter';
 import { LoggingInterceptor } from './libs/interceptor/logging.interceptor';
 import { AuthGuard } from './components/auth/guards/auth.guard';
@@ -27,6 +28,7 @@ import { RolesGuard } from './components/auth/guards/roles.guard';
 		ComponentsModule,
 		AuthModule,
 		DatabaseModule,
+		SocketModule,
 	],
 	controllers: [AppController],
 	providers: [
