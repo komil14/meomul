@@ -104,6 +104,5 @@ const ReviewSchema = new Schema(
 
 // Indexes
 ReviewSchema.index({ hotelId: 1, reviewStatus: 1, createdAt: -1 });
-ReviewSchema.index({ bookingId: 1 }, { unique: true });
 
 export default ReviewSchema;

@@ -4,6 +4,7 @@ export enum LikeGroup {
 	MEMBER = 'MEMBER',
 	HOTEL = 'HOTEL',
 	ARTICLE = 'ARTICLE',
+	REVIEW = 'REVIEW',
 }
 
 export enum ViewGroup {
