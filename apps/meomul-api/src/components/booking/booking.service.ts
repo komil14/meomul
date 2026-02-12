@@ -2,7 +2,6 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { BookingInput } from '../../libs/dto/booking/booking.input';
-import { BookingUpdate } from '../../libs/dto/booking/booking.update';
 import { BookingDto } from '../../libs/dto/booking/booking';
 import { BookingsDto } from '../../libs/dto/common/bookings';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
@@ -48,8 +47,16 @@ export class BookingService {
 			throw new BadRequestException('Check-out date must be after check-in date');
 		}
 
-		// Verify all rooms exist and have availability
+		// Check for duplicate roomIds in the booking
 		const roomIds = input.rooms.map((r) => r.roomId);
+		const uniqueRoomIds = new Set(roomIds);
+		if (roomIds.length !== uniqueRoomIds.size) {
+			throw new BadRequestException(
+				'Duplicate rooms in booking. Use the quantity field to book multiple rooms of the same type',
+			);
+		}
+
+		// Verify all rooms exist and have availability
 		const rooms = await this.roomModel.find({ _id: { $in: roomIds } }).exec();
 
 		if (rooms.length !== roomIds.length) {
@@ -394,6 +401,40 @@ export class BookingService {
 			currentMember.memberType !== MemberType.ADMIN
 		) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		// Validate payment amount
+		if (paidAmount < 0) {
+			throw new BadRequestException('Payment amount cannot be negative');
+		}
+
+		if (paidAmount > booking.totalPrice) {
+			throw new BadRequestException(
+				`Payment amount (${paidAmount}) cannot exceed total price (${booking.totalPrice})`,
+			);
+		}
+
+		// Validate payment status and amount consistency
+		if (paymentStatus === PaymentStatus.PAID) {
+			if (paidAmount !== booking.totalPrice) {
+				throw new BadRequestException(
+					`For PAID status, payment amount must equal total price (${booking.totalPrice})`,
+				);
+			}
+		}
+
+		if (paymentStatus === PaymentStatus.PARTIAL) {
+			if (paidAmount === 0 || paidAmount >= booking.totalPrice) {
+				throw new BadRequestException(
+					`For PARTIAL status, payment amount must be between 0 and total price (${booking.totalPrice})`,
+				);
+			}
+		}
+
+		if (paymentStatus === PaymentStatus.PENDING) {
+			if (paidAmount !== 0) {
+				throw new BadRequestException('For PENDING status, payment amount must be 0');
+			}
 		}
 
 		const updateData: Record<string, unknown> = {
