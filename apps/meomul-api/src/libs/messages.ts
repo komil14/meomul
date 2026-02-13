@@ -17,6 +17,9 @@ export const Messages = {
 	PROVIDE_ALLOWED_FORMAT: 'Please provide jpg, jpeg or png images!',
 	SELF_SUBSCRIPTION_DENIED: 'Self subscription is denied!',
 	CANNOT_FOLLOW_YOURSELF: 'You cannot follow yourself!',
+	CHAT_ALREADY_EXISTS: 'You already have an active chat with this hotel!',
+	CHAT_ALREADY_CLAIMED: 'This chat has already been claimed by an agent!',
+	CHAT_CLOSED: 'This chat has been closed!',
 } as const;
 
 export type MessageKey = keyof typeof Messages;

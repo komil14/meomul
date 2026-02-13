@@ -9,8 +9,9 @@ import { LikeModule } from './like/like.module';
 import { ViewModule } from './view/view.module';
 import { FollowModule } from './follow/follow.module';
 import { NotificationModule } from './notification/notification.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
-  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule]
+  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule]
 })
 export class ComponentsModule {}
