@@ -16,6 +16,7 @@ export const Messages = {
 	NOT_ALLOWED_REQUEST: 'Not Allowed Request!',
 	PROVIDE_ALLOWED_FORMAT: 'Please provide jpg, jpeg or png images!',
 	SELF_SUBSCRIPTION_DENIED: 'Self subscription is denied!',
+	CANNOT_FOLLOW_YOURSELF: 'You cannot follow yourself!',
 } as const;
 
 export type MessageKey = keyof typeof Messages;

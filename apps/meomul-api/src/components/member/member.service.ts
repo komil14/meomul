@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import type { Model, ClientSession } from 'mongoose';
 import { AuthMemberDto } from '../../libs/dto/auth/auth-member';
 import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
@@ -157,6 +157,32 @@ export class MemberService {
 		}
 
 		return updatedMember;
+	}
+
+	/**
+	 * Update member statistics (followers, followings, likes, etc.)
+	 * @param memberId - Member ID to update
+	 * @param targetKey - Stat field to update (e.g., 'memberFollowers', 'memberFollowings')
+	 * @param modifier - Amount to increment (+1) or decrement (-1)
+	 * @param session - Optional MongoDB session for transactions
+	 */
+	public async memberStatsEditor(
+		memberId: string,
+		targetKey: keyof Pick<
+			MemberDocument,
+			| 'memberFollowers'
+			| 'memberFollowings'
+			| 'memberLikes'
+			| 'memberViews'
+			| 'memberProperties'
+			| 'memberArticles'
+			| 'memberComments'
+		>,
+		modifier: number,
+		session?: ClientSession,
+	): Promise<void> {
+		const options = session ? { session } : {};
+		await this.memberModel.findByIdAndUpdate(memberId, { $inc: { [targetKey]: modifier } }, options).exec();
 	}
 
 	private toAuthMember(member: MemberDocument, accessToken: string): AuthMemberDto {
