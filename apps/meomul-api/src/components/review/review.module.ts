@@ -7,6 +7,7 @@ import { ReviewService } from './review.service';
 import { ReviewResolver } from './review.resolver';
 import { AuthModule } from '../auth/auth.module';
 import { LikeModule } from '../like/like.module';
+import { ViewModule } from '../view/view.module';
 
 @Module({
 	imports: [
@@ -17,6 +18,7 @@ import { LikeModule } from '../like/like.module';
 		]),
 		AuthModule,
 		LikeModule,
+		ViewModule,
 	],
 	providers: [ReviewService, ReviewResolver],
 	exports: [ReviewService],

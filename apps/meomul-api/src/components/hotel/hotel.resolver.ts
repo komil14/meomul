@@ -68,13 +68,17 @@ export class HotelResolver {
 
 	/**
 	 * Get single hotel by ID (Public)
+	 * Auto-tracks view if user is authenticated
 	 */
 	@Query(() => HotelDto)
 	@Public()
-	public async getHotel(@Args('hotelId') hotelId: string): Promise<HotelDto> {
+	public async getHotel(
+		@Args('hotelId') hotelId: string,
+		@CurrentMember() currentMember?: any,
+	): Promise<HotelDto> {
 		try {
-			console.log('Query getHotel', hotelId);
-			return this.hotelService.getHotel(hotelId);
+			console.log('Query getHotel', hotelId, currentMember?._id ?? 'anonymous');
+			return this.hotelService.getHotel(hotelId, currentMember);
 		} catch (error) {
 			console.error('Query getHotel failed', hotelId, error);
 			throw error;

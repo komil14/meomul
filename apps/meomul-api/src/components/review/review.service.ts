@@ -6,7 +6,7 @@ import { ReviewUpdate } from '../../libs/dto/review/review.update';
 import { ReviewDto } from '../../libs/dto/review/review';
 import { ReviewsDto } from '../../libs/dto/common/reviews';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
-import { ReviewStatus, LikeGroup } from '../../libs/enums/common.enum';
+import { ReviewStatus, LikeGroup, ViewGroup } from '../../libs/enums/common.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
 import { BookingStatus } from '../../libs/enums/booking.enum';
 import { Messages } from '../../libs/messages';
@@ -16,6 +16,7 @@ import { toReviewDto } from '../../libs/types/review';
 import type { BookingDocument } from '../../libs/types/booking';
 import type { HotelDocument } from '../../libs/types/hotel';
 import { LikeService } from '../like/like.service';
+import { ViewService } from '../view/view.service';
 
 @Injectable()
 export class ReviewService {
@@ -24,6 +25,7 @@ export class ReviewService {
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		private readonly likeService: LikeService,
+		private readonly viewService: ViewService,
 	) {}
 
 	/**
@@ -162,7 +164,7 @@ export class ReviewService {
 	/**
 	 * Get single review
 	 */
-	public async getReview(reviewId: string): Promise<ReviewDto> {
+	public async getReview(reviewId: string, currentMember?: MemberJwtPayload): Promise<ReviewDto> {
 		const review = await this.reviewModel.findById(reviewId).exec();
 		if (!review) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
@@ -173,7 +175,22 @@ export class ReviewService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		return toReviewDto(review);
+		// Track view for authenticated users only (idempotent - same user counts as 1 view)
+		if (currentMember) {
+			const result = await this.viewService.recordView(currentMember, {
+				viewGroup: ViewGroup.REVIEW,
+				viewRefId: reviewId,
+			});
+
+			// Only increment count for NEW views (not repeat views from same user)
+			if (result.isNewView) {
+				await this.reviewModel.findByIdAndUpdate(reviewId, { $inc: { reviewViews: 1 } }).exec();
+			}
+		}
+
+		// Return review with current view count
+		const updatedReview = await this.reviewModel.findById(reviewId).exec();
+		return toReviewDto(updatedReview!);
 	}
 
 	/**

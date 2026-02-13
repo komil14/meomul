@@ -25,6 +25,7 @@ export interface ReviewDocument extends Document {
 	reviewText: string;
 	guestPhotos: string[];
 	helpfulCount: number;
+	reviewViews: number;
 	hotelResponse?: HotelResponseDocument;
 	reviewStatus: ReviewStatus;
 	createdAt: Date;
@@ -57,6 +58,7 @@ export function toReviewDto(doc: ReviewDocument): ReviewDto {
 		reviewText: doc.reviewText,
 		guestPhotos: doc.guestPhotos,
 		helpfulCount: doc.helpfulCount,
+		reviewViews: doc.reviewViews,
 		hotelResponse: doc.hotelResponse && doc.hotelResponse.responseText ? toHotelResponseDto(doc.hotelResponse) : undefined,
 		reviewStatus: doc.reviewStatus,
 		createdAt: doc.createdAt,

@@ -71,13 +71,17 @@ export class ReviewResolver {
 
 	/**
 	 * Get single review (public)
+	 * Auto-tracks view if user is authenticated
 	 */
 	@Query(() => ReviewDto)
 	@Public()
-	public async getReview(@Args('reviewId') reviewId: string): Promise<ReviewDto> {
+	public async getReview(
+		@Args('reviewId') reviewId: string,
+		@CurrentMember() currentMember?: any,
+	): Promise<ReviewDto> {
 		try {
-			console.log('Query getReview', reviewId);
-			return this.reviewService.getReview(reviewId);
+			console.log('Query getReview', reviewId, currentMember?._id ?? 'anonymous');
+			return this.reviewService.getReview(reviewId, currentMember);
 		} catch (error) {
 			console.error('Query getReview failed', reviewId, error);
 			throw error;

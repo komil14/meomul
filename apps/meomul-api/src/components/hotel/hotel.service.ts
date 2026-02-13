@@ -9,15 +9,19 @@ import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { HotelSearchInput } from '../../libs/dto/common/search.input';
 import { HotelStatus, BadgeLevel } from '../../libs/enums/hotel.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
-import { StayPurpose } from '../../libs/enums/common.enum';
+import { StayPurpose, ViewGroup } from '../../libs/enums/common.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { HotelDocument } from '../../libs/types/hotel';
 import { toHotelDto } from '../../libs/types/hotel';
+import { ViewService } from '../view/view.service';
 
 @Injectable()
 export class HotelService {
-	constructor(@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>) {}
+	constructor(
+		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
+		private readonly viewService: ViewService,
+	) {}
 
 	/**
 	 * Create a new hotel (AGENT or ADMIN only)
@@ -148,7 +152,7 @@ export class HotelService {
 	/**
 	 * Get single hotel by ID
 	 */
-	public async getHotel(hotelId: string): Promise<HotelDto> {
+	public async getHotel(hotelId: string, currentMember?: MemberJwtPayload): Promise<HotelDto> {
 		const hotel = await this.hotelModel.findById(hotelId).exec();
 		if (!hotel) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
@@ -159,10 +163,30 @@ export class HotelService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Increment view count
-		await this.hotelModel.findByIdAndUpdate(hotelId, { $inc: { hotelViews: 1 } }).exec();
+		// Track view for authenticated users only (idempotent - same user counts as 1 view)
+		if (currentMember) {
+			console.log('🔍 Tracking view for user:', currentMember._id);
+			const result = await this.viewService.recordView(currentMember, {
+				viewGroup: ViewGroup.HOTEL,
+				viewRefId: hotelId,
+			});
+			console.log('📊 View result - isNewView:', result.isNewView);
 
-		return toHotelDto(hotel);
+			// Only increment count for NEW views (not repeat views from same user)
+			if (result.isNewView) {
+				console.log('✅ Incrementing hotelViews count');
+				await this.hotelModel.findByIdAndUpdate(hotelId, { $inc: { hotelViews: 1 } }).exec();
+			} else {
+				console.log('⏭️  Skipping increment - user already viewed');
+			}
+		} else {
+			console.log('❌ No currentMember - anonymous request');
+		}
+
+		// Return hotel with current view count
+		const updatedHotel = await this.hotelModel.findById(hotelId).exec();
+		console.log('📈 Current hotelViews:', updatedHotel?.hotelViews);
+		return toHotelDto(updatedHotel!);
 	}
 
 	/**

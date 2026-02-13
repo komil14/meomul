@@ -84,6 +84,11 @@ const ReviewSchema = new Schema(
 			default: 0,
 		},
 
+		reviewViews: {
+			type: Number,
+			default: 0,
+		},
+
 		hotelResponse: {
 			responseText: String,
 			respondedBy: Schema.Types.ObjectId,

@@ -24,6 +24,7 @@ const ViewSchema = new Schema(
 	},
 );
 
-ViewSchema.index({ viewRefId: 1, memberId: 1 }, { unique: true });
+// Unique constraint: one view per member per item
+ViewSchema.index({ viewRefId: 1, memberId: 1, viewGroup: 1 }, { unique: true });
 
 export default ViewSchema;

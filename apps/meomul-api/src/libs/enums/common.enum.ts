@@ -11,6 +11,7 @@ export enum ViewGroup {
 	MEMBER = 'MEMBER',
 	HOTEL = 'HOTEL',
 	ARTICLE = 'ARTICLE',
+	REVIEW = 'REVIEW',
 }
 
 export enum StayPurpose {

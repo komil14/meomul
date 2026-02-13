@@ -63,6 +63,9 @@ export class ReviewDto {
   @Field(() => Int)
   helpfulCount: number;
 
+  @Field(() => Int)
+  reviewViews: number;
+
   @Field(() => HotelResponseDto, { nullable: true })
   hotelResponse?: HotelResponseDto;
 

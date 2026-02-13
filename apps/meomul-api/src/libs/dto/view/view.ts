@@ -4,18 +4,18 @@ import { ViewGroup } from '../../enums/common.enum';
 
 @ObjectType()
 export class ViewDto {
-  @Field(() => String)
-  _id: ObjectId;
+	@Field(() => String)
+	_id: ObjectId;
 
-  @Field(() => ViewGroup)
-  viewGroup: ViewGroup;
+	@Field(() => ViewGroup)
+	viewGroup: ViewGroup;
 
-  @Field(() => String)
-  viewRefId: ObjectId;
+	@Field(() => String)
+	viewRefId: ObjectId;
 
-  @Field(() => String)
-  memberId: ObjectId;
+	@Field(() => String)
+	memberId: ObjectId;
 
-  @Field(() => Date)
-  createdAt: Date;
+	@Field(() => Date)
+	createdAt: Date;
 }

@@ -17,14 +17,29 @@ export class AuthGuard implements CanActivate {
 			context.getHandler(),
 			context.getClass(),
 		]);
-		if (isPublic) {
-			return true;
-		}
 
 		const gqlContext = GqlExecutionContext.create(context);
 		const req = gqlContext.getContext().req;
 		const authHeader = req?.headers?.authorization ?? req?.headers?.Authorization;
 
+		// If public route, try to extract user if token exists, but don't fail if it doesn't
+		if (isPublic) {
+			if (authHeader && typeof authHeader === 'string') {
+				const [type, token] = authHeader.split(' ');
+				if (type === 'Bearer' && token) {
+					try {
+						const member = await this.authService.verifyToken(token);
+						req.member = member;
+					} catch (error) {
+						// Invalid token on public route - just continue without user
+						req.member = null;
+					}
+				}
+			}
+			return true;
+		}
+
+		// Protected route - require valid token
 		if (!authHeader || typeof authHeader !== 'string') {
 			throw new UnauthorizedException(Messages.TOKEN_NOT_EXIST);
 		}
