@@ -10,8 +10,9 @@ import { ViewModule } from './view/view.module';
 import { FollowModule } from './follow/follow.module';
 import { NotificationModule } from './notification/notification.module';
 import { ChatModule } from './chat/chat.module';
+import { PriceLockModule } from './price-lock/price-lock.module';
 
 @Module({
-  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule]
+  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule, PriceLockModule]
 })
 export class ComponentsModule {}

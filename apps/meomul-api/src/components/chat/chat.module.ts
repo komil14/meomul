@@ -4,9 +4,10 @@ import ChatSchema from '../../schemas/Chat.model';
 import { ChatService } from './chat.service';
 import { ChatResolver } from './chat.resolver';
 import { AuthModule } from '../auth/auth.module';
+import { SocketModule } from '../../socket/socket.module';
 
 @Module({
-	imports: [MongooseModule.forFeature([{ name: 'Chat', schema: ChatSchema }]), AuthModule],
+	imports: [MongooseModule.forFeature([{ name: 'Chat', schema: ChatSchema }]), AuthModule, SocketModule],
 	providers: [ChatService, ChatResolver],
 	exports: [ChatService],
 })

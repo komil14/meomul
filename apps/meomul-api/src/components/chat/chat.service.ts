@@ -12,10 +12,14 @@ import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { ChatDocument } from '../../libs/types/chat';
 import { toChatDto } from '../../libs/types/chat';
+import { ChatGateway } from '../../socket/chat.gateway';
 
 @Injectable()
 export class ChatService {
-	constructor(@InjectModel('Chat') private readonly chatModel: Model<ChatDocument>) {}
+	constructor(
+		@InjectModel('Chat') private readonly chatModel: Model<ChatDocument>,
+		private readonly chatGateway: ChatGateway,
+	) {}
 
 	/**
 	 * Guest starts a new chat with a hotel
@@ -34,24 +38,34 @@ export class ChatService {
 			throw new BadRequestException(Messages.CHAT_ALREADY_EXISTS);
 		}
 
+		const initialMessage = {
+			senderId: new Types.ObjectId(currentMember._id),
+			senderType: SenderType.GUEST,
+			messageType: MessageType.TEXT,
+			content: input.initialMessage,
+			timestamp: new Date(),
+			read: false,
+		};
+
 		const chat = await this.chatModel.create({
 			guestId: currentMember._id,
 			hotelId: input.hotelId,
 			bookingId: input.bookingId || undefined,
 			chatStatus: ChatStatus.WAITING,
-			messages: [
-				{
-					senderId: new Types.ObjectId(currentMember._id),
-					senderType: SenderType.GUEST,
-					messageType: MessageType.TEXT,
-					content: input.initialMessage,
-					timestamp: new Date(),
-					read: false,
-				},
-			],
+			messages: [initialMessage],
 			unreadGuestMessages: 0,
 			unreadAgentMessages: 1,
 			lastMessageAt: new Date(),
+		});
+
+		// Emit WebSocket event for new chat
+		this.chatGateway.emitNewMessage(chat._id.toString(), {
+			senderId: currentMember._id,
+			senderType: SenderType.GUEST,
+			messageType: MessageType.TEXT,
+			content: input.initialMessage,
+			timestamp: initialMessage.timestamp,
+			read: false,
 		});
 
 		return toChatDto(chat);
@@ -100,6 +114,18 @@ export class ChatService {
 			)
 			.exec();
 
+		// Emit WebSocket event for new message
+		this.chatGateway.emitNewMessage(input.chatId, {
+			senderId: currentMember._id,
+			senderType,
+			messageType: input.messageType,
+			content: input.content,
+			imageUrl: input.imageUrl,
+			fileUrl: input.fileUrl,
+			timestamp: message.timestamp,
+			read: false,
+		});
+
 		return toChatDto(updatedChat!);
 	}
 
@@ -127,6 +153,9 @@ export class ChatService {
 			)
 			.exec();
 
+		// Emit WebSocket event for chat claimed
+		this.chatGateway.emitChatClaimed(input.chatId, currentMember._id);
+
 		return toChatDto(updatedChat!);
 	}
 
@@ -152,6 +181,9 @@ export class ChatService {
 		const updatedChat = await this.chatModel
 			.findByIdAndUpdate(chatId, { $set: { chatStatus: ChatStatus.CLOSED } }, { returnDocument: 'after' })
 			.exec();
+
+		// Emit WebSocket event for chat closed
+		this.chatGateway.emitChatClosed(chatId, currentMember._id);
 
 		return toChatDto(updatedChat!);
 	}
@@ -241,6 +273,9 @@ export class ChatService {
 			{ $set: { 'messages.$[msg].read': true } },
 			{ arrayFilters: [{ 'msg.senderType': otherSenderType, 'msg.read': false }] },
 		).exec();
+
+		// Emit WebSocket event for messages read
+		this.chatGateway.emitMessagesRead(chatId, currentMember._id);
 
 		const updatedChat = await this.chatModel.findById(chatId).exec();
 		return toChatDto(updatedChat!);
