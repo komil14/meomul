@@ -302,9 +302,6 @@ export class ReviewService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Debug: Check what's in the updated review
-		console.log('Updated review hotelResponse:', JSON.stringify(updatedReview.hotelResponse, null, 2));
-
 		return toReviewDto(updatedReview);
 	}
 
