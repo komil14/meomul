@@ -1,4 +1,4 @@
-import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { AuthMemberDto } from '../../libs/dto/auth/auth-member';
 import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
@@ -10,7 +10,7 @@ import { ResponseDto } from '../../libs/dto/common/response';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { MemberType } from '../../libs/enums/member.enum';
+import { MemberType, SubscriptionTier } from '../../libs/enums/member.enum';
 import { MemberService } from './member.service';
 
 @Resolver()
@@ -99,6 +99,37 @@ export class MemberResolver {
 			return this.memberService.deleteMemberByAdmin(memberId);
 		} catch (error) {
 			console.error('Mutation deleteMemberByAdmin failed', memberId, error);
+			throw error;
+		}
+	}
+
+	@Mutation(() => ResponseDto)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	public async requestSubscription(
+		@CurrentMember() currentMember: any,
+		@Args('requestedTier', { type: () => SubscriptionTier }) requestedTier: SubscriptionTier,
+	): Promise<ResponseDto> {
+		try {
+			console.log('Mutation requestSubscription', currentMember?._id ?? 'unknown', requestedTier);
+			return this.memberService.requestSubscription(currentMember, requestedTier);
+		} catch (error) {
+			console.error('Mutation requestSubscription failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	@Mutation(() => MemberDto)
+	@Roles(MemberType.ADMIN)
+	public async approveSubscription(
+		@Args('memberId') memberId: string,
+		@Args('tier', { type: () => SubscriptionTier }) tier: SubscriptionTier,
+		@Args('durationDays', { type: () => Int }) durationDays: number,
+	): Promise<MemberDto> {
+		try {
+			console.log('Mutation approveSubscription', memberId, tier, durationDays);
+			return this.memberService.approveSubscription(memberId, tier, durationDays);
+		} catch (error) {
+			console.error('Mutation approveSubscription failed', memberId, error);
 			throw error;
 		}
 	}

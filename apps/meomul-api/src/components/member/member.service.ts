@@ -8,7 +8,7 @@ import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MembersDto } from '../../libs/dto/common/members';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { ResponseDto } from '../../libs/dto/common/response';
-import { MemberStatus } from '../../libs/enums/member.enum';
+import { MemberStatus, SubscriptionTier } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import { AuthService } from '../auth/auth.service';
@@ -148,6 +148,75 @@ export class MemberService {
 			message: 'OK',
 			data: currentMember._id,
 		};
+	}
+
+	public async requestSubscription(currentMember: MemberJwtPayload, requestedTier: SubscriptionTier): Promise<ResponseDto> {
+		if (!currentMember?._id) {
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
+		}
+
+		if (requestedTier === SubscriptionTier.FREE) {
+			throw new BadRequestException('Cannot request FREE tier');
+		}
+
+		const member = await this.memberModel.findById(currentMember._id).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		if (member.subscriptionTier === requestedTier) {
+			throw new BadRequestException(`You are already on the ${requestedTier} tier`);
+		}
+
+		// Notify admins (fire-and-forget)
+		this.notificationService
+			.notifyAdmins(
+				NotificationType.SUBSCRIPTION_REQUEST,
+				'Subscription Request',
+				`${currentMember.memberNick} requested ${requestedTier} subscription`,
+				`/admin/members/${currentMember._id}`,
+			)
+			.catch(() => {});
+
+		return {
+			success: true,
+			message: 'Subscription request sent to admin',
+			data: requestedTier,
+		};
+	}
+
+	public async approveSubscription(memberId: string, tier: SubscriptionTier, durationDays: number): Promise<MemberDocument> {
+		const member = await this.memberModel.findById(memberId).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		const subscriptionExpiry = new Date(Date.now() + durationDays * 86400000);
+
+		const updatedMember = await this.memberModel
+			.findByIdAndUpdate(
+				memberId,
+				{ subscriptionTier: tier, subscriptionExpiry },
+				{ returnDocument: 'after' },
+			)
+			.exec();
+
+		if (!updatedMember) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		// Notify user (fire-and-forget)
+		this.notificationService
+			.createNotification({
+				userId: memberId,
+				type: NotificationType.SUBSCRIPTION_APPROVED,
+				title: 'Subscription Activated',
+				message: `Your ${tier} subscription has been activated for ${durationDays} days!`,
+				link: '/profile',
+			})
+			.catch(() => {});
+
+		return updatedMember;
 	}
 
 	public async deleteMemberByAdmin(memberId: string): Promise<MemberDocument> {
