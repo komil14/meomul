@@ -25,130 +25,156 @@ export class StatsService {
 		startOfToday.setHours(0, 0, 0, 0);
 		const endOfToday = new Date(startOfToday.getTime() + 86400000);
 
-		// 5 parallel queries (1 per collection) instead of 16 separate queries
+		// 5 parallel queries (1 per collection), each using single-pass $group + $cond
 		const [bookingStats, hotelStats, memberStats, reviewStats, totalRooms] = await Promise.all([
-			// Booking: 8 metrics in 1 $facet query
-			this.bookingModel.aggregate([
-				{
-					$facet: {
-						total: [{ $count: 'count' }],
-						newToday: [
-							{ $match: { createdAt: { $gte: startOfToday } } },
-							{ $count: 'count' },
-						],
-						checkInsToday: [
-							{
-								$match: {
-									checkInDate: { $gte: startOfToday, $lt: endOfToday },
-									bookingStatus: { $in: [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN] },
+			// Booking: 8 metrics in 1 single-pass aggregation
+			this.bookingModel
+				.aggregate([
+					{
+						$group: {
+							_id: null,
+							total: { $sum: 1 },
+							newToday: {
+								$sum: { $cond: [{ $gte: ['$createdAt', startOfToday] }, 1, 0] },
+							},
+							checkInsToday: {
+								$sum: {
+									$cond: [
+										{
+											$and: [
+												{ $gte: ['$checkInDate', startOfToday] },
+												{ $lt: ['$checkInDate', endOfToday] },
+												{
+													$in: ['$bookingStatus', [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN]],
+												},
+											],
+										},
+										1,
+										0,
+									],
 								},
 							},
-							{ $count: 'count' },
-						],
-						checkOutsToday: [
-							{
-								$match: {
-									checkOutDate: { $gte: startOfToday, $lt: endOfToday },
-									bookingStatus: BookingStatus.CHECKED_OUT,
+							checkOutsToday: {
+								$sum: {
+									$cond: [
+										{
+											$and: [
+												{ $gte: ['$checkOutDate', startOfToday] },
+												{ $lt: ['$checkOutDate', endOfToday] },
+												{ $eq: ['$bookingStatus', BookingStatus.CHECKED_OUT] },
+											],
+										},
+										1,
+										0,
+									],
 								},
 							},
-							{ $count: 'count' },
-						],
-						pending: [
-							{ $match: { bookingStatus: BookingStatus.PENDING } },
-							{ $count: 'count' },
-						],
-						confirmed: [
-							{ $match: { bookingStatus: BookingStatus.CONFIRMED } },
-							{ $count: 'count' },
-						],
-						totalRevenue: [
-							{ $match: { paymentStatus: PaymentStatus.PAID } },
-							{ $group: { _id: null, sum: { $sum: '$paidAmount' } } },
-						],
-						todayRevenue: [
-							{ $match: { paymentStatus: PaymentStatus.PAID, paidAt: { $gte: startOfToday } } },
-							{ $group: { _id: null, sum: { $sum: '$paidAmount' } } },
-						],
+							pending: {
+								$sum: { $cond: [{ $eq: ['$bookingStatus', BookingStatus.PENDING] }, 1, 0] },
+							},
+							confirmed: {
+								$sum: { $cond: [{ $eq: ['$bookingStatus', BookingStatus.CONFIRMED] }, 1, 0] },
+							},
+							totalRevenue: {
+								$sum: {
+									$cond: [{ $eq: ['$paymentStatus', PaymentStatus.PAID] }, '$paidAmount', 0],
+								},
+							},
+							todayRevenue: {
+								$sum: {
+									$cond: [
+										{
+											$and: [
+												{ $eq: ['$paymentStatus', PaymentStatus.PAID] },
+												{ $gte: ['$paidAt', startOfToday] },
+											],
+										},
+										'$paidAmount',
+										0,
+									],
+								},
+							},
+						},
 					},
-				},
-			]).exec(),
+				])
+				.exec(),
 
-			// Hotel: 3 metrics in 1 $facet query
-			this.hotelModel.aggregate([
-				{
-					$facet: {
-						total: [
-							{ $match: { hotelStatus: { $ne: HotelStatus.DELETE } } },
-							{ $count: 'count' },
-						],
-						pending: [
-							{ $match: { hotelStatus: HotelStatus.PENDING } },
-							{ $count: 'count' },
-						],
-						active: [
-							{ $match: { hotelStatus: HotelStatus.ACTIVE } },
-							{ $count: 'count' },
-						],
+			// Hotel: 3 metrics in 1 single-pass aggregation
+			this.hotelModel
+				.aggregate([
+					{
+						$group: {
+							_id: null,
+							total: {
+								$sum: { $cond: [{ $ne: ['$hotelStatus', HotelStatus.DELETE] }, 1, 0] },
+							},
+							pending: {
+								$sum: { $cond: [{ $eq: ['$hotelStatus', HotelStatus.PENDING] }, 1, 0] },
+							},
+							active: {
+								$sum: { $cond: [{ $eq: ['$hotelStatus', HotelStatus.ACTIVE] }, 1, 0] },
+							},
+						},
 					},
-				},
-			]).exec(),
+				])
+				.exec(),
 
-			// Member: 2 metrics in 1 $facet query
-			this.memberModel.aggregate([
-				{
-					$facet: {
-						total: [{ $count: 'count' }],
-						newToday: [
-							{ $match: { createdAt: { $gte: startOfToday } } },
-							{ $count: 'count' },
-						],
+			// Member: 2 metrics in 1 single-pass aggregation
+			this.memberModel
+				.aggregate([
+					{
+						$group: {
+							_id: null,
+							total: { $sum: 1 },
+							newToday: {
+								$sum: { $cond: [{ $gte: ['$createdAt', startOfToday] }, 1, 0] },
+							},
+						},
 					},
-				},
-			]).exec(),
+				])
+				.exec(),
 
-			// Review: 2 metrics in 1 $facet query
-			this.reviewModel.aggregate([
-				{
-					$facet: {
-						total: [{ $count: 'count' }],
-						newToday: [
-							{ $match: { createdAt: { $gte: startOfToday } } },
-							{ $count: 'count' },
-						],
+			// Review: 2 metrics in 1 single-pass aggregation
+			this.reviewModel
+				.aggregate([
+					{
+						$group: {
+							_id: null,
+							total: { $sum: 1 },
+							newToday: {
+								$sum: { $cond: [{ $gte: ['$createdAt', startOfToday] }, 1, 0] },
+							},
+						},
 					},
-				},
-			]).exec(),
+				])
+				.exec(),
 
-			// Room: single count (no benefit from $facet)
+			// Room: single count
 			this.roomModel.countDocuments().exec(),
 		]);
 
+		const b = bookingStats[0] ?? {};
+		const h = hotelStats[0] ?? {};
+		const m = memberStats[0] ?? {};
+		const r = reviewStats[0] ?? {};
+
 		return {
-			totalMembers: this.facetCount(memberStats, 'total'),
-			totalHotels: this.facetCount(hotelStats, 'total'),
+			totalMembers: m.total ?? 0,
+			totalHotels: h.total ?? 0,
 			totalRooms,
-			totalBookings: this.facetCount(bookingStats, 'total'),
-			totalReviews: this.facetCount(reviewStats, 'total'),
-			newBookingsToday: this.facetCount(bookingStats, 'newToday'),
-			checkInsToday: this.facetCount(bookingStats, 'checkInsToday'),
-			checkOutsToday: this.facetCount(bookingStats, 'checkOutsToday'),
-			newReviewsToday: this.facetCount(reviewStats, 'newToday'),
-			newMembersToday: this.facetCount(memberStats, 'newToday'),
-			pendingHotels: this.facetCount(hotelStats, 'pending'),
-			activeHotels: this.facetCount(hotelStats, 'active'),
-			pendingBookings: this.facetCount(bookingStats, 'pending'),
-			confirmedBookings: this.facetCount(bookingStats, 'confirmed'),
-			totalRevenue: this.facetSum(bookingStats, 'totalRevenue'),
-			todayRevenue: this.facetSum(bookingStats, 'todayRevenue'),
+			totalBookings: b.total ?? 0,
+			totalReviews: r.total ?? 0,
+			newBookingsToday: b.newToday ?? 0,
+			checkInsToday: b.checkInsToday ?? 0,
+			checkOutsToday: b.checkOutsToday ?? 0,
+			newReviewsToday: r.newToday ?? 0,
+			newMembersToday: m.newToday ?? 0,
+			pendingHotels: h.pending ?? 0,
+			activeHotels: h.active ?? 0,
+			pendingBookings: b.pending ?? 0,
+			confirmedBookings: b.confirmed ?? 0,
+			totalRevenue: b.totalRevenue ?? 0,
+			todayRevenue: b.todayRevenue ?? 0,
 		};
-	}
-
-	private facetCount(facetResult: any[], key: string): number {
-		return facetResult[0]?.[key]?.[0]?.count ?? 0;
-	}
-
-	private facetSum(facetResult: any[], key: string): number {
-		return facetResult[0]?.[key]?.[0]?.sum ?? 0;
 	}
 }
