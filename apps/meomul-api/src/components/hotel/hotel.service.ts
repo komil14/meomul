@@ -20,6 +20,8 @@ import { toHotelDto } from '../../libs/types/hotel';
 import type { RoomDocument } from '../../libs/types/room';
 import type { BookingDocument } from '../../libs/types/booking';
 import { ViewService } from '../view/view.service';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationType } from '../../libs/enums/common.enum';
 
 @Injectable()
 export class HotelService {
@@ -28,6 +30,7 @@ export class HotelService {
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		private readonly viewService: ViewService,
+		private readonly notificationService: NotificationService,
 	) {}
 
 	/**
@@ -76,6 +79,16 @@ export class HotelService {
 			verificationStatus: 'PENDING',
 			badgeLevel: BadgeLevel.NONE,
 		});
+
+		// Notify admins (fire-and-forget)
+		this.notificationService
+			.notifyAdmins(
+				NotificationType.NEW_HOTEL,
+				'New Hotel Registered',
+				`"${hotel.hotelTitle}" was registered by agent`,
+				`/admin/hotels/${hotel._id}`,
+			)
+			.catch(() => {});
 
 		return toHotelDto(hotel);
 	}

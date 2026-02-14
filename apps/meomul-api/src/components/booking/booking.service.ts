@@ -15,6 +15,8 @@ import { toBookingDto } from '../../libs/types/booking';
 import type { RoomDocument } from '../../libs/types/room';
 import type { HotelDocument } from '../../libs/types/hotel';
 import { PriceLockService } from '../price-lock/price-lock.service';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationType } from '../../libs/enums/common.enum';
 
 @Injectable()
 export class BookingService {
@@ -23,6 +25,7 @@ export class BookingService {
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		private readonly priceLockService: PriceLockService,
+		private readonly notificationService: NotificationService,
 	) {}
 
 	/**
@@ -191,6 +194,16 @@ export class BookingService {
 				await this.priceLockService.cancelPriceLock(currentMember as MemberJwtPayload, String(lock._id));
 			}
 		}
+
+		// Notify admins (fire-and-forget)
+		this.notificationService
+			.notifyAdmins(
+				NotificationType.NEW_BOOKING,
+				'New Booking',
+				`Booking ${bookingCode} created for hotel ${input.hotelId}`,
+				`/admin/bookings/${booking._id}`,
+			)
+			.catch(() => {});
 
 		return toBookingDto(booking);
 	}
@@ -394,6 +407,16 @@ export class BookingService {
 		if (!updatedBooking) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
+
+		// Notify admins (fire-and-forget)
+		this.notificationService
+			.notifyAdmins(
+				NotificationType.BOOKING_CANCELLED,
+				'Booking Cancelled',
+				`Booking ${booking.bookingCode} was cancelled`,
+				`/admin/bookings/${booking._id}`,
+			)
+			.catch(() => {});
 
 		return toBookingDto(updatedBooking);
 	}

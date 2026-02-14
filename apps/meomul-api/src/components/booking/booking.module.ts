@@ -7,6 +7,7 @@ import { BookingService } from './booking.service';
 import { BookingResolver } from './booking.resolver';
 import { AuthModule } from '../auth/auth.module';
 import { PriceLockModule } from '../price-lock/price-lock.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
 	imports: [
@@ -17,6 +18,7 @@ import { PriceLockModule } from '../price-lock/price-lock.module';
 		]),
 		AuthModule,
 		PriceLockModule,
+		NotificationModule,
 	],
 	providers: [BookingService, BookingResolver],
 	exports: [BookingService],

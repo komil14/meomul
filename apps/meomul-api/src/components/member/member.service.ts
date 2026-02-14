@@ -12,12 +12,15 @@ import { MemberStatus } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import { AuthService } from '../auth/auth.service';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationType } from '../../libs/enums/common.enum';
 
 @Injectable()
 export class MemberService {
 	constructor(
 		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
 		private readonly authService: AuthService,
+		private readonly notificationService: NotificationService,
 	) {}
 
 	public async signup(input: MemberInput): Promise<AuthMemberDto> {
@@ -34,6 +37,17 @@ export class MemberService {
 			memberPassword,
 		});
 		const accessToken = await this.authService.generateJwtToken(createdMember);
+
+		// Notify admins (fire-and-forget)
+		this.notificationService
+			.notifyAdmins(
+				NotificationType.NEW_MEMBER,
+				'New Member',
+				`${input.memberNick} just signed up`,
+				`/admin/members/${createdMember._id}`,
+			)
+			.catch(() => {});
+
 		return this.toAuthMember(createdMember, accessToken);
 	}
 

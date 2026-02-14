@@ -4,14 +4,20 @@ import type { Model } from 'mongoose';
 import { NotificationInput } from '../../libs/dto/notification/notification.input';
 import { NotificationDto } from '../../libs/dto/notification/notification';
 import { NotificationType } from '../../libs/enums/common.enum';
+import { MemberType } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
-import type { MemberJwtPayload } from '../../libs/types/member';
+import type { MemberJwtPayload, MemberDocument } from '../../libs/types/member';
 import type { NotificationDocument } from '../../libs/types/notification';
 import { toNotificationDto } from '../../libs/types/notification';
+import { NotificationGateway } from '../../socket/notification.gateway';
 
 @Injectable()
 export class NotificationService {
-	constructor(@InjectModel('Notification') private readonly notificationModel: Model<NotificationDocument>) {}
+	constructor(
+		@InjectModel('Notification') private readonly notificationModel: Model<NotificationDocument>,
+		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
+		private readonly notificationGateway: NotificationGateway,
+	) {}
 
 	/**
 	 * Create a notification
@@ -144,5 +150,39 @@ export class NotificationService {
 				userId,
 			})
 			.exec();
+	}
+
+	/**
+	 * Send notification to all admin users (persists to DB + WebSocket push)
+	 */
+	public async notifyAdmins(type: NotificationType, title: string, message: string, link?: string): Promise<void> {
+		const admins = await this.memberModel.find({ memberType: MemberType.ADMIN }).select('_id').exec();
+
+		if (admins.length === 0) return;
+
+		// Create notifications for all admins in bulk
+		const notifications = await this.notificationModel.insertMany(
+			admins.map((admin) => ({
+				userId: admin._id,
+				type,
+				title,
+				message,
+				link,
+				read: false,
+			})),
+		);
+
+		// Push real-time via WebSocket
+		for (const admin of admins) {
+			this.notificationGateway.sendToUser(String(admin._id), {
+				type: 'SYSTEM',
+				title,
+				message,
+				data: { notificationType: type, link },
+				timestamp: new Date(),
+			});
+		}
+
+		console.log(`Admin notification sent: ${title} (${admins.length} admins)`);
 	}
 }

@@ -17,6 +17,8 @@ import type { BookingDocument } from '../../libs/types/booking';
 import type { HotelDocument } from '../../libs/types/hotel';
 import { LikeService } from '../like/like.service';
 import { ViewService } from '../view/view.service';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationType } from '../../libs/enums/common.enum';
 
 @Injectable()
 export class ReviewService {
@@ -26,6 +28,7 @@ export class ReviewService {
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		private readonly likeService: LikeService,
 		private readonly viewService: ViewService,
+		private readonly notificationService: NotificationService,
 	) {}
 
 	/**
@@ -87,6 +90,16 @@ export class ReviewService {
 
 		// Update hotel review stats
 		await this.updateHotelReviewStats(String(booking.hotelId));
+
+		// Notify admins (fire-and-forget)
+		this.notificationService
+			.notifyAdmins(
+				NotificationType.NEW_REVIEW,
+				'New Review',
+				`New review posted for hotel "${hotel.hotelTitle}"`,
+				`/admin/reviews/${review._id}`,
+			)
+			.catch(() => {});
 
 		return toReviewDto(review);
 	}

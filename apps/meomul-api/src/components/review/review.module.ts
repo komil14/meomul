@@ -8,6 +8,7 @@ import { ReviewResolver } from './review.resolver';
 import { AuthModule } from '../auth/auth.module';
 import { LikeModule } from '../like/like.module';
 import { ViewModule } from '../view/view.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
 	imports: [
@@ -19,6 +20,7 @@ import { ViewModule } from '../view/view.module';
 		AuthModule,
 		LikeModule,
 		ViewModule,
+		NotificationModule,
 	],
 	providers: [ReviewService, ReviewResolver],
 	exports: [ReviewService],

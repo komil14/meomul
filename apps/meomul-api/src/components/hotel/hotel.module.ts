@@ -7,6 +7,7 @@ import { HotelService } from './hotel.service';
 import { HotelResolver } from './hotel.resolver';
 import { AuthModule } from '../auth/auth.module';
 import { ViewModule } from '../view/view.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
 	imports: [
@@ -17,6 +18,7 @@ import { ViewModule } from '../view/view.module';
 		]),
 		AuthModule,
 		ViewModule,
+		NotificationModule,
 	],
 	providers: [HotelService, HotelResolver],
 	exports: [HotelService],
