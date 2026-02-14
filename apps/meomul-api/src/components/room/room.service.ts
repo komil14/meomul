@@ -221,6 +221,66 @@ export class RoomService {
 	}
 
 	/**
+	 * Get all rooms (admin only)
+	 */
+	public async getAllRoomsAdmin(input: PaginationInput, statusFilter?: RoomStatus): Promise<RoomsDto> {
+		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
+		const skip = (page - 1) * limit;
+
+		const query: Record<string, unknown> = {};
+		if (statusFilter) {
+			query.roomStatus = statusFilter;
+		}
+
+		const [list, total] = await Promise.all([
+			this.roomModel
+				.find(query)
+				.sort({ [sort]: direction })
+				.skip(skip)
+				.limit(limit)
+				.exec(),
+			this.roomModel.countDocuments(query).exec(),
+		]);
+
+		return {
+			list: list.map(toRoomDto),
+			metaCounter: { total },
+		};
+	}
+
+	/**
+	 * Update room by admin (no ownership check)
+	 */
+	public async updateRoomByAdmin(input: RoomUpdate): Promise<RoomDto> {
+		if (!input._id) {
+			throw new BadRequestException(Messages.BAD_REQUEST);
+		}
+
+		const room = await this.roomModel.findById(input._id).exec();
+		if (!room) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		const updateData: Record<string, unknown> = { ...input };
+		delete updateData._id;
+
+		if (input.totalRooms && input.totalRooms !== room.totalRooms) {
+			const bookedRooms = room.totalRooms - room.availableRooms;
+			updateData.availableRooms = Math.max(0, input.totalRooms - bookedRooms);
+		}
+
+		const updatedRoom = await this.roomModel
+			.findByIdAndUpdate(input._id, updateData, { returnDocument: 'after' })
+			.exec();
+
+		if (!updatedRoom) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		return toRoomDto(updatedRoom);
+	}
+
+	/**
 	 * Update room availability (for booking system)
 	 */
 	public async updateAvailability(roomId: string, change: number): Promise<void> {

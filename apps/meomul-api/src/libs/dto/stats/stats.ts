@@ -63,4 +63,18 @@ export class DashboardStatsDto {
 
 	@Field(() => Int)
 	activeChats: number;
+
+	// Room breakdown
+	@Field(() => Int)
+	availableRooms: number;
+
+	@Field(() => Int)
+	maintenanceRooms: number;
+
+	// Notifications
+	@Field(() => Int)
+	totalNotifications: number;
+
+	@Field(() => Int)
+	unreadNotifications: number;
 }

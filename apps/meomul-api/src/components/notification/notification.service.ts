@@ -3,6 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { NotificationInput } from '../../libs/dto/notification/notification.input';
 import { NotificationDto } from '../../libs/dto/notification/notification';
+import { NotificationsDto } from '../../libs/dto/common/notifications';
+import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { NotificationType } from '../../libs/enums/common.enum';
 import { MemberType } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
@@ -139,6 +141,29 @@ export class NotificationService {
 				read: false,
 			})
 			.exec();
+	}
+
+	/**
+	 * Get all notifications (admin only)
+	 */
+	public async getAllNotificationsAdmin(input: PaginationInput): Promise<NotificationsDto> {
+		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
+		const skip = (page - 1) * limit;
+
+		const [list, total] = await Promise.all([
+			this.notificationModel
+				.find()
+				.sort({ [sort]: direction })
+				.skip(skip)
+				.limit(limit)
+				.exec(),
+			this.notificationModel.countDocuments().exec(),
+		]);
+
+		return {
+			list: list.map(toNotificationDto),
+			metaCounter: { total },
+		};
 	}
 
 	/**

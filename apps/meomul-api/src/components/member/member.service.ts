@@ -150,6 +150,27 @@ export class MemberService {
 		};
 	}
 
+	public async deleteMemberByAdmin(memberId: string): Promise<MemberDocument> {
+		const member = await this.memberModel.findById(memberId).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		const updatedMember = await this.memberModel
+			.findByIdAndUpdate(
+				memberId,
+				{ memberStatus: MemberStatus.DELETE, deletedAt: new Date() },
+				{ returnDocument: 'after' },
+			)
+			.exec();
+
+		if (!updatedMember) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		return updatedMember;
+	}
+
 	private buildUpdatePayload(input: MemberUpdate, isAdmin: boolean): Record<string, unknown> {
 		const updateData: Record<string, unknown> = { ...input };
 		delete updateData._id;

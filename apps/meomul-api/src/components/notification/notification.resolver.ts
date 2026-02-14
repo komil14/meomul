@@ -1,6 +1,8 @@
 import { Args, Mutation, Query, Resolver, Int } from '@nestjs/graphql';
 import { NotificationDto } from '../../libs/dto/notification/notification';
+import { NotificationsDto } from '../../libs/dto/common/notifications';
 import { NotificationInput } from '../../libs/dto/notification/notification.input';
+import { PaginationInput } from '../../libs/dto/common/pagination';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
@@ -123,6 +125,21 @@ export class NotificationResolver {
 			return this.notificationService.getUnreadCount(currentMember);
 		} catch (error) {
 			console.error('Query getUnreadCount failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get all notifications (admin only)
+	 */
+	@Query(() => NotificationsDto)
+	@Roles(MemberType.ADMIN)
+	public async getAllNotificationsAdmin(@Args('input') input: PaginationInput): Promise<NotificationsDto> {
+		try {
+			console.log('Query getAllNotificationsAdmin');
+			return this.notificationService.getAllNotificationsAdmin(input);
+		} catch (error) {
+			console.error('Query getAllNotificationsAdmin failed', error);
 			throw error;
 		}
 	}

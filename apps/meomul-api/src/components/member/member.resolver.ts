@@ -91,6 +91,18 @@ export class MemberResolver {
 		}
 	}
 
+	@Mutation(() => MemberDto)
+	@Roles(MemberType.ADMIN)
+	public async deleteMemberByAdmin(@Args('memberId') memberId: string): Promise<MemberDto> {
+		try {
+			console.log('Mutation deleteMemberByAdmin', memberId);
+			return this.memberService.deleteMemberByAdmin(memberId);
+		} catch (error) {
+			console.error('Mutation deleteMemberByAdmin failed', memberId, error);
+			throw error;
+		}
+	}
+
 	@Query(() => MemberDto)
 	public async getMember(@CurrentMember() currentMember: any): Promise<MemberDto> {
 		try {

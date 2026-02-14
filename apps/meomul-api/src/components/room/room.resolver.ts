@@ -8,6 +8,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import { RoomStatus } from '../../libs/enums/room.enum';
 import { RoomService } from './room.service';
 
 @Resolver()
@@ -100,5 +101,28 @@ export class RoomResolver {
 			console.error('Query getAgentRooms failed', currentMember?._id ?? 'unknown', hotelId, error);
 			throw error;
 		}
+	}
+
+	/**
+	 * Get all rooms (admin only)
+	 */
+	@Query(() => RoomsDto)
+	@Roles(MemberType.ADMIN)
+	public async getAllRoomsAdmin(
+		@Args('input') input: PaginationInput,
+		@Args('statusFilter', { type: () => RoomStatus, nullable: true }) statusFilter?: RoomStatus,
+	): Promise<RoomsDto> {
+		console.log('Query getAllRoomsAdmin', statusFilter);
+		return this.roomService.getAllRoomsAdmin(input, statusFilter);
+	}
+
+	/**
+	 * Update room by admin (no ownership check)
+	 */
+	@Mutation(() => RoomDto)
+	@Roles(MemberType.ADMIN)
+	public async updateRoomByAdmin(@Args('input') input: RoomUpdate): Promise<RoomDto> {
+		console.log('Mutation updateRoomByAdmin', input._id);
+		return this.roomService.updateRoomByAdmin(input);
 	}
 }
