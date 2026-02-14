@@ -106,10 +106,14 @@ export class PriceLockService {
 	}
 
 	/**
-	 * Get the effective price for a room (locked price if valid, otherwise current base price)
+	 * Get the effective price for a room.
+	 * Priority: Price Lock > Last-Minute Deal > Base Price
 	 * Used by BookingService during checkout
 	 */
-	public async getEffectivePrice(userId: string, roomId: string): Promise<{ price: number; isLocked: boolean }> {
+	public async getEffectivePrice(
+		userId: string,
+		roomId: string,
+	): Promise<{ price: number; isLocked: boolean; isDeal: boolean; discountPercent: number }> {
 		const lock = await this.priceLockModel
 			.findOne({
 				userId,
@@ -119,7 +123,7 @@ export class PriceLockService {
 			.exec();
 
 		if (lock) {
-			return { price: lock.lockedPrice, isLocked: true };
+			return { price: lock.lockedPrice, isLocked: true, isDeal: false, discountPercent: 0 };
 		}
 
 		const room = await this.roomModel.findById(roomId).exec();
@@ -127,6 +131,20 @@ export class PriceLockService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		return { price: room.basePrice, isLocked: false };
+		// Check for active last-minute deal
+		if (
+			room.lastMinuteDeal &&
+			room.lastMinuteDeal.isActive &&
+			room.lastMinuteDeal.validUntil > new Date()
+		) {
+			return {
+				price: room.lastMinuteDeal.dealPrice,
+				isLocked: false,
+				isDeal: true,
+				discountPercent: room.lastMinuteDeal.discountPercent,
+			};
+		}
+
+		return { price: room.basePrice, isLocked: false, isDeal: false, discountPercent: 0 };
 	}
 }

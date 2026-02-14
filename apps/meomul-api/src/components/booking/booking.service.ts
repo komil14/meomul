@@ -86,7 +86,7 @@ export class BookingService {
 				);
 			}
 
-			// Verify price matches — use locked price if the user has an active price lock
+			// Verify price matches — priority: Price Lock > Last-Minute Deal > Base Price
 			const { price: expectedPrice } = await this.priceLockService.getEffectivePrice(
 				currentMember._id,
 				inputRoom.roomId,
@@ -98,10 +98,17 @@ export class BookingService {
 			}
 		}
 
-		// Calculate pricing
+		// Calculate pricing and discount from last-minute deals
 		let subtotal = 0;
+		let discount = 0;
 		for (const inputRoom of input.rooms) {
+			const room = rooms.find((r) => String(r._id) === inputRoom.roomId);
 			subtotal += inputRoom.quantity * inputRoom.pricePerNight * nights;
+
+			// Track discount: difference between base price and effective price (deal or lock)
+			if (room && inputRoom.pricePerNight < room.basePrice) {
+				discount += inputRoom.quantity * (room.basePrice - inputRoom.pricePerNight) * nights;
+			}
 		}
 
 		// Calculate weekend surcharge (assume Friday and Saturday are weekend)
@@ -132,6 +139,8 @@ export class BookingService {
 		const taxes = Math.round(subtotal * 0.1); // 10% tax
 		const serviceFee = Math.round(subtotal * 0.05); // 5% service fee
 
+		// Note: discount is already reflected in subtotal (pricePerNight is the effective/deal price)
+		// The discount field records savings for display purposes only
 		const totalPrice = subtotal + weekendSurcharge + earlyCheckInFee + lateCheckOutFee + taxes + serviceFee;
 
 		// Generate unique booking code
@@ -153,7 +162,7 @@ export class BookingService {
 			lateCheckOutFee,
 			taxes,
 			serviceFee,
-			discount: 0,
+			discount,
 			totalPrice,
 			paymentMethod: input.paymentMethod,
 			paymentStatus: PaymentStatus.PENDING,
