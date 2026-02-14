@@ -25,7 +25,6 @@ const PriceLockSchema = new Schema(
 			type: Date,
 			required: true,
 			default: () => new Date(Date.now() + LOCK_DURATION_MINUTES * 60 * 1000),
-			index: true,
 		},
 	},
 	{

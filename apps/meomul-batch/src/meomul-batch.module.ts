@@ -8,6 +8,9 @@ import { DealModule } from './deal/deal.module';
 import { BookingModule } from './booking/booking.module';
 import { RankingModule } from './ranking/ranking.module';
 import { CleanupModule } from './cleanup/cleanup.module';
+import { ChatModule } from './chat/chat.module';
+import { PriceLockModule } from './price-lock/price-lock.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 
 @Module({
 	imports: [
@@ -22,6 +25,9 @@ import { CleanupModule } from './cleanup/cleanup.module';
 		BookingModule,
 		RankingModule,
 		CleanupModule,
+		ChatModule,
+		PriceLockModule,
+		SubscriptionModule,
 	],
 	controllers: [MeomulBatchController],
 	providers: [MeomulBatchService],

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
 import type { Model } from 'mongoose';
-import { BookingStatus } from '../../../meomul-api/src/libs/enums/booking.enum';
+import { BookingStatus, PaymentStatus } from '../../../meomul-api/src/libs/enums/booking.enum';
 import { NotificationType } from '../../../meomul-api/src/libs/enums/common.enum';
 import type { BookingDocument } from '../../../meomul-api/src/libs/types/booking';
 import type { RoomDocument } from '../../../meomul-api/src/libs/types/room';
@@ -132,6 +132,29 @@ export class BookingService {
 		if (notifications.length > 0) {
 			await this.notificationModel.insertMany(notifications);
 			this.logger.log(`Sent ${notifications.length} review request(s)`);
+		}
+	}
+
+	/**
+	 * Auto-confirm bookings that have been paid but are still PENDING.
+	 * Runs every 15 minutes.
+	 */
+	@Cron('*/15 * * * *')
+	public async autoConfirmPaidBookings(): Promise<void> {
+		const result = await this.bookingModel
+			.updateMany(
+				{
+					bookingStatus: BookingStatus.PENDING,
+					paymentStatus: PaymentStatus.PAID,
+				},
+				{
+					$set: { bookingStatus: BookingStatus.CONFIRMED },
+				},
+			)
+			.exec();
+
+		if (result.modifiedCount > 0) {
+			this.logger.log(`Auto-confirmed ${result.modifiedCount} paid booking(s)`);
 		}
 	}
 }
