@@ -11,8 +11,9 @@ import { FollowModule } from './follow/follow.module';
 import { NotificationModule } from './notification/notification.module';
 import { ChatModule } from './chat/chat.module';
 import { PriceLockModule } from './price-lock/price-lock.module';
+import { PriceCalendarModule } from './price-calendar/price-calendar.module';
 
 @Module({
-  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule, PriceLockModule]
+  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule, PriceLockModule, PriceCalendarModule]
 })
 export class ComponentsModule {}
