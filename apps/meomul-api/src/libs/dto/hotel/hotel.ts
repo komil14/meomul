@@ -181,6 +181,18 @@ export class VerificationDocsDto {
   propertyOwnership?: string;
 }
 
+@ObjectType()
+export class StrikeHistoryDto {
+  @Field(() => String)
+  bookingId: string;
+
+  @Field(() => String)
+  reason: string;
+
+  @Field(() => Date)
+  date: Date;
+}
+
 // Main DTO
 @ObjectType()
 export class HotelDto {
@@ -290,6 +302,9 @@ export class HotelDto {
 
   @Field(() => Int)
   warningStrikes: number;
+
+  @Field(() => [StrikeHistoryDto])
+  strikeHistory: StrikeHistoryDto[];
 
   @Field(() => HotelStatus)
   hotelStatus: HotelStatus;

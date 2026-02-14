@@ -99,6 +99,14 @@ export class MemberService {
 		};
 	}
 
+	public async getMemberByAdmin(memberId: string): Promise<MemberDocument> {
+		const member = await this.memberModel.findById(memberId).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+		return member;
+	}
+
 	public async getMember(currentMember: MemberJwtPayload): Promise<MemberDocument> {
 		if (!currentMember?._id) {
 			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);

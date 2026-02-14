@@ -1,5 +1,6 @@
 import { Field, ObjectType, Int, Float } from '@nestjs/graphql';
 import type { ObjectId } from 'mongoose';
+import { ReviewStatus } from '../../enums/common.enum';
 
 @ObjectType()
 export class HotelResponseDto {
@@ -69,8 +70,8 @@ export class ReviewDto {
   @Field(() => HotelResponseDto, { nullable: true })
   hotelResponse?: HotelResponseDto;
 
-  @Field(() => String)
-  reviewStatus: string;
+  @Field(() => ReviewStatus)
+  reviewStatus: ReviewStatus;
 
   @Field(() => Date)
   createdAt: Date;

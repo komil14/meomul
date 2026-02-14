@@ -9,11 +9,30 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import { HotelStatus } from '../../libs/enums/hotel.enum';
 import { HotelService } from './hotel.service';
 
 @Resolver()
 export class HotelResolver {
 	constructor(private readonly hotelService: HotelService) {}
+
+	/**
+	 * Get all hotels (ADMIN only) — includes PENDING, INACTIVE, SUSPENDED
+	 */
+	@Query(() => HotelsDto)
+	@Roles(MemberType.ADMIN)
+	public async getAllHotelsAdmin(
+		@Args('input') input: PaginationInput,
+		@Args('statusFilter', { type: () => HotelStatus, nullable: true }) statusFilter?: HotelStatus,
+	): Promise<HotelsDto> {
+		try {
+			console.log('Query getAllHotelsAdmin', statusFilter ?? 'all');
+			return this.hotelService.getAllHotelsAdmin(input, statusFilter);
+		} catch (error) {
+			console.error('Query getAllHotelsAdmin failed', error);
+			throw error;
+		}
+	}
 
 	/**
 	 * Create a new hotel (AGENT or ADMIN only)

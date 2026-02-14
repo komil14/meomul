@@ -480,6 +480,34 @@ export class BookingService {
 	}
 
 	/**
+	 * Get all bookings (admin only)
+	 */
+	public async getAllBookingsAdmin(input: PaginationInput, statusFilter?: BookingStatus): Promise<BookingsDto> {
+		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
+		const skip = (page - 1) * limit;
+
+		const query: Record<string, unknown> = {};
+		if (statusFilter) {
+			query.bookingStatus = statusFilter;
+		}
+
+		const [list, total] = await Promise.all([
+			this.bookingModel
+				.find(query)
+				.sort({ [sort]: direction })
+				.skip(skip)
+				.limit(limit)
+				.exec(),
+			this.bookingModel.countDocuments(query).exec(),
+		]);
+
+		return {
+			list: list.map(toBookingDto),
+			metaCounter: { total },
+		};
+	}
+
+	/**
 	 * Generate unique booking code
 	 */
 	private generateBookingCode(): string {

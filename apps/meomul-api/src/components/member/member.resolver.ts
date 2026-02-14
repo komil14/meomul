@@ -80,6 +80,18 @@ export class MemberResolver {
 	}
 
 	@Query(() => MemberDto)
+	@Roles(MemberType.ADMIN)
+	public async getMemberByAdmin(@Args('memberId') memberId: string): Promise<MemberDto> {
+		try {
+			console.log('Query getMemberByAdmin', memberId);
+			return this.memberService.getMemberByAdmin(memberId);
+		} catch (error) {
+			console.error('Query getMemberByAdmin failed', memberId, error);
+			throw error;
+		}
+	}
+
+	@Query(() => MemberDto)
 	public async getMember(@CurrentMember() currentMember: any): Promise<MemberDto> {
 		try {
 			console.log('Query getMember', currentMember?._id ?? 'unknown');

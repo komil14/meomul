@@ -12,8 +12,9 @@ import { NotificationModule } from './notification/notification.module';
 import { ChatModule } from './chat/chat.module';
 import { PriceLockModule } from './price-lock/price-lock.module';
 import { PriceCalendarModule } from './price-calendar/price-calendar.module';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
-  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule, PriceLockModule, PriceCalendarModule]
+  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule, PriceLockModule, PriceCalendarModule, StatsModule]
 })
 export class ComponentsModule {}

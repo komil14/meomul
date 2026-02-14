@@ -14,6 +14,24 @@ export class BookingResolver {
 	constructor(private readonly bookingService: BookingService) {}
 
 	/**
+	 * Get all bookings (ADMIN only)
+	 */
+	@Query(() => BookingsDto)
+	@Roles(MemberType.ADMIN)
+	public async getAllBookingsAdmin(
+		@Args('input') input: PaginationInput,
+		@Args('statusFilter', { type: () => BookingStatus, nullable: true }) statusFilter?: BookingStatus,
+	): Promise<BookingsDto> {
+		try {
+			console.log('Query getAllBookingsAdmin', statusFilter ?? 'all');
+			return this.bookingService.getAllBookingsAdmin(input, statusFilter);
+		} catch (error) {
+			console.error('Query getAllBookingsAdmin failed', error);
+			throw error;
+		}
+	}
+
+	/**
 	 * Create a new booking (authenticated users)
 	 */
 	@Mutation(() => BookingDto)

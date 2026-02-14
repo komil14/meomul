@@ -268,6 +268,36 @@ export class HotelService {
 	}
 
 	/**
+	 * Get all hotels (admin only) — includes PENDING, INACTIVE, SUSPENDED
+	 */
+	public async getAllHotelsAdmin(input: PaginationInput, statusFilter?: HotelStatus): Promise<HotelsDto> {
+		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
+		const skip = (page - 1) * limit;
+
+		const query: Record<string, unknown> = {
+			hotelStatus: { $ne: HotelStatus.DELETE },
+		};
+		if (statusFilter) {
+			query.hotelStatus = statusFilter;
+		}
+
+		const [list, total] = await Promise.all([
+			this.hotelModel
+				.find(query)
+				.sort({ [sort]: direction })
+				.skip(skip)
+				.limit(limit)
+				.exec(),
+			this.hotelModel.countDocuments(query).exec(),
+		]);
+
+		return {
+			list: list.map(toHotelDto),
+			metaCounter: { total },
+		};
+	}
+
+	/**
 	 * Find hotel IDs that have rooms matching price range, room types, guest count, and date availability
 	 */
 	private async getHotelIdsByRoomFilters(searchInput: HotelSearchInput): Promise<Types.ObjectId[]> {

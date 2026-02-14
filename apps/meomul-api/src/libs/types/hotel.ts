@@ -83,6 +83,11 @@ export function toHotelDto(doc: HotelDocument): HotelDto {
 		hotelRating: doc.hotelRating,
 		hotelRank: doc.hotelRank,
 		warningStrikes: doc.warningStrikes,
+		strikeHistory: (doc.strikeHistory || []).map((s: any) => ({
+			bookingId: String(s.bookingId),
+			reason: s.reason,
+			date: s.date,
+		})),
 		hotelStatus: doc.hotelStatus as any,
 		createdAt: doc.createdAt,
 		updatedAt: doc.updatedAt,

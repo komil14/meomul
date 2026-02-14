@@ -16,6 +16,24 @@ export class ReviewResolver {
 	constructor(private readonly reviewService: ReviewService) {}
 
 	/**
+	 * Get all reviews (ADMIN only) — includes FLAGGED, REMOVED
+	 */
+	@Query(() => ReviewsDto)
+	@Roles(MemberType.ADMIN)
+	public async getAllReviewsAdmin(
+		@Args('input') input: PaginationInput,
+		@Args('statusFilter', { type: () => ReviewStatus, nullable: true }) statusFilter?: ReviewStatus,
+	): Promise<ReviewsDto> {
+		try {
+			console.log('Query getAllReviewsAdmin', statusFilter ?? 'all');
+			return this.reviewService.getAllReviewsAdmin(input, statusFilter);
+		} catch (error) {
+			console.error('Query getAllReviewsAdmin failed', error);
+			throw error;
+		}
+	}
+
+	/**
 	 * Create a review for a completed booking
 	 */
 	@Mutation(() => ReviewDto)

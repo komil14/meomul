@@ -249,6 +249,34 @@ export class ReviewService {
 	}
 
 	/**
+	 * Get all reviews (admin only) — includes FLAGGED, REMOVED
+	 */
+	public async getAllReviewsAdmin(input: PaginationInput, statusFilter?: ReviewStatus): Promise<ReviewsDto> {
+		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
+		const skip = (page - 1) * limit;
+
+		const query: Record<string, unknown> = {};
+		if (statusFilter) {
+			query.reviewStatus = statusFilter;
+		}
+
+		const [list, total] = await Promise.all([
+			this.reviewModel
+				.find(query)
+				.sort({ [sort]: direction })
+				.skip(skip)
+				.limit(limit)
+				.exec(),
+			this.reviewModel.countDocuments(query).exec(),
+		]);
+
+		return {
+			list: list.map(toReviewDto),
+			metaCounter: { total },
+		};
+	}
+
+	/**
 	 * Hotel agent responds to review
 	 */
 	public async respondToReview(
