@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
+import { Types } from 'mongoose';
 import { HotelInput } from '../../libs/dto/hotel/hotel.input';
 import { HotelUpdate } from '../../libs/dto/hotel/hotel.update';
 import { HotelDto } from '../../libs/dto/hotel/hotel';
@@ -9,17 +10,23 @@ import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { HotelSearchInput } from '../../libs/dto/common/search.input';
 import { HotelStatus, BadgeLevel } from '../../libs/enums/hotel.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
+import { BookingStatus } from '../../libs/enums/booking.enum';
+import { RoomStatus } from '../../libs/enums/room.enum';
 import { StayPurpose, ViewGroup } from '../../libs/enums/common.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { HotelDocument } from '../../libs/types/hotel';
 import { toHotelDto } from '../../libs/types/hotel';
+import type { RoomDocument } from '../../libs/types/room';
+import type { BookingDocument } from '../../libs/types/booking';
 import { ViewService } from '../view/view.service';
 
 @Injectable()
 export class HotelService {
 	constructor(
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
+		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
+		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		private readonly viewService: ViewService,
 	) {}
 
@@ -199,6 +206,18 @@ export class HotelService {
 			this.applyPurposeFilters(query, searchInput.purpose);
 		}
 
+		// Apply room-based filters (price range, room types, guest count, date availability)
+		const needsRoomFilter =
+			searchInput?.priceRange || searchInput?.roomTypes?.length || searchInput?.guestCount || searchInput?.checkInDate;
+
+		if (needsRoomFilter && searchInput) {
+			const qualifyingHotelIds = await this.getHotelIdsByRoomFilters(searchInput);
+			if (qualifyingHotelIds.length === 0) {
+				return { list: [], metaCounter: { total: 0 } };
+			}
+			query._id = { $in: qualifyingHotelIds };
+		}
+
 		// Execute query
 		const [list, total] = await Promise.all([
 			this.hotelModel
@@ -246,6 +265,92 @@ export class HotelService {
 			list: list.map(toHotelDto),
 			metaCounter: { total },
 		};
+	}
+
+	/**
+	 * Find hotel IDs that have rooms matching price range, room types, guest count, and date availability
+	 */
+	private async getHotelIdsByRoomFilters(searchInput: HotelSearchInput): Promise<Types.ObjectId[]> {
+		const roomQuery: Record<string, unknown> = {
+			roomStatus: RoomStatus.AVAILABLE,
+		};
+
+		// Price range filter
+		if (searchInput.priceRange) {
+			const priceFilter: Record<string, number> = {};
+			if (searchInput.priceRange.start !== undefined) {
+				priceFilter.$gte = searchInput.priceRange.start;
+			}
+			if (searchInput.priceRange.end !== undefined) {
+				priceFilter.$lte = searchInput.priceRange.end;
+			}
+			if (Object.keys(priceFilter).length > 0) {
+				roomQuery.basePrice = priceFilter;
+			}
+		}
+
+		// Room type filter
+		if (searchInput.roomTypes?.length) {
+			roomQuery.roomType = { $in: searchInput.roomTypes };
+		}
+
+		// Guest count filter (room must accommodate at least this many guests)
+		if (searchInput.guestCount) {
+			roomQuery.maxOccupancy = { $gte: searchInput.guestCount };
+		}
+
+		// Find matching rooms and get distinct hotel IDs
+		const matchingRooms = await this.roomModel.find(roomQuery).select('hotelId _id availableRooms').exec();
+
+		if (matchingRooms.length === 0) {
+			return [];
+		}
+
+		// Date availability filter — exclude hotels where all matching rooms are fully booked
+		if (searchInput.checkInDate && searchInput.checkOutDate) {
+			const checkIn = new Date(searchInput.checkInDate);
+			const checkOut = new Date(searchInput.checkOutDate);
+
+			const roomIds = matchingRooms.map((r) => r._id);
+
+			// Find bookings that overlap with the requested dates
+			const overlappingBookings = await this.bookingModel
+				.find({
+					'rooms.roomId': { $in: roomIds },
+					checkInDate: { $lt: checkOut },
+					checkOutDate: { $gt: checkIn },
+					bookingStatus: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN] },
+				})
+				.select('rooms')
+				.exec();
+
+			// Count booked quantity per room
+			const bookedCountByRoom = new Map<string, number>();
+			for (const booking of overlappingBookings) {
+				for (const bookedRoom of booking.rooms) {
+					const roomIdStr = String(bookedRoom.roomId);
+					bookedCountByRoom.set(roomIdStr, (bookedCountByRoom.get(roomIdStr) || 0) + bookedRoom.quantity);
+				}
+			}
+
+			// Filter to rooms that still have availability
+			const availableHotelIds = new Set<string>();
+			for (const room of matchingRooms) {
+				const booked = bookedCountByRoom.get(String(room._id)) || 0;
+				if (room.availableRooms - booked > 0) {
+					availableHotelIds.add(String(room.hotelId));
+				}
+			}
+
+			return Array.from(availableHotelIds).map((id) => new Types.ObjectId(id));
+		}
+
+		// No date filter — just return distinct hotel IDs from matching rooms
+		const hotelIdSet = new Set<string>();
+		for (const room of matchingRooms) {
+			hotelIdSet.add(String(room.hotelId));
+		}
+		return Array.from(hotelIdSet).map((id) => new Types.ObjectId(id));
 	}
 
 	/**
