@@ -130,4 +130,30 @@ export class ChatResolver {
 		console.log('Query getMyUnreadChatCount', currentMember?._id);
 		return this.chatService.getMyUnreadCount(currentMember);
 	}
+
+	/**
+	 * Get all chats (admin only)
+	 */
+	@Query(() => ChatsDto)
+	@Roles(MemberType.ADMIN)
+	public async getAllChatsAdmin(
+		@Args('input') input: PaginationInput,
+		@Args('statusFilter', { type: () => ChatStatus, nullable: true }) statusFilter?: ChatStatus,
+	): Promise<ChatsDto> {
+		console.log('Query getAllChatsAdmin', statusFilter);
+		return this.chatService.getAllChatsAdmin(input, statusFilter);
+	}
+
+	/**
+	 * Admin reassigns a chat to a different agent
+	 */
+	@Mutation(() => ChatDto)
+	@Roles(MemberType.ADMIN)
+	public async reassignChat(
+		@Args('chatId') chatId: string,
+		@Args('newAgentId') newAgentId: string,
+	): Promise<ChatDto> {
+		console.log('Mutation reassignChat', chatId, newAgentId);
+		return this.chatService.reassignChat(chatId, newAgentId);
+	}
 }

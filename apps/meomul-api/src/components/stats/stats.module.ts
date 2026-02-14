@@ -5,6 +5,7 @@ import HotelSchema from '../../schemas/Hotel.model';
 import RoomSchema from '../../schemas/Room.model';
 import BookingSchema from '../../schemas/Booking.model';
 import ReviewSchema from '../../schemas/Review.model';
+import ChatSchema from '../../schemas/Chat.model';
 import { StatsService } from './stats.service';
 import { StatsResolver } from './stats.resolver';
 import { AuthModule } from '../auth/auth.module';
@@ -17,6 +18,7 @@ import { AuthModule } from '../auth/auth.module';
 			{ name: 'Room', schema: RoomSchema },
 			{ name: 'Booking', schema: BookingSchema },
 			{ name: 'Review', schema: ReviewSchema },
+			{ name: 'Chat', schema: ChatSchema },
 		]),
 		AuthModule,
 	],

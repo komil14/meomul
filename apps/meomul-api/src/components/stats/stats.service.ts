@@ -4,11 +4,13 @@ import type { Model } from 'mongoose';
 import { DashboardStatsDto } from '../../libs/dto/stats/stats';
 import { HotelStatus } from '../../libs/enums/hotel.enum';
 import { BookingStatus, PaymentStatus } from '../../libs/enums/booking.enum';
+import { ChatStatus } from '../../libs/enums/common.enum';
 import type { MemberDocument } from '../../libs/types/member';
 import type { HotelDocument } from '../../libs/types/hotel';
 import type { RoomDocument } from '../../libs/types/room';
 import type { BookingDocument } from '../../libs/types/booking';
 import type { ReviewDocument } from '../../libs/types/review';
+import type { ChatDocument } from '../../libs/types/chat';
 
 @Injectable()
 export class StatsService {
@@ -18,6 +20,7 @@ export class StatsService {
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('Review') private readonly reviewModel: Model<ReviewDocument>,
+		@InjectModel('Chat') private readonly chatModel: Model<ChatDocument>,
 	) {}
 
 	public async getDashboardStats(): Promise<DashboardStatsDto> {
@@ -26,7 +29,7 @@ export class StatsService {
 		const endOfToday = new Date(startOfToday.getTime() + 86400000);
 
 		// 5 parallel queries (1 per collection), each using single-pass $group + $cond
-		const [bookingStats, hotelStats, memberStats, reviewStats, totalRooms] = await Promise.all([
+		const [bookingStats, hotelStats, memberStats, reviewStats, totalRooms, chatStats] = await Promise.all([
 			// Booking: 8 metrics in 1 single-pass aggregation
 			this.bookingModel
 				.aggregate([
@@ -151,12 +154,31 @@ export class StatsService {
 
 			// Room: single count
 			this.roomModel.countDocuments().exec(),
+
+			// Chat: 3 metrics in 1 single-pass aggregation
+			this.chatModel
+				.aggregate([
+					{
+						$group: {
+							_id: null,
+							total: { $sum: 1 },
+							waiting: {
+								$sum: { $cond: [{ $eq: ['$chatStatus', ChatStatus.WAITING] }, 1, 0] },
+							},
+							active: {
+								$sum: { $cond: [{ $eq: ['$chatStatus', ChatStatus.ACTIVE] }, 1, 0] },
+							},
+						},
+					},
+				])
+				.exec(),
 		]);
 
 		const b = bookingStats[0] ?? {};
 		const h = hotelStats[0] ?? {};
 		const m = memberStats[0] ?? {};
 		const r = reviewStats[0] ?? {};
+		const c = chatStats[0] ?? {};
 
 		return {
 			totalMembers: m.total ?? 0,
@@ -175,6 +197,9 @@ export class StatsService {
 			confirmedBookings: b.confirmed ?? 0,
 			totalRevenue: b.totalRevenue ?? 0,
 			todayRevenue: b.todayRevenue ?? 0,
+			totalChats: c.total ?? 0,
+			waitingChats: c.waiting ?? 0,
+			activeChats: c.active ?? 0,
 		};
 	}
 }

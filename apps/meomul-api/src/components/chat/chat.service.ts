@@ -7,18 +7,21 @@ import { ClaimChatInput } from '../../libs/dto/chat/claim-chat.input';
 import { ChatDto } from '../../libs/dto/chat/chat';
 import { ChatsDto } from '../../libs/dto/common/chats';
 import { PaginationInput } from '../../libs/dto/common/pagination';
-import { ChatStatus, SenderType, MessageType } from '../../libs/enums/common.enum';
+import { ChatStatus, SenderType, MessageType, NotificationType } from '../../libs/enums/common.enum';
+import { MemberType } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { ChatDocument } from '../../libs/types/chat';
 import { toChatDto } from '../../libs/types/chat';
 import { ChatGateway } from '../../socket/chat.gateway';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class ChatService {
 	constructor(
 		@InjectModel('Chat') private readonly chatModel: Model<ChatDocument>,
 		private readonly chatGateway: ChatGateway,
+		private readonly notificationService: NotificationService,
 	) {}
 
 	/**
@@ -67,6 +70,16 @@ export class ChatService {
 			timestamp: initialMessage.timestamp,
 			read: false,
 		});
+
+		// Notify admins (fire-and-forget)
+		this.notificationService
+			.notifyAdmins(
+				NotificationType.CHAT_MESSAGE,
+				'New Support Chat',
+				`Guest started a chat for hotel ${input.hotelId}`,
+				`/admin/chats/${chat._id}`,
+			)
+			.catch(() => {});
 
 		return toChatDto(chat);
 	}
@@ -166,11 +179,12 @@ export class ChatService {
 		const chat = await this.chatModel.findById(chatId).exec();
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
-		// Only guest or assigned agent can close
+		// Only guest, assigned agent, or admin can close
 		const isGuest = chat.guestId.toString() === currentMember._id;
 		const isAssignedAgent = chat.assignedAgentId?.toString() === currentMember._id;
+		const isAdmin = currentMember.memberType === MemberType.ADMIN;
 
-		if (!isGuest && !isAssignedAgent) {
+		if (!isGuest && !isAssignedAgent && !isAdmin) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
@@ -308,6 +322,59 @@ export class ChatService {
 			.exec();
 
 		return result.length > 0 ? result[0].total : 0;
+	}
+
+	/**
+	 * Get all chats (admin only)
+	 */
+	public async getAllChatsAdmin(input: PaginationInput, statusFilter?: ChatStatus): Promise<ChatsDto> {
+		const { page, limit } = input;
+		const skip = (page - 1) * limit;
+
+		const filter: any = {};
+		if (statusFilter) {
+			filter.chatStatus = statusFilter;
+		}
+
+		const [list, total] = await Promise.all([
+			this.chatModel.find(filter).sort({ lastMessageAt: -1 }).skip(skip).limit(limit).exec(),
+			this.chatModel.countDocuments(filter).exec(),
+		]);
+
+		return {
+			list: list.map(toChatDto),
+			metaCounter: { total },
+		};
+	}
+
+	/**
+	 * Admin reassigns a chat to a different agent
+	 */
+	public async reassignChat(chatId: string, newAgentId: string): Promise<ChatDto> {
+		const chat = await this.chatModel.findById(chatId).exec();
+		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
+
+		if (chat.chatStatus === ChatStatus.CLOSED) {
+			throw new BadRequestException(Messages.CHAT_CLOSED);
+		}
+
+		const updatedChat = await this.chatModel
+			.findByIdAndUpdate(
+				chatId,
+				{
+					$set: {
+						assignedAgentId: new Types.ObjectId(newAgentId),
+						chatStatus: ChatStatus.ACTIVE,
+					},
+				},
+				{ returnDocument: 'after' },
+			)
+			.exec();
+
+		// Emit WebSocket event for chat reassignment
+		this.chatGateway.emitChatClaimed(chatId, newAgentId);
+
+		return toChatDto(updatedChat!);
 	}
 
 	/**

@@ -53,4 +53,14 @@ export class DashboardStatsDto {
 
 	@Field(() => Int)
 	todayRevenue: number;
+
+	// Chat
+	@Field(() => Int)
+	totalChats: number;
+
+	@Field(() => Int)
+	waitingChats: number;
+
+	@Field(() => Int)
+	activeChats: number;
 }

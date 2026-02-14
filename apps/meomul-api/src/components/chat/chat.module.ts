@@ -5,9 +5,10 @@ import { ChatService } from './chat.service';
 import { ChatResolver } from './chat.resolver';
 import { AuthModule } from '../auth/auth.module';
 import { SocketModule } from '../../socket/socket.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-	imports: [MongooseModule.forFeature([{ name: 'Chat', schema: ChatSchema }]), AuthModule, SocketModule],
+	imports: [MongooseModule.forFeature([{ name: 'Chat', schema: ChatSchema }]), AuthModule, SocketModule, NotificationModule],
 	providers: [ChatService, ChatResolver],
 	exports: [ChatService],
 })
