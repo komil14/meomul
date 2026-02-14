@@ -14,6 +14,7 @@ import type { BookingDocument } from '../../libs/types/booking';
 import { toBookingDto } from '../../libs/types/booking';
 import type { RoomDocument } from '../../libs/types/room';
 import type { HotelDocument } from '../../libs/types/hotel';
+import { PriceLockService } from '../price-lock/price-lock.service';
 
 @Injectable()
 export class BookingService {
@@ -21,6 +22,7 @@ export class BookingService {
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
+		private readonly priceLockService: PriceLockService,
 	) {}
 
 	/**
@@ -69,7 +71,7 @@ export class BookingService {
 			throw new BadRequestException('All rooms must belong to the specified hotel');
 		}
 
-		// Check room availability and status
+		// Check room availability and status, verify prices (honoring price locks)
 		for (const inputRoom of input.rooms) {
 			const room = rooms.find((r) => String(r._id) === inputRoom.roomId);
 			if (!room) continue;
@@ -84,8 +86,11 @@ export class BookingService {
 				);
 			}
 
-			// Verify price matches (prevent price manipulation)
-			const expectedPrice = room.basePrice;
+			// Verify price matches — use locked price if the user has an active price lock
+			const { price: expectedPrice } = await this.priceLockService.getEffectivePrice(
+				currentMember._id,
+				inputRoom.roomId,
+			);
 			if (inputRoom.pricePerNight !== expectedPrice) {
 				throw new BadRequestException(
 					`Price mismatch for ${room.roomName}. Expected: ${expectedPrice}, Provided: ${inputRoom.pricePerNight}`,
@@ -161,13 +166,21 @@ export class BookingService {
 			bookingCode,
 		});
 
-		// Update room availability
+		// Update room availability and clean up used price locks
 		for (const inputRoom of input.rooms) {
 			await this.roomModel
 				.findByIdAndUpdate(inputRoom.roomId, {
 					$inc: { availableRooms: -inputRoom.quantity },
 				})
 				.exec();
+		}
+
+		// Remove any price locks the user had on these rooms (they've been used)
+		for (const inputRoom of input.rooms) {
+			const lock = await this.priceLockService.getMyPriceLock(currentMember as MemberJwtPayload, inputRoom.roomId);
+			if (lock) {
+				await this.priceLockService.cancelPriceLock(currentMember as MemberJwtPayload, String(lock._id));
+			}
 		}
 
 		return toBookingDto(booking);

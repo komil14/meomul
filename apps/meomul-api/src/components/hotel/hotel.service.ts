@@ -165,27 +165,19 @@ export class HotelService {
 
 		// Track view for authenticated users only (idempotent - same user counts as 1 view)
 		if (currentMember) {
-			console.log('🔍 Tracking view for user:', currentMember._id);
 			const result = await this.viewService.recordView(currentMember, {
 				viewGroup: ViewGroup.HOTEL,
 				viewRefId: hotelId,
 			});
-			console.log('📊 View result - isNewView:', result.isNewView);
 
 			// Only increment count for NEW views (not repeat views from same user)
 			if (result.isNewView) {
-				console.log('✅ Incrementing hotelViews count');
 				await this.hotelModel.findByIdAndUpdate(hotelId, { $inc: { hotelViews: 1 } }).exec();
-			} else {
-				console.log('⏭️  Skipping increment - user already viewed');
 			}
-		} else {
-			console.log('❌ No currentMember - anonymous request');
 		}
 
 		// Return hotel with current view count
 		const updatedHotel = await this.hotelModel.findById(hotelId).exec();
-		console.log('📈 Current hotelViews:', updatedHotel?.hotelViews);
 		return toHotelDto(updatedHotel!);
 	}
 

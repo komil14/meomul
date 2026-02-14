@@ -6,6 +6,7 @@ import HotelSchema from '../../schemas/Hotel.model';
 import { BookingService } from './booking.service';
 import { BookingResolver } from './booking.resolver';
 import { AuthModule } from '../auth/auth.module';
+import { PriceLockModule } from '../price-lock/price-lock.module';
 
 @Module({
 	imports: [
@@ -15,6 +16,7 @@ import { AuthModule } from '../auth/auth.module';
 			{ name: 'Hotel', schema: HotelSchema },
 		]),
 		AuthModule,
+		PriceLockModule,
 	],
 	providers: [BookingService, BookingResolver],
 	exports: [BookingService],
