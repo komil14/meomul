@@ -43,6 +43,7 @@ export class RecommendationService {
 		@InjectModel('Like') private readonly likeModel: Model<LikeDocument>,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('SearchHistory') private readonly searchHistoryModel: Model<SearchHistoryDocument>,
+		@InjectModel('UserProfile') private readonly userProfileModel: Model<any>,
 		@InjectModel('RecommendationCache') private readonly recCacheModel: Model<any>,
 	) {}
 
@@ -323,6 +324,30 @@ export class RecommendationService {
 	}
 
 	private async buildUserProfile(memberId: string): Promise<UserPreferenceProfile> {
+		// Check for batch-precomputed profile first (< 2 hours old)
+		const precomputed = await this.userProfileModel
+			.findOne({
+				memberId: new Types.ObjectId(memberId),
+				computedAt: { $gte: new Date(Date.now() - 2 * 3600000) },
+			})
+			.lean()
+			.exec();
+
+		if (precomputed) {
+			return {
+				preferredLocations: precomputed.preferredLocations || [],
+				preferredTypes: precomputed.preferredTypes || [],
+				preferredPurposes: precomputed.preferredPurposes || [],
+				preferredAmenities: precomputed.preferredAmenities || [],
+				avgPriceMin: precomputed.avgPriceMin,
+				avgPriceMax: precomputed.avgPriceMax,
+				viewedHotelIds: precomputed.viewedHotelIds || [],
+				likedHotelIds: precomputed.likedHotelIds || [],
+				bookedHotelIds: precomputed.bookedHotelIds || [],
+			};
+		}
+
+		// Fallback: compute on the fly
 		const memberObjectId = new Types.ObjectId(memberId);
 		const now = Date.now();
 
