@@ -66,20 +66,20 @@ export class RecommendationService {
 			return this.getTrendingHotels(limit);
 		}
 
-		// Build the scoring aggregation pipeline
+		// Single query with $facet: scored recommendations + fallback in one DB call
 		const pipeline = this.buildRecommendationPipeline(profile, limit);
-		const results = await this.hotelModel.aggregate(pipeline).exec();
+		const [facetResult] = await this.hotelModel.aggregate(pipeline).exec();
 
-		let finalResults: HotelDto[];
+		const scored: any[] = facetResult?.recommended ?? [];
+		const fallback: any[] = facetResult?.fallback ?? [];
 
-		// If not enough results, pad with trending hotels
-		if (results.length < limit) {
-			const existingIds = results.map((r: any) => String(r._id));
-			const trending = await this.getTrendingHotels(limit - results.length, existingIds);
-			finalResults = [...results.map((doc: any) => this.aggregateDocToHotelDto(doc)), ...trending].slice(0, limit);
-		} else {
-			finalResults = results.map((doc: any) => this.aggregateDocToHotelDto(doc));
-		}
+		// Use scored results, pad with fallback if not enough
+		const usedIds = new Set(scored.map((r: any) => String(r._id)));
+		const padding = fallback
+			.filter((r: any) => !usedIds.has(String(r._id)))
+			.slice(0, limit - scored.length);
+
+		const finalResults = [...scored, ...padding].map((doc: any) => this.aggregateDocToHotelDto(doc));
 
 		await this.cacheManager.set(cacheKey, finalResults, 600000); // 10 min
 		return finalResults;
@@ -97,64 +97,92 @@ export class RecommendationService {
 		}
 
 		const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
-
 		const excludeObjectIds = excludeIds.map((id) => new Types.ObjectId(id));
 
-		// Count recent views per hotel
-		const [recentViews, recentLikes, recentBookings] = await Promise.all([
-			this.viewModel.aggregate([
-				{
-					$match: {
-						viewGroup: ViewGroup.HOTEL,
-						createdAt: { $gte: sevenDaysAgo },
-					},
+		// Single pipeline: $unionWith merges views + likes + bookings,
+		// then $group sums weighted scores, then $lookup hotel data
+		const trendingPipeline = await this.viewModel.aggregate([
+			// Start with views (weight: 1)
+			{
+				$match: {
+					viewGroup: ViewGroup.HOTEL,
+					createdAt: { $gte: sevenDaysAgo },
 				},
-				{ $group: { _id: '$viewRefId', count: { $sum: 1 } } },
-			]),
-			this.likeModel.aggregate([
-				{
-					$match: {
-						likeGroup: LikeGroup.HOTEL,
-						createdAt: { $gte: sevenDaysAgo },
-					},
+			},
+			{ $project: { hotelId: '$viewRefId', weight: { $literal: 1 } } },
+
+			// Union with likes (weight: 3)
+			{
+				$unionWith: {
+					coll: 'likes',
+					pipeline: [
+						{
+							$match: {
+								likeGroup: LikeGroup.HOTEL,
+								createdAt: { $gte: sevenDaysAgo },
+							},
+						},
+						{ $project: { hotelId: '$likeRefId', weight: { $literal: 3 } } },
+					],
 				},
-				{ $group: { _id: '$likeRefId', count: { $sum: 1 } } },
-			]),
-			this.bookingModel.aggregate([
-				{
-					$match: {
-						createdAt: { $gte: sevenDaysAgo },
-						bookingStatus: { $in: [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT] },
-					},
+			},
+
+			// Union with bookings (weight: 5)
+			{
+				$unionWith: {
+					coll: 'bookings',
+					pipeline: [
+						{
+							$match: {
+								createdAt: { $gte: sevenDaysAgo },
+								bookingStatus: {
+									$in: [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT],
+								},
+							},
+						},
+						{ $project: { hotelId: '$hotelId', weight: { $literal: 5 } } },
+					],
 				},
-				{ $group: { _id: '$hotelId', count: { $sum: 1 } } },
-			]),
+			},
+
+			// Exclude specific hotel IDs if provided
+			...(excludeObjectIds.length > 0
+				? [{ $match: { hotelId: { $nin: excludeObjectIds } } }]
+				: []),
+
+			// Group by hotel and sum weighted scores
+			{
+				$group: {
+					_id: '$hotelId',
+					trendingScore: { $sum: '$weight' },
+				},
+			},
+
+			// Sort by score and limit
+			{ $sort: { trendingScore: -1 as const } },
+			{ $limit: limit },
+
+			// Lookup full hotel document
+			{
+				$lookup: {
+					from: 'hotels',
+					localField: '_id',
+					foreignField: '_id',
+					as: 'hotel',
+				},
+			},
+			{ $unwind: '$hotel' },
+
+			// Only active hotels
+			{ $match: { 'hotel.hotelStatus': HotelStatus.ACTIVE } },
+
+			// Promote hotel fields to root level, keep trendingScore for sort
+			{ $replaceRoot: { newRoot: { $mergeObjects: ['$hotel', { trendingScore: '$trendingScore' }] } } },
 		]);
 
-		// Merge scores: bookings × 5 + likes × 3 + views × 1
-		const scoreMap = new Map<string, number>();
+		let result: HotelDto[];
 
-		for (const v of recentViews) {
-			const id = String(v._id);
-			scoreMap.set(id, (scoreMap.get(id) || 0) + v.count * 1);
-		}
-		for (const l of recentLikes) {
-			const id = String(l._id);
-			scoreMap.set(id, (scoreMap.get(id) || 0) + l.count * 3);
-		}
-		for (const b of recentBookings) {
-			const id = String(b._id);
-			scoreMap.set(id, (scoreMap.get(id) || 0) + b.count * 5);
-		}
-
-		// Sort by score and take top N
-		const sortedIds = Array.from(scoreMap.entries())
-			.filter(([id]) => !excludeIds.includes(id))
-			.sort((a, b) => b[1] - a[1])
-			.slice(0, limit)
-			.map(([id]) => new Types.ObjectId(id));
-
-		if (sortedIds.length === 0) {
+		if (trendingPipeline.length === 0) {
 			// Fallback: highest-rated active hotels
 			const hotels = await this.hotelModel
 				.find({
@@ -164,30 +192,13 @@ export class RecommendationService {
 				.sort({ hotelRank: -1, hotelRating: -1 })
 				.limit(limit)
 				.exec();
-			const result = hotels.map(toHotelDto);
-			if (cacheKey) await this.cacheManager.set(cacheKey, result, 900000); // 15 min
-			return result;
+			result = hotels.map(toHotelDto);
+		} else {
+			result = trendingPipeline.map((doc: any) => this.aggregateDocToHotelDto(doc));
 		}
 
-		// Fetch hotels in score order
-		const hotels = await this.hotelModel
-			.find({
-				_id: { $in: sortedIds },
-				hotelStatus: HotelStatus.ACTIVE,
-			})
-			.exec();
-
-		// Preserve score order
-		const hotelMap = new Map(hotels.map((h) => [String(h._id), h]));
-		const ordered: HotelDto[] = [];
-		for (const id of sortedIds) {
-			const hotel = hotelMap.get(String(id));
-			if (hotel) {
-				ordered.push(toHotelDto(hotel));
-			}
-		}
-		if (cacheKey) await this.cacheManager.set(cacheKey, ordered, 900000); // 15 min
-		return ordered;
+		if (cacheKey) await this.cacheManager.set(cacheKey, result, 900000); // 15 min
+		return result;
 	}
 
 	/**
@@ -551,9 +562,21 @@ export class RecommendationService {
 			},
 		});
 
-		// Stage 5: Sort by score and limit
-		pipeline.push({ $sort: { recommendationScore: -1, hotelRating: -1 } });
-		pipeline.push({ $limit: limit });
+		// Stage 6: $facet — scored recommendations + fallback in one query
+		pipeline.push({
+			$facet: {
+				// Primary: personalized scored results
+				recommended: [
+					{ $sort: { recommendationScore: -1, hotelRating: -1 } },
+					{ $limit: limit },
+				],
+				// Fallback: top-rated hotels (used when scored results < limit)
+				fallback: [
+					{ $sort: { hotelRank: -1, hotelRating: -1 } },
+					{ $limit: limit },
+				],
+			},
+		});
 
 		return pipeline;
 	}

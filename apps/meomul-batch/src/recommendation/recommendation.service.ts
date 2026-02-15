@@ -2,25 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
 import type { Model } from 'mongoose';
-import { Types } from 'mongoose';
 import { HotelStatus, HotelLocation } from '../../../meomul-api/src/libs/enums/hotel.enum';
 import { ViewGroup, LikeGroup } from '../../../meomul-api/src/libs/enums/common.enum';
 import { BookingStatus } from '../../../meomul-api/src/libs/enums/booking.enum';
-import type { HotelDocument } from '../../../meomul-api/src/libs/types/hotel';
 import { toHotelDto } from '../../../meomul-api/src/libs/types/hotel';
 import type { ViewDocument } from '../../../meomul-api/src/libs/types/view';
-import type { BookingDocument } from '../../../meomul-api/src/libs/types/booking';
-
-interface LikeDocument {
-	_id: Types.ObjectId;
-	likeGroup: string;
-	likeRefId: Types.ObjectId;
-	memberId: Types.ObjectId;
-	createdAt: Date;
-}
 
 interface RecommendationCacheDocument {
-	_id: Types.ObjectId;
+	_id: any;
 	cacheKey: string;
 	data: any;
 	computedAt: Date;
@@ -32,10 +21,7 @@ export class RecommendationService {
 	private readonly logger = new Logger(RecommendationService.name);
 
 	constructor(
-		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		@InjectModel('View') private readonly viewModel: Model<ViewDocument>,
-		@InjectModel('Like') private readonly likeModel: Model<LikeDocument>,
-		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('RecommendationCache') private readonly cacheModel: Model<RecommendationCacheDocument>,
 	) {}
 
@@ -49,50 +35,84 @@ export class RecommendationService {
 		const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
 		const expiresAt = new Date(Date.now() + 2 * 3600000); // 2 hours
 
-		const [recentViews, recentLikes, recentBookings] = await Promise.all([
-			this.viewModel.aggregate([
-				{ $match: { viewGroup: ViewGroup.HOTEL, createdAt: { $gte: sevenDaysAgo } } },
-				{ $group: { _id: '$viewRefId', count: { $sum: 1 } } },
-			]),
-			this.likeModel.aggregate([
-				{ $match: { likeGroup: LikeGroup.HOTEL, createdAt: { $gte: sevenDaysAgo } } },
-				{ $group: { _id: '$likeRefId', count: { $sum: 1 } } },
-			]),
-			this.bookingModel.aggregate([
-				{
-					$match: {
-						createdAt: { $gte: sevenDaysAgo },
-						bookingStatus: { $in: [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT] },
-					},
+		// Single pipeline: $unionWith merges views + likes + bookings,
+		// then $group sums weighted scores, then $lookup hotel data
+		const trendingResults = await this.viewModel.aggregate([
+			// Views (weight: 1)
+			{
+				$match: {
+					viewGroup: ViewGroup.HOTEL,
+					createdAt: { $gte: sevenDaysAgo },
 				},
-				{ $group: { _id: '$hotelId', count: { $sum: 1 } } },
-			]),
+			},
+			{ $project: { hotelId: '$viewRefId', weight: { $literal: 1 } } },
+
+			// Union with likes (weight: 3)
+			{
+				$unionWith: {
+					coll: 'likes',
+					pipeline: [
+						{
+							$match: {
+								likeGroup: LikeGroup.HOTEL,
+								createdAt: { $gte: sevenDaysAgo },
+							},
+						},
+						{ $project: { hotelId: '$likeRefId', weight: { $literal: 3 } } },
+					],
+				},
+			},
+
+			// Union with bookings (weight: 5)
+			{
+				$unionWith: {
+					coll: 'bookings',
+					pipeline: [
+						{
+							$match: {
+								createdAt: { $gte: sevenDaysAgo },
+								bookingStatus: {
+									$in: [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT],
+								},
+							},
+						},
+						{ $project: { hotelId: '$hotelId', weight: { $literal: 5 } } },
+					],
+				},
+			},
+
+			// Group by hotel and sum weighted scores
+			{
+				$group: {
+					_id: '$hotelId',
+					trendingScore: { $sum: '$weight' },
+				},
+			},
+
+			// Sort by score and take top 50
+			{ $sort: { trendingScore: -1 as const } },
+			{ $limit: 50 },
+
+			// Lookup full hotel document
+			{
+				$lookup: {
+					from: 'hotels',
+					localField: '_id',
+					foreignField: '_id',
+					as: 'hotel',
+				},
+			},
+			{ $unwind: '$hotel' },
+
+			// Only active hotels
+			{ $match: { 'hotel.hotelStatus': HotelStatus.ACTIVE } },
+
+			// Promote hotel fields to root, keep score
+			{ $replaceRoot: { newRoot: { $mergeObjects: ['$hotel', { trendingScore: '$trendingScore' }] } } },
 		]);
 
-		// Merge scores: bookings × 5 + likes × 3 + views × 1
-		const scoreMap = new Map<string, number>();
-		for (const v of recentViews) scoreMap.set(String(v._id), (scoreMap.get(String(v._id)) || 0) + v.count);
-		for (const l of recentLikes) scoreMap.set(String(l._id), (scoreMap.get(String(l._id)) || 0) + l.count * 3);
-		for (const b of recentBookings) scoreMap.set(String(b._id), (scoreMap.get(String(b._id)) || 0) + b.count * 5);
-
-		const sortedIds = Array.from(scoreMap.entries())
-			.sort((a, b) => b[1] - a[1])
-			.slice(0, 50)
-			.map(([id]) => new Types.ObjectId(id));
-
-		// Fetch hotels
-		const hotels = await this.hotelModel
-			.find({ _id: { $in: sortedIds }, hotelStatus: HotelStatus.ACTIVE })
-			.exec();
-
-		const hotelMap = new Map(hotels.map((h) => [String(h._id), h]));
-
 		// Build global trending list
-		const globalTrending: ReturnType<typeof toHotelDto>[] = [];
-		for (const id of sortedIds) {
-			const hotel = hotelMap.get(String(id));
-			if (hotel) globalTrending.push(toHotelDto(hotel));
-		}
+		const globalTrending = trendingResults.map((doc: any) => toHotelDto(doc));
 
 		// Save global trending
 		await this.cacheModel.updateOne(
@@ -101,14 +121,13 @@ export class RecommendationService {
 			{ upsert: true },
 		);
 
-		// Build per-location trending
+		// Build per-location trending from aggregation results
 		const locationGroups = new Map<string, any[]>();
-		for (const id of sortedIds) {
-			const hotel = hotelMap.get(String(id));
-			if (!hotel) continue;
-			const loc = hotel.hotelLocation;
+		for (const doc of trendingResults) {
+			const loc = doc.hotelLocation;
+			if (!loc) continue;
 			if (!locationGroups.has(loc)) locationGroups.set(loc, []);
-			locationGroups.get(loc)!.push(toHotelDto(hotel));
+			locationGroups.get(loc)!.push(toHotelDto(doc));
 		}
 
 		// Save per-location trending (for all known locations)
