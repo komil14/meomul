@@ -19,6 +19,7 @@ import type { HotelDocument } from '../../libs/types/hotel';
 import { toHotelDto } from '../../libs/types/hotel';
 import type { RoomDocument } from '../../libs/types/room';
 import type { BookingDocument } from '../../libs/types/booking';
+import type { SearchHistoryDocument } from '../../libs/types/search-history';
 import { ViewService } from '../view/view.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../../libs/enums/common.enum';
@@ -29,6 +30,7 @@ export class HotelService {
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
+		@InjectModel('SearchHistory') private readonly searchHistoryModel: Model<SearchHistoryDocument>,
 		private readonly viewService: ViewService,
 		private readonly notificationService: NotificationService,
 	) {}
@@ -207,9 +209,28 @@ export class HotelService {
 	public async getHotels(
 		input: PaginationInput,
 		searchInput?: HotelSearchInput,
+		currentMember?: MemberJwtPayload,
 	): Promise<HotelsDto> {
 		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
 		const skip = (page - 1) * limit;
+
+		// Fire-and-forget: log search for recommendations
+		if (currentMember?._id && searchInput) {
+			this.searchHistoryModel
+				.create({
+					memberId: currentMember._id,
+					location: searchInput.location,
+					hotelTypes: searchInput.hotelTypes,
+					priceMin: searchInput.priceRange?.start,
+					priceMax: searchInput.priceRange?.end,
+					purpose: searchInput.purpose,
+					amenities: searchInput.amenities,
+					starRatings: searchInput.starRatings,
+					guestCount: searchInput.guestCount,
+					text: searchInput.text,
+				})
+				.catch(() => {});
+		}
 
 		// Build query
 		const query = this.buildSearchQuery(searchInput);

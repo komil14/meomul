@@ -112,10 +112,11 @@ export class HotelResolver {
 	public async getHotels(
 		@Args('input') input: PaginationInput,
 		@Args('search', { nullable: true }) search?: HotelSearchInput,
+		@CurrentMember() currentMember?: any,
 	): Promise<HotelsDto> {
 		try {
 			console.log('Query getHotels', input.page, search?.location ?? 'all');
-			return this.hotelService.getHotels(input, search);
+			return this.hotelService.getHotels(input, search, currentMember);
 		} catch (error) {
 			console.error('Query getHotels failed', input.page, error);
 			throw error;

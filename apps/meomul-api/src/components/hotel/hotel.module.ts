@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import HotelSchema from '../../schemas/Hotel.model';
 import RoomSchema from '../../schemas/Room.model';
 import BookingSchema from '../../schemas/Booking.model';
+import SearchHistorySchema from '../../schemas/SearchHistory.model';
 import { HotelService } from './hotel.service';
 import { HotelResolver } from './hotel.resolver';
 import { AuthModule } from '../auth/auth.module';
@@ -15,6 +16,7 @@ import { NotificationModule } from '../notification/notification.module';
 			{ name: 'Hotel', schema: HotelSchema },
 			{ name: 'Room', schema: RoomSchema },
 			{ name: 'Booking', schema: BookingSchema },
+			{ name: 'SearchHistory', schema: SearchHistorySchema },
 		]),
 		AuthModule,
 		ViewModule,

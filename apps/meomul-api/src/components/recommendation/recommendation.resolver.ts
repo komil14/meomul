@@ -1,0 +1,65 @@
+import { Args, Int, Query, Resolver } from '@nestjs/graphql';
+import { HotelDto } from '../../libs/dto/hotel/hotel';
+import { CurrentMember } from '../auth/decorators/current-member.decorator';
+import { Public } from '../auth/decorators/public.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { MemberType } from '../../libs/enums/member.enum';
+import { RecommendationService } from './recommendation.service';
+
+@Resolver()
+export class RecommendationResolver {
+	constructor(private readonly recommendationService: RecommendationService) {}
+
+	/**
+	 * Get personalized hotel recommendations (requires auth)
+	 */
+	@Query(() => [HotelDto])
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	public async getRecommendedHotels(
+		@CurrentMember() currentMember: any,
+		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
+	): Promise<HotelDto[]> {
+		try {
+			console.log('Query getRecommendedHotels', currentMember?._id ?? 'unknown');
+			return this.recommendationService.getRecommendedHotels(currentMember._id, limit);
+		} catch (error) {
+			console.error('Query getRecommendedHotels failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get trending hotels (public, no auth needed)
+	 */
+	@Query(() => [HotelDto])
+	@Public()
+	public async getTrendingHotels(
+		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
+	): Promise<HotelDto[]> {
+		try {
+			console.log('Query getTrendingHotels');
+			return this.recommendationService.getTrendingHotels(limit);
+		} catch (error) {
+			console.error('Query getTrendingHotels failed', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get similar hotels to a given hotel (public)
+	 */
+	@Query(() => [HotelDto])
+	@Public()
+	public async getSimilarHotels(
+		@Args('hotelId') hotelId: string,
+		@Args('limit', { type: () => Int, nullable: true, defaultValue: 6 }) limit: number,
+	): Promise<HotelDto[]> {
+		try {
+			console.log('Query getSimilarHotels', hotelId);
+			return this.recommendationService.getSimilarHotels(hotelId, limit);
+		} catch (error) {
+			console.error('Query getSimilarHotels failed', hotelId, error);
+			throw error;
+		}
+	}
+}
