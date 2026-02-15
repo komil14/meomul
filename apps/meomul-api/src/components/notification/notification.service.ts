@@ -167,6 +167,18 @@ export class NotificationService {
 	}
 
 	/**
+	 * Get subscription request notifications (admin only)
+	 */
+	public async getSubscriptionRequests(): Promise<NotificationDto[]> {
+		const notifications = await this.notificationModel
+			.find({ type: NotificationType.SUBSCRIPTION_REQUEST })
+			.sort({ createdAt: -1 })
+			.exec();
+
+		return notifications.map(toNotificationDto);
+	}
+
+	/**
 	 * Delete all notifications for a user (cleanup when user is deleted)
 	 */
 	public async deleteNotificationsForUser(userId: string): Promise<void> {

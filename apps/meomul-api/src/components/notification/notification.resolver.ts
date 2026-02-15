@@ -130,6 +130,21 @@ export class NotificationResolver {
 	}
 
 	/**
+	 * Get subscription request notifications (admin only)
+	 */
+	@Query(() => [NotificationDto])
+	@Roles(MemberType.ADMIN)
+	public async getSubscriptionRequests(): Promise<NotificationDto[]> {
+		try {
+			console.log('Query getSubscriptionRequests');
+			return this.notificationService.getSubscriptionRequests();
+		} catch (error) {
+			console.error('Query getSubscriptionRequests failed', error);
+			throw error;
+		}
+	}
+
+	/**
 	 * Get all notifications (admin only)
 	 */
 	@Query(() => NotificationsDto)

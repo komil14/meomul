@@ -4,6 +4,7 @@ import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
 import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MemberDto } from '../../libs/dto/member/member';
+import { SubscriptionStatusDto } from '../../libs/dto/member/subscription-status';
 import { MembersDto } from '../../libs/dto/common/members';
 import { PaginationInput } from '../../libs/dto/common/pagination';
 import { ResponseDto } from '../../libs/dto/common/response';
@@ -130,6 +131,45 @@ export class MemberResolver {
 			return this.memberService.approveSubscription(memberId, tier, durationDays);
 		} catch (error) {
 			console.error('Mutation approveSubscription failed', memberId, error);
+			throw error;
+		}
+	}
+
+	@Mutation(() => ResponseDto)
+	@Roles(MemberType.ADMIN)
+	public async denySubscription(
+		@Args('memberId') memberId: string,
+		@Args('reason', { type: () => String, nullable: true }) reason?: string,
+	): Promise<ResponseDto> {
+		try {
+			console.log('Mutation denySubscription', memberId);
+			return this.memberService.denySubscription(memberId, reason);
+		} catch (error) {
+			console.error('Mutation denySubscription failed', memberId, error);
+			throw error;
+		}
+	}
+
+	@Mutation(() => MemberDto)
+	@Roles(MemberType.ADMIN)
+	public async cancelSubscription(@Args('memberId') memberId: string): Promise<MemberDto> {
+		try {
+			console.log('Mutation cancelSubscription', memberId);
+			return this.memberService.cancelSubscription(memberId);
+		} catch (error) {
+			console.error('Mutation cancelSubscription failed', memberId, error);
+			throw error;
+		}
+	}
+
+	@Query(() => SubscriptionStatusDto)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	public async getSubscriptionStatus(@CurrentMember() currentMember: any): Promise<SubscriptionStatusDto> {
+		try {
+			console.log('Query getSubscriptionStatus', currentMember?._id ?? 'unknown');
+			return this.memberService.getSubscriptionStatus(currentMember);
+		} catch (error) {
+			console.error('Query getSubscriptionStatus failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}

@@ -8,6 +8,7 @@ import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MembersDto } from '../../libs/dto/common/members';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { ResponseDto } from '../../libs/dto/common/response';
+import { SubscriptionStatusDto } from '../../libs/dto/member/subscription-status';
 import { MemberStatus, SubscriptionTier } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
@@ -217,6 +218,93 @@ export class MemberService {
 			.catch(() => {});
 
 		return updatedMember;
+	}
+
+	public async denySubscription(memberId: string, reason?: string): Promise<ResponseDto> {
+		const member = await this.memberModel.findById(memberId).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		// Notify user (fire-and-forget)
+		this.notificationService
+			.createNotification({
+				userId: memberId,
+				type: NotificationType.SUBSCRIPTION_DENIED,
+				title: 'Subscription Request Denied',
+				message: reason || 'Your subscription request has been denied by admin.',
+				link: '/profile',
+			})
+			.catch(() => {});
+
+		return {
+			success: true,
+			message: 'Subscription request denied',
+			data: memberId,
+		};
+	}
+
+	public async cancelSubscription(memberId: string): Promise<MemberDocument> {
+		const member = await this.memberModel.findById(memberId).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		if (member.subscriptionTier === SubscriptionTier.FREE) {
+			throw new BadRequestException('Member is already on FREE tier');
+		}
+
+		const updatedMember = await this.memberModel
+			.findByIdAndUpdate(
+				memberId,
+				{ subscriptionTier: SubscriptionTier.FREE, subscriptionExpiry: null },
+				{ returnDocument: 'after' },
+			)
+			.exec();
+
+		if (!updatedMember) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		// Notify user (fire-and-forget)
+		this.notificationService
+			.createNotification({
+				userId: memberId,
+				type: NotificationType.SUBSCRIPTION_CANCELLED,
+				title: 'Subscription Cancelled',
+				message: 'Your subscription has been cancelled. You are now on the FREE tier.',
+				link: '/profile',
+			})
+			.catch(() => {});
+
+		return updatedMember;
+	}
+
+	public async getSubscriptionStatus(currentMember: MemberJwtPayload): Promise<SubscriptionStatusDto> {
+		if (!currentMember?._id) {
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
+		}
+
+		const member = await this.memberModel.findById(currentMember._id).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		const now = new Date();
+		const isActive = member.subscriptionTier !== SubscriptionTier.FREE
+			&& (!member.subscriptionExpiry || member.subscriptionExpiry > now);
+
+		let daysRemaining: number | undefined;
+		if (member.subscriptionExpiry && member.subscriptionExpiry > now) {
+			daysRemaining = Math.ceil((member.subscriptionExpiry.getTime() - now.getTime()) / 86400000);
+		}
+
+		return {
+			tier: member.subscriptionTier,
+			active: isActive,
+			expiresAt: member.subscriptionExpiry ?? undefined,
+			daysRemaining,
+		};
 	}
 
 	public async deleteMemberByAdmin(memberId: string): Promise<MemberDocument> {
