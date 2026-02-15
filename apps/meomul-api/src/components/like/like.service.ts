@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectModel } from '@nestjs/mongoose';
+import type { Cache } from 'cache-manager';
 import type { Model } from 'mongoose';
 import { LikeInput } from '../../libs/dto/like/like.input';
 import { LikeDto } from '../../libs/dto/like/like';
@@ -17,7 +19,10 @@ export interface ToggleLikeResult {
 
 @Injectable()
 export class LikeService {
-	constructor(@InjectModel('Like') private readonly likeModel: Model<LikeDocument>) {}
+	constructor(
+		@Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+		@InjectModel('Like') private readonly likeModel: Model<LikeDocument>,
+	) {}
 
 	/**
 	 * Toggle like (like if not liked, unlike if already liked)
@@ -39,6 +44,11 @@ export class LikeService {
 			// Get updated count
 			const likeCount = await this.getLikeCount(input.likeRefId, input.likeGroup);
 
+			// Invalidate recommendation cache for this user (fire-and-forget)
+			if (input.likeGroup === LikeGroup.HOTEL) {
+				this.invalidateRecCache(currentMember._id);
+			}
+
 			return {
 				liked: false,
 				likeCount,
@@ -53,6 +63,11 @@ export class LikeService {
 
 			// Get updated count
 			const likeCount = await this.getLikeCount(input.likeRefId, input.likeGroup);
+
+			// Invalidate recommendation cache for this user (fire-and-forget)
+			if (input.likeGroup === LikeGroup.HOTEL) {
+				this.invalidateRecCache(currentMember._id);
+			}
 
 			return {
 				liked: true,
@@ -107,6 +122,13 @@ export class LikeService {
 	/**
 	 * Remove all likes for a specific item (cleanup when item is deleted)
 	 */
+	private invalidateRecCache(memberId: string): void {
+		Promise.all([
+			this.cacheManager.del(`rec:${memberId}:10`),
+			this.cacheManager.del(`rec:${memberId}:20`),
+		]).catch(() => {});
+	}
+
 	public async removeLikesForItem(likeRefId: string, likeGroup: LikeGroup): Promise<void> {
 		await this.likeModel
 			.deleteMany({

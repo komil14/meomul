@@ -1,5 +1,7 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectModel } from '@nestjs/mongoose';
+import type { Cache } from 'cache-manager';
 import type { Model } from 'mongoose';
 import { BookingInput } from '../../libs/dto/booking/booking.input';
 import { BookingDto } from '../../libs/dto/booking/booking';
@@ -21,6 +23,7 @@ import { NotificationType } from '../../libs/enums/common.enum';
 @Injectable()
 export class BookingService {
 	constructor(
+		@Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
@@ -204,6 +207,12 @@ export class BookingService {
 				`/admin/bookings/${booking._id}`,
 			)
 			.catch(() => {});
+
+		// Invalidate recommendation cache for this user (fire-and-forget)
+		Promise.all([
+			this.cacheManager.del(`rec:${currentMember._id}:10`),
+			this.cacheManager.del(`rec:${currentMember._id}:20`),
+		]).catch(() => {});
 
 		return toBookingDto(booking);
 	}

@@ -314,25 +314,26 @@ export class RecommendationService {
 	/**
 	 * Build user preference profile from search history, views, likes, and bookings
 	 */
+	/**
+	 * Invalidate a user's recommendation cache (called after like/book actions)
+	 */
+	public async invalidateUserCache(memberId: string): Promise<void> {
+		await this.cacheManager.del(`rec:${memberId}:10`);
+		await this.cacheManager.del(`rec:${memberId}:20`);
+	}
+
 	private async buildUserProfile(memberId: string): Promise<UserPreferenceProfile> {
 		const memberObjectId = new Types.ObjectId(memberId);
+		const now = Date.now();
 
-		const [searchAgg, viewedHotels, likedHotels, bookedHotels] = await Promise.all([
-			// Aggregate search history
-			this.searchHistoryModel.aggregate([
-				{ $match: { memberId: memberObjectId } },
-				{
-					$group: {
-						_id: null,
-						locations: { $push: '$location' },
-						hotelTypes: { $push: '$hotelTypes' },
-						purposes: { $push: '$purpose' },
-						amenities: { $push: '$amenities' },
-						avgPriceMin: { $avg: '$priceMin' },
-						avgPriceMax: { $avg: '$priceMax' },
-					},
-				},
-			]),
+		const [searchHistory, viewedHotels, likedHotels, bookedHotels] = await Promise.all([
+			// Fetch raw search history with timestamps for time-decay
+			this.searchHistoryModel
+				.find({ memberId: memberObjectId })
+				.select('location hotelTypes purpose amenities priceMin priceMax createdAt')
+				.sort({ createdAt: -1 })
+				.limit(200)
+				.exec(),
 
 			// Get viewed hotel IDs
 			this.viewModel
@@ -360,24 +361,43 @@ export class RecommendationService {
 				.exec(),
 		]);
 
-		// Extract top preferences from search history
-		const searchData = searchAgg[0];
+		// Time-decay weighted extraction: recent searches weigh more
+		const weightedLocations: string[] = [];
+		const weightedTypes: string[] = [];
+		const weightedPurposes: string[] = [];
+		const weightedAmenities: string[] = [];
+		let totalPriceWeight = 0;
+		let weightedPriceMin = 0;
+		let weightedPriceMax = 0;
 
-		const preferredLocations = searchData
-			? this.getTopFrequent(searchData.locations.filter(Boolean), 3)
-			: [];
+		for (const search of searchHistory) {
+			const ageMs = now - new Date(search.createdAt).getTime();
+			const weight = this.getTimeDecayWeight(ageMs);
+			const repeatCount = Math.max(1, Math.round(weight * 5)); // 1-5 entries
 
-		const preferredTypes = searchData
-			? this.getTopFrequent(searchData.hotelTypes.flat().filter(Boolean), 3)
-			: [];
+			if ((search as any).location) {
+				for (let i = 0; i < repeatCount; i++) weightedLocations.push((search as any).location);
+			}
+			for (const t of (search as any).hotelTypes || []) {
+				for (let i = 0; i < repeatCount; i++) weightedTypes.push(t);
+			}
+			if ((search as any).purpose) {
+				for (let i = 0; i < repeatCount; i++) weightedPurposes.push((search as any).purpose);
+			}
+			for (const a of (search as any).amenities || []) {
+				for (let i = 0; i < repeatCount; i++) weightedAmenities.push(a);
+			}
+			if ((search as any).priceMin != null || (search as any).priceMax != null) {
+				weightedPriceMin += ((search as any).priceMin || 0) * weight;
+				weightedPriceMax += ((search as any).priceMax || 0) * weight;
+				totalPriceWeight += weight;
+			}
+		}
 
-		const preferredPurposes = searchData
-			? this.getTopFrequent(searchData.purposes.filter(Boolean), 3)
-			: [];
-
-		const preferredAmenities = searchData
-			? this.getTopFrequent(searchData.amenities.flat().filter(Boolean), 5)
-			: [];
+		const preferredLocations = this.getTopFrequent(weightedLocations.filter(Boolean), 3);
+		const preferredTypes = this.getTopFrequent(weightedTypes.filter(Boolean), 3);
+		const preferredPurposes = this.getTopFrequent(weightedPurposes.filter(Boolean), 3);
+		const preferredAmenities = this.getTopFrequent(weightedAmenities.filter(Boolean), 5);
 
 		// Enrich from booked hotels (strongest signal)
 		if (bookedHotels.length > 0) {
@@ -406,12 +426,59 @@ export class RecommendationService {
 			preferredTypes: preferredTypes.slice(0, 4),
 			preferredPurposes: preferredPurposes.slice(0, 4),
 			preferredAmenities: preferredAmenities.slice(0, 8),
-			avgPriceMin: searchData?.avgPriceMin,
-			avgPriceMax: searchData?.avgPriceMax,
+			avgPriceMin: totalPriceWeight > 0 ? weightedPriceMin / totalPriceWeight : undefined,
+			avgPriceMax: totalPriceWeight > 0 ? weightedPriceMax / totalPriceWeight : undefined,
 			viewedHotelIds: viewedHotels.map((v) => v.viewRefId),
 			likedHotelIds: likedHotels.map((l) => (l as any).likeRefId),
 			bookedHotelIds: bookedHotels.map((b) => b.hotelId),
 		};
+	}
+
+	/**
+	 * Time-decay weight: recent activity weighs more
+	 * <24h=1.0, <3d=0.8, <7d=0.5, <30d=0.2, older=0.05
+	 */
+	/**
+	 * Seasonal boosts: locations and hotel types that are popular in the current season
+	 */
+	private getSeasonalBoosts(): { locations: string[]; types: string[] } {
+		const month = new Date().getMonth(); // 0-11
+
+		if (month >= 5 && month <= 7) {
+			// Summer (Jun-Aug): beach, resort destinations
+			return {
+				locations: [HotelLocation.JEJU, HotelLocation.BUSAN, HotelLocation.GANGNEUNG],
+				types: ['RESORT', 'BEACH'],
+			};
+		}
+		if (month >= 11 || month <= 1) {
+			// Winter (Dec-Feb): ski, traditional stays
+			return {
+				locations: [HotelLocation.GANGNEUNG, HotelLocation.GYEONGJU],
+				types: ['SKI', 'TRADITIONAL'],
+			};
+		}
+		if (month >= 2 && month <= 4) {
+			// Spring (Mar-May): cherry blossoms, boutique
+			return {
+				locations: [HotelLocation.GYEONGJU, HotelLocation.JEJU],
+				types: ['BOUTIQUE', 'TRADITIONAL'],
+			};
+		}
+		// Autumn (Sep-Nov): foliage, cultural
+		return {
+			locations: [HotelLocation.GYEONGJU, HotelLocation.SEOUL],
+			types: ['BOUTIQUE', 'CULTURAL'],
+		};
+	}
+
+	private getTimeDecayWeight(ageMs: number): number {
+		const hours = ageMs / 3600000;
+		if (hours < 24) return 1.0;
+		if (hours < 72) return 0.8;
+		if (hours < 168) return 0.5;
+		if (hours < 720) return 0.2;
+		return 0.05;
 	}
 
 	/**
@@ -456,13 +523,25 @@ export class RecommendationService {
 			},
 		);
 
-		// Stage 4: Calculate scores
+		// Stage 4: Calculate scores (including seasonal awareness)
 		const amenityScoreFields: any[] = profile.preferredAmenities.map((amenity) => ({
 			$cond: [{ $eq: [`$amenities.${amenity}`, true] }, 2, 0],
 		}));
 
+		const seasonal = this.getSeasonalBoosts();
+
 		pipeline.push({
 			$addFields: {
+				seasonalScore: {
+					$add: [
+						seasonal.locations.length > 0
+							? { $cond: [{ $in: ['$hotelLocation', seasonal.locations] }, 10, 0] }
+							: 0,
+						seasonal.types.length > 0
+							? { $cond: [{ $in: ['$hotelType', seasonal.types] }, 5, 0] }
+							: 0,
+					],
+				},
 				locationScore: {
 					$cond: [
 						{ $in: ['$hotelLocation', profile.preferredLocations] },
@@ -557,6 +636,7 @@ export class RecommendationService {
 						'$likedBonus',
 						'$recencyBonus',
 						'$priceScore',
+						'$seasonalScore',
 					],
 				},
 			},
