@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver } from '@nestjs/apollo';
@@ -17,6 +18,11 @@ import { RolesGuard } from './components/auth/guards/roles.guard';
 
 @Module({
 	imports: [
+		CacheModule.register({
+			isGlobal: true,
+			ttl: 300000,
+			max: 200,
+		}),
 		ConfigModule.forRoot(),
 		GraphQLModule.forRoot({
 			autoSchemaFile: true,
