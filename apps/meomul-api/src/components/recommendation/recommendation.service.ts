@@ -349,7 +349,27 @@ export class RecommendationService {
 			});
 		}
 
-		// Stage 3: Calculate scores
+		// Stage 3: Lookup minimum room price per hotel
+		pipeline.push(
+			{
+				$lookup: {
+					from: 'rooms',
+					let: { hotelId: '$_id' },
+					pipeline: [
+						{ $match: { $expr: { $eq: ['$hotelId', '$$hotelId'] }, roomStatus: 'AVAILABLE' } },
+						{ $group: { _id: null, minPrice: { $min: '$basePrice' } } },
+					],
+					as: 'roomPricing',
+				},
+			},
+			{
+				$addFields: {
+					startingPrice: { $ifNull: [{ $arrayElemAt: ['$roomPricing.minPrice', 0] }, 0] },
+				},
+			},
+		);
+
+		// Stage 4: Calculate scores
 		const amenityScoreFields: any[] = profile.preferredAmenities.map((amenity) => ({
 			$cond: [{ $eq: [`$amenities.${amenity}`, true] }, 2, 0],
 		}));
@@ -419,10 +439,24 @@ export class RecommendationService {
 						0,
 					],
 				},
+				priceScore: profile.avgPriceMax
+					? {
+							$cond: [
+								{
+									$and: [
+										{ $gte: ['$startingPrice', profile.avgPriceMin || 0] },
+										{ $lte: ['$startingPrice', profile.avgPriceMax] },
+									],
+								},
+								15,
+								0,
+							],
+						}
+					: 0,
 			},
 		});
 
-		// Stage 4: Total score
+		// Stage 5: Total score
 		pipeline.push({
 			$addFields: {
 				recommendationScore: {
@@ -435,6 +469,7 @@ export class RecommendationService {
 						'$popularityScore',
 						'$likedBonus',
 						'$recencyBonus',
+						'$priceScore',
 					],
 				},
 			},
