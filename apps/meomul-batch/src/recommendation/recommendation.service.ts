@@ -88,7 +88,7 @@ export class RecommendationService {
 		const hotelMap = new Map(hotels.map((h) => [String(h._id), h]));
 
 		// Build global trending list
-		const globalTrending = [];
+		const globalTrending: ReturnType<typeof toHotelDto>[] = [];
 		for (const id of sortedIds) {
 			const hotel = hotelMap.get(String(id));
 			if (hotel) globalTrending.push(toHotelDto(hotel));
