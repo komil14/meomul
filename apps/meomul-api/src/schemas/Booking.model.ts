@@ -152,4 +152,7 @@ const BookingSchema = new Schema(
 BookingSchema.index({ guestId: 1, bookingStatus: 1 });
 BookingSchema.index({ hotelId: 1, checkInDate: 1 });
 
+// Recommendation: trending aggregation (recent confirmed bookings)
+BookingSchema.index({ bookingStatus: 1, createdAt: -1 });
+
 export default BookingSchema;

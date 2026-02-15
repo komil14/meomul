@@ -27,4 +27,10 @@ const ViewSchema = new Schema(
 // Unique constraint: one view per member per item
 ViewSchema.index({ viewRefId: 1, memberId: 1, viewGroup: 1 }, { unique: true });
 
+// Recommendation: per-user hotel views lookup
+ViewSchema.index({ viewGroup: 1, memberId: 1, createdAt: -1 });
+
+// Recommendation: trending aggregation (recent views across all users)
+ViewSchema.index({ viewGroup: 1, createdAt: -1 });
+
 export default ViewSchema;

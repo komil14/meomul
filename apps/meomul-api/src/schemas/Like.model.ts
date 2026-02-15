@@ -26,4 +26,10 @@ const LikeSchema = new Schema(
 
 LikeSchema.index({ likeRefId: 1, memberId: 1 }, { unique: true });
 
+// Recommendation: per-user hotel likes lookup
+LikeSchema.index({ likeGroup: 1, memberId: 1 });
+
+// Recommendation: trending aggregation (recent likes across all users)
+LikeSchema.index({ likeGroup: 1, createdAt: -1 });
+
 export default LikeSchema;
