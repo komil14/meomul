@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectModel } from '@nestjs/mongoose';
+import type { Cache } from 'cache-manager';
 import type { Model } from 'mongoose';
 import { Types } from 'mongoose';
 import { HotelDto } from '../../libs/dto/hotel/hotel';
-import { HotelStatus, VerificationStatus } from '../../libs/enums/hotel.enum';
+import { HotelStatus, HotelLocation } from '../../libs/enums/hotel.enum';
 import { ViewGroup, LikeGroup } from '../../libs/enums/common.enum';
 import { BookingStatus } from '../../libs/enums/booking.enum';
 import type { HotelDocument } from '../../libs/types/hotel';
@@ -35,17 +37,23 @@ interface UserPreferenceProfile {
 @Injectable()
 export class RecommendationService {
 	constructor(
+		@Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		@InjectModel('View') private readonly viewModel: Model<ViewDocument>,
 		@InjectModel('Like') private readonly likeModel: Model<LikeDocument>,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('SearchHistory') private readonly searchHistoryModel: Model<SearchHistoryDocument>,
+		@InjectModel('RecommendationCache') private readonly recCacheModel: Model<any>,
 	) {}
 
 	/**
 	 * Get personalized hotel recommendations for a logged-in user
 	 */
 	public async getRecommendedHotels(memberId: string, limit: number = 10): Promise<HotelDto[]> {
+		const cacheKey = `rec:${memberId}:${limit}`;
+		const cached = await this.cacheManager.get<HotelDto[]>(cacheKey);
+		if (cached) return cached;
+
 		const profile = await this.buildUserProfile(memberId);
 
 		// If user has no activity, fall back to trending
@@ -62,21 +70,32 @@ export class RecommendationService {
 		const pipeline = this.buildRecommendationPipeline(profile, limit);
 		const results = await this.hotelModel.aggregate(pipeline).exec();
 
+		let finalResults: HotelDto[];
+
 		// If not enough results, pad with trending hotels
 		if (results.length < limit) {
 			const existingIds = results.map((r: any) => String(r._id));
 			const trending = await this.getTrendingHotels(limit - results.length, existingIds);
-			const combined = [...results.map((doc: any) => this.aggregateDocToHotelDto(doc)), ...trending];
-			return combined.slice(0, limit);
+			finalResults = [...results.map((doc: any) => this.aggregateDocToHotelDto(doc)), ...trending].slice(0, limit);
+		} else {
+			finalResults = results.map((doc: any) => this.aggregateDocToHotelDto(doc));
 		}
 
-		return results.map((doc: any) => this.aggregateDocToHotelDto(doc));
+		await this.cacheManager.set(cacheKey, finalResults, 600000); // 10 min
+		return finalResults;
 	}
 
 	/**
 	 * Get trending hotels based on recent activity (last 7 days)
 	 */
 	public async getTrendingHotels(limit: number = 10, excludeIds: string[] = []): Promise<HotelDto[]> {
+		// Only cache when no exclusions (public endpoint)
+		const cacheKey = excludeIds.length === 0 ? `trending:${limit}` : null;
+		if (cacheKey) {
+			const cached = await this.cacheManager.get<HotelDto[]>(cacheKey);
+			if (cached) return cached;
+		}
+
 		const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
 
 		const excludeObjectIds = excludeIds.map((id) => new Types.ObjectId(id));
@@ -145,7 +164,9 @@ export class RecommendationService {
 				.sort({ hotelRank: -1, hotelRating: -1 })
 				.limit(limit)
 				.exec();
-			return hotels.map(toHotelDto);
+			const result = hotels.map(toHotelDto);
+			if (cacheKey) await this.cacheManager.set(cacheKey, result, 900000); // 15 min
+			return result;
 		}
 
 		// Fetch hotels in score order
@@ -165,13 +186,66 @@ export class RecommendationService {
 				ordered.push(toHotelDto(hotel));
 			}
 		}
+		if (cacheKey) await this.cacheManager.set(cacheKey, ordered, 900000); // 15 min
 		return ordered;
+	}
+
+	/**
+	 * Get trending hotels for a specific location.
+	 * First checks batch-precomputed data, then falls back to filtered global trending.
+	 */
+	public async getTrendingByLocation(location: HotelLocation, limit: number = 10): Promise<HotelDto[]> {
+		const cacheKey = `trending:loc:${location}:${limit}`;
+		const cached = await this.cacheManager.get<HotelDto[]>(cacheKey);
+		if (cached) return cached;
+
+		// Check batch-precomputed data first
+		const precomputed = await this.recCacheModel
+			.findOne({ cacheKey: `trending:${location}` })
+			.exec();
+
+		if (precomputed && precomputed.data?.length > 0) {
+			const result = (precomputed.data as HotelDto[]).slice(0, limit);
+			await this.cacheManager.set(cacheKey, result, 900000); // 15 min
+			return result;
+		}
+
+		// Fallback: filter global trending by location
+		const globalTrending = await this.getTrendingHotels(50);
+		const locationFiltered = globalTrending
+			.filter((h) => h.hotelLocation === location)
+			.slice(0, limit);
+
+		if (locationFiltered.length >= limit) {
+			await this.cacheManager.set(cacheKey, locationFiltered, 900000);
+			return locationFiltered;
+		}
+
+		// Not enough trending — pad with top-rated hotels from this location
+		const existingIds = locationFiltered.map((h) => new Types.ObjectId(String(h._id)));
+		const additional = await this.hotelModel
+			.find({
+				hotelStatus: HotelStatus.ACTIVE,
+				hotelLocation: location,
+				_id: { $nin: existingIds } as any,
+			})
+			.sort({ hotelRank: -1, hotelRating: -1 })
+			.limit(limit - locationFiltered.length)
+			.exec();
+
+		const result = [...locationFiltered, ...additional.map(toHotelDto)];
+		await this.cacheManager.set(cacheKey, result, 900000);
+		return result;
 	}
 
 	/**
 	 * Get similar hotels to a given hotel
 	 */
 	public async getSimilarHotels(hotelId: string, limit: number = 6): Promise<HotelDto[]> {
+		const cacheKey = `similar:${hotelId}:${limit}`;
+		const cached = await this.cacheManager.get<HotelDto[]>(cacheKey);
+		if (cached) return cached;
+
 		const sourceHotel = await this.hotelModel.findById(hotelId).exec();
 		if (!sourceHotel) {
 			return [];
@@ -221,7 +295,9 @@ export class RecommendationService {
 			{ $limit: limit },
 		]);
 
-		return hotels.map((doc: any) => this.aggregateDocToHotelDto(doc));
+		const result = hotels.map((doc: any) => this.aggregateDocToHotelDto(doc));
+		await this.cacheManager.set(cacheKey, result, 1800000); // 30 min
+		return result;
 	}
 
 	/**

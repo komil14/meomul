@@ -11,6 +11,7 @@ import { CleanupModule } from './cleanup/cleanup.module';
 import { ChatModule } from './chat/chat.module';
 import { PriceLockModule } from './price-lock/price-lock.module';
 import { SubscriptionModule } from './subscription/subscription.module';
+import { RecommendationModule } from './recommendation/recommendation.module';
 
 @Module({
 	imports: [
@@ -28,6 +29,7 @@ import { SubscriptionModule } from './subscription/subscription.module';
 		ChatModule,
 		PriceLockModule,
 		SubscriptionModule,
+		RecommendationModule,
 	],
 	controllers: [MeomulBatchController],
 	providers: [MeomulBatchService],
