@@ -4,6 +4,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import { HotelLocation } from '../../libs/enums/hotel.enum';
 import { RecommendationService } from './recommendation.service';
 
 @Resolver()
@@ -41,6 +42,24 @@ export class RecommendationResolver {
 			return this.recommendationService.getTrendingHotels(limit);
 		} catch (error) {
 			console.error('Query getTrendingHotels failed', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get trending hotels for a specific location (public)
+	 */
+	@Query(() => [HotelDto])
+	@Public()
+	public async getTrendingByLocation(
+		@Args('location', { type: () => HotelLocation }) location: HotelLocation,
+		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
+	): Promise<HotelDto[]> {
+		try {
+			console.log('Query getTrendingByLocation', location);
+			return this.recommendationService.getTrendingByLocation(location, limit);
+		} catch (error) {
+			console.error('Query getTrendingByLocation failed', location, error);
 			throw error;
 		}
 	}
