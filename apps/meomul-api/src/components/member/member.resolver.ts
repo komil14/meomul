@@ -8,6 +8,7 @@ import { SubscriptionStatusDto } from '../../libs/dto/member/subscription-status
 import { MembersDto } from '../../libs/dto/common/members';
 import { PaginationInput } from '../../libs/dto/common/pagination';
 import { ResponseDto } from '../../libs/dto/common/response';
+import { OnboardingPreferenceInput } from '../../libs/dto/preference/onboarding-preference.input';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -207,6 +208,21 @@ export class MemberResolver {
 			return this.memberService.checkAuthRoles(currentMember);
 		} catch (error) {
 			console.error('Query checkAuthRoles failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	@Mutation(() => ResponseDto)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	public async saveOnboardingPreferences(
+		@CurrentMember() currentMember: any,
+		@Args('input') input: OnboardingPreferenceInput,
+	): Promise<ResponseDto> {
+		try {
+			console.log('Mutation saveOnboardingPreferences', currentMember?._id ?? 'unknown');
+			return this.memberService.saveOnboardingPreferences(currentMember, input);
+		} catch (error) {
+			console.error('Mutation saveOnboardingPreferences failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model, ClientSession } from 'mongoose';
+import { Types } from 'mongoose';
 import { AuthMemberDto } from '../../libs/dto/auth/auth-member';
 import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
@@ -9,17 +10,20 @@ import { MembersDto } from '../../libs/dto/common/members';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { ResponseDto } from '../../libs/dto/common/response';
 import { SubscriptionStatusDto } from '../../libs/dto/member/subscription-status';
+import { OnboardingPreferenceInput } from '../../libs/dto/preference/onboarding-preference.input';
 import { MemberStatus, SubscriptionTier } from '../../libs/enums/member.enum';
+import { TravelStyle, BudgetLevel } from '../../libs/enums/preference.enum';
+import { StayPurpose, NotificationType } from '../../libs/enums/common.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import { AuthService } from '../auth/auth.service';
 import { NotificationService } from '../notification/notification.service';
-import { NotificationType } from '../../libs/enums/common.enum';
 
 @Injectable()
 export class MemberService {
 	constructor(
 		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
+		@InjectModel('UserProfile') private readonly userProfileModel: Model<any>,
 		private readonly authService: AuthService,
 		private readonly notificationService: NotificationService,
 	) {}
@@ -326,6 +330,71 @@ export class MemberService {
 		}
 
 		return updatedMember;
+	}
+
+	public async saveOnboardingPreferences(
+		currentMember: MemberJwtPayload,
+		input: OnboardingPreferenceInput,
+	): Promise<ResponseDto> {
+		if (!currentMember?._id) {
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
+		}
+
+		const validAmenities = [
+			'pool', 'spa', 'wifi', 'parking', 'breakfast', 'gym',
+			'familyRoom', 'kidsFriendly', 'petFriendly', 'oceanView',
+			'mountainView', 'cityView', 'airportShuttle', 'roomService',
+		];
+		const invalidAmenities = input.preferredAmenities.filter((a) => !validAmenities.includes(a));
+		if (invalidAmenities.length > 0) {
+			throw new BadRequestException(`Invalid amenities: ${invalidAmenities.join(', ')}`);
+		}
+
+		// Map TravelStyle → StayPurpose
+		const purposeMap: Record<string, string> = {
+			[TravelStyle.SOLO]: StayPurpose.SOLO,
+			[TravelStyle.FAMILY]: StayPurpose.FAMILY,
+			[TravelStyle.COUPLE]: StayPurpose.ROMANTIC,
+			[TravelStyle.FRIENDS]: StayPurpose.STAYCATION,
+			[TravelStyle.BUSINESS]: StayPurpose.BUSINESS,
+		};
+		const preferredPurposes = input.travelStyles
+			.map((style) => purposeMap[style])
+			.filter(Boolean);
+
+		// Map BudgetLevel → price range
+		const budgetRanges: Record<string, { min: number; max: number }> = {
+			[BudgetLevel.BUDGET]: { min: 30000, max: 80000 },
+			[BudgetLevel.MID]: { min: 80000, max: 150000 },
+			[BudgetLevel.PREMIUM]: { min: 150000, max: 300000 },
+			[BudgetLevel.LUXURY]: { min: 300000, max: 1000000 },
+		};
+		const priceRange = input.budgetLevel ? budgetRanges[input.budgetLevel] : undefined;
+
+		await this.userProfileModel.updateOne(
+			{ memberId: new Types.ObjectId(currentMember._id) },
+			{
+				$set: {
+					preferredLocations: input.preferredDestinations,
+					preferredTypes: [],
+					preferredPurposes: preferredPurposes,
+					preferredAmenities: input.preferredAmenities,
+					avgPriceMin: priceRange?.min,
+					avgPriceMax: priceRange?.max,
+					viewedHotelIds: [],
+					likedHotelIds: [],
+					bookedHotelIds: [],
+					source: 'onboarding',
+					computedAt: new Date(),
+				},
+			},
+			{ upsert: true },
+		);
+
+		return {
+			success: true,
+			message: 'Onboarding preferences saved',
+		};
 	}
 
 	private buildUpdatePayload(input: MemberUpdate, isAdmin: boolean): Record<string, unknown> {

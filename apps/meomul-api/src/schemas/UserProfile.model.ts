@@ -18,6 +18,11 @@ const UserProfileSchema = new Schema(
 		viewedHotelIds: [{ type: Schema.Types.ObjectId }],
 		likedHotelIds: [{ type: Schema.Types.ObjectId }],
 		bookedHotelIds: [{ type: Schema.Types.ObjectId }],
+		source: {
+			type: String,
+			enum: ['onboarding', 'computed'],
+			default: 'computed',
+		},
 		computedAt: {
 			type: Date,
 			required: true,

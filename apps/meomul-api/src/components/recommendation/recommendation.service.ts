@@ -324,11 +324,14 @@ export class RecommendationService {
 	}
 
 	private async buildUserProfile(memberId: string): Promise<UserPreferenceProfile> {
-		// Check for batch-precomputed profile first (< 2 hours old)
+		// Check for precomputed profile: fresh computed (< 2h) OR onboarding (any age)
 		const precomputed = await this.userProfileModel
 			.findOne({
 				memberId: new Types.ObjectId(memberId),
-				computedAt: { $gte: new Date(Date.now() - 2 * 3600000) },
+				$or: [
+					{ source: 'onboarding' },
+					{ computedAt: { $gte: new Date(Date.now() - 2 * 3600000) } },
+				],
 			})
 			.lean()
 			.exec();

@@ -32,6 +32,7 @@ interface UserProfileDoc {
 	viewedHotelIds: any[];
 	likedHotelIds: any[];
 	bookedHotelIds: any[];
+	source?: string;
 	computedAt: Date;
 }
 
@@ -229,6 +230,30 @@ export class RecommendationService {
 
 		for (const memberId of memberIds) {
 			try {
+				// Check if existing profile is from onboarding — only overwrite if user has sufficient behavioral data
+				const existingProfile = await this.userProfileModel
+					.findOne({ memberId })
+					.select('source')
+					.lean()
+					.exec();
+
+				if (existingProfile && existingProfile.source === 'onboarding') {
+					const [searchCount, viewCount, likeCount, bookingCount] = await Promise.all([
+						this.searchHistoryModel.countDocuments({ memberId }),
+						this.viewModel.countDocuments({ memberId, viewGroup: ViewGroup.HOTEL }),
+						this.likeModel.countDocuments({ memberId, likeGroup: LikeGroup.HOTEL }),
+						this.bookingModel.countDocuments({
+							guestId: memberId,
+							bookingStatus: { $in: [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT] },
+						}),
+					]);
+
+					const hasSufficientData = searchCount >= 5 || viewCount >= 3 || likeCount >= 1 || bookingCount >= 1;
+					if (!hasSufficientData) {
+						continue; // Keep onboarding data, skip this user
+					}
+				}
+
 				// Fetch search history with time-decay
 				const searchHistory = await this.searchHistoryModel
 					.find({ memberId })
@@ -338,6 +363,7 @@ export class RecommendationService {
 							viewedHotelIds: viewedHotels.map((v: any) => v.viewRefId),
 							likedHotelIds: likedHotels.map((l: any) => l.likeRefId),
 							bookedHotelIds: bookedHotels.map((b: any) => b.hotelId),
+							source: 'computed',
 							computedAt: new Date(),
 						},
 					},
