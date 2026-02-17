@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { PriceLockDto } from '../../libs/dto/price-lock/price-lock';
 import { CreatePriceLockInput } from '../../libs/dto/price-lock/price-lock.input';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
@@ -8,6 +9,8 @@ import { PriceLockService } from './price-lock.service';
 
 @Resolver()
 export class PriceLockResolver {
+	private readonly logger = new Logger(PriceLockResolver.name);
+
 	constructor(private readonly priceLockService: PriceLockService) {}
 
 	/**
@@ -19,7 +22,7 @@ export class PriceLockResolver {
 		@CurrentMember() currentMember: any,
 		@Args('input') input: CreatePriceLockInput,
 	): Promise<PriceLockDto> {
-		console.log('Mutation lockPrice', currentMember?._id, input.roomId);
+		this.logger.log('Mutation lockPrice', currentMember?._id, input.roomId);
 		return this.priceLockService.lockPrice(currentMember, input);
 	}
 
@@ -32,7 +35,7 @@ export class PriceLockResolver {
 		@CurrentMember() currentMember: any,
 		@Args('roomId') roomId: string,
 	): Promise<PriceLockDto | null> {
-		console.log('Query getMyPriceLock', currentMember?._id, roomId);
+		this.logger.log('Query getMyPriceLock', currentMember?._id, roomId);
 		return this.priceLockService.getMyPriceLock(currentMember, roomId);
 	}
 
@@ -42,7 +45,7 @@ export class PriceLockResolver {
 	@Query(() => [PriceLockDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyPriceLocks(@CurrentMember() currentMember: any): Promise<PriceLockDto[]> {
-		console.log('Query getMyPriceLocks', currentMember?._id);
+		this.logger.log('Query getMyPriceLocks', currentMember?._id);
 		return this.priceLockService.getMyPriceLocks(currentMember);
 	}
 
@@ -55,7 +58,7 @@ export class PriceLockResolver {
 		@CurrentMember() currentMember: any,
 		@Args('priceLockId') priceLockId: string,
 	): Promise<boolean> {
-		console.log('Mutation cancelPriceLock', currentMember?._id, priceLockId);
+		this.logger.log('Mutation cancelPriceLock', currentMember?._id, priceLockId);
 		return this.priceLockService.cancelPriceLock(currentMember, priceLockId);
 	}
 }

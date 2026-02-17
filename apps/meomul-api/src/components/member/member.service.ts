@@ -16,6 +16,7 @@ import { TravelStyle, BudgetLevel } from '../../libs/enums/preference.enum';
 import { StayPurpose, NotificationType } from '../../libs/enums/common.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
+import type { UserProfileDocument } from '../../libs/types/user-profile';
 import { AuthService } from '../auth/auth.service';
 import { NotificationService } from '../notification/notification.service';
 
@@ -23,7 +24,7 @@ import { NotificationService } from '../notification/notification.service';
 export class MemberService {
 	constructor(
 		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
-		@InjectModel('UserProfile') private readonly userProfileModel: Model<any>,
+		@InjectModel('UserProfile') private readonly userProfileModel: Model<UserProfileDocument>,
 		private readonly authService: AuthService,
 		private readonly notificationService: NotificationService,
 	) {}

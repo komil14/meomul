@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { RoomDto } from '../../libs/dto/room/room';
 import { RoomInput } from '../../libs/dto/room/room.input';
 import { RoomUpdate } from '../../libs/dto/room/room.update';
@@ -13,6 +14,8 @@ import { RoomService } from './room.service';
 
 @Resolver()
 export class RoomResolver {
+	private readonly logger = new Logger(RoomResolver.name);
+
 	constructor(private readonly roomService: RoomService) {}
 
 	/**
@@ -25,10 +28,10 @@ export class RoomResolver {
 		@Args('input') input: RoomInput,
 	): Promise<RoomDto> {
 		try {
-			console.log('Mutation createRoom', currentMember?._id ?? 'unknown', input.hotelId);
+			this.logger.log('Mutation createRoom', currentMember?._id ?? 'unknown', input.hotelId);
 			return this.roomService.createRoom(currentMember, input);
 		} catch (error) {
-			console.error('Mutation createRoom failed', currentMember?._id ?? 'unknown', input.hotelId, error);
+			this.logger.error('Mutation createRoom failed', currentMember?._id ?? 'unknown', input.hotelId, error);
 			throw error;
 		}
 	}
@@ -43,10 +46,10 @@ export class RoomResolver {
 		@Args('input') input: RoomUpdate,
 	): Promise<RoomDto> {
 		try {
-			console.log('Mutation updateRoom', currentMember?._id ?? 'unknown', input._id);
+			this.logger.log('Mutation updateRoom', currentMember?._id ?? 'unknown', input._id);
 			return this.roomService.updateRoom(currentMember, input);
 		} catch (error) {
-			console.error('Mutation updateRoom failed', currentMember?._id ?? 'unknown', input._id, error);
+			this.logger.error('Mutation updateRoom failed', currentMember?._id ?? 'unknown', input._id, error);
 			throw error;
 		}
 	}
@@ -58,10 +61,10 @@ export class RoomResolver {
 	@Public()
 	public async getRoom(@Args('roomId') roomId: string): Promise<RoomDto> {
 		try {
-			console.log('Query getRoom', roomId);
+			this.logger.log('Query getRoom', roomId);
 			return this.roomService.getRoom(roomId);
 		} catch (error) {
-			console.error('Query getRoom failed', roomId, error);
+			this.logger.error('Query getRoom failed', roomId, error);
 			throw error;
 		}
 	}
@@ -76,10 +79,10 @@ export class RoomResolver {
 		@Args('input') input: PaginationInput,
 	): Promise<RoomsDto> {
 		try {
-			console.log('Query getRoomsByHotel', hotelId, input.page);
+			this.logger.log('Query getRoomsByHotel', hotelId, input.page);
 			return this.roomService.getRoomsByHotel(hotelId, input);
 		} catch (error) {
-			console.error('Query getRoomsByHotel failed', hotelId, input.page, error);
+			this.logger.error('Query getRoomsByHotel failed', hotelId, input.page, error);
 			throw error;
 		}
 	}
@@ -95,10 +98,10 @@ export class RoomResolver {
 		@Args('input') input: PaginationInput,
 	): Promise<RoomsDto> {
 		try {
-			console.log('Query getAgentRooms', currentMember?._id ?? 'unknown', hotelId);
+			this.logger.log('Query getAgentRooms', currentMember?._id ?? 'unknown', hotelId);
 			return this.roomService.getAgentRooms(currentMember, hotelId, input);
 		} catch (error) {
-			console.error('Query getAgentRooms failed', currentMember?._id ?? 'unknown', hotelId, error);
+			this.logger.error('Query getAgentRooms failed', currentMember?._id ?? 'unknown', hotelId, error);
 			throw error;
 		}
 	}
@@ -112,7 +115,7 @@ export class RoomResolver {
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => RoomStatus, nullable: true }) statusFilter?: RoomStatus,
 	): Promise<RoomsDto> {
-		console.log('Query getAllRoomsAdmin', statusFilter);
+		this.logger.log('Query getAllRoomsAdmin', statusFilter);
 		return this.roomService.getAllRoomsAdmin(input, statusFilter);
 	}
 
@@ -122,7 +125,7 @@ export class RoomResolver {
 	@Mutation(() => RoomDto)
 	@Roles(MemberType.ADMIN)
 	public async updateRoomByAdmin(@Args('input') input: RoomUpdate): Promise<RoomDto> {
-		console.log('Mutation updateRoomByAdmin', input._id);
+		this.logger.log('Mutation updateRoomByAdmin', input._id);
 		return this.roomService.updateRoomByAdmin(input);
 	}
 }

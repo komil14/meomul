@@ -13,6 +13,8 @@ import { toHotelDto } from '../../libs/types/hotel';
 import type { ViewDocument } from '../../libs/types/view';
 import type { BookingDocument } from '../../libs/types/booking';
 import type { SearchHistoryDocument } from '../../libs/types/search-history';
+import type { UserProfileDocument } from '../../libs/types/user-profile';
+import type { RecommendationCacheDocument } from '../../libs/types/recommendation-cache';
 
 interface LikeDocument {
 	_id: Types.ObjectId;
@@ -43,8 +45,8 @@ export class RecommendationService {
 		@InjectModel('Like') private readonly likeModel: Model<LikeDocument>,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('SearchHistory') private readonly searchHistoryModel: Model<SearchHistoryDocument>,
-		@InjectModel('UserProfile') private readonly userProfileModel: Model<any>,
-		@InjectModel('RecommendationCache') private readonly recCacheModel: Model<any>,
+		@InjectModel('UserProfile') private readonly userProfileModel: Model<UserProfileDocument>,
+		@InjectModel('RecommendationCache') private readonly recCacheModel: Model<RecommendationCacheDocument>,
 	) {}
 
 	/**

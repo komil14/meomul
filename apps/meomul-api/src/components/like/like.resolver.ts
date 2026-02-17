@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver, Int } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { LikeDto } from '../../libs/dto/like/like';
 import { LikeInput } from '../../libs/dto/like/like.input';
 import { ToggleLikeDto } from '../../libs/dto/like/toggle-like';
@@ -11,6 +12,8 @@ import { LikeService } from './like.service';
 
 @Resolver()
 export class LikeResolver {
+	private readonly logger = new Logger(LikeResolver.name);
+
 	constructor(private readonly likeService: LikeService) {}
 
 	/**
@@ -23,10 +26,10 @@ export class LikeResolver {
 		@Args('input') input: LikeInput,
 	): Promise<ToggleLikeDto> {
 		try {
-			console.log('Mutation toggleLike', currentMember?._id ?? 'unknown', input.likeGroup, input.likeRefId);
+			this.logger.log('Mutation toggleLike', currentMember?._id ?? 'unknown', input.likeGroup, input.likeRefId);
 			return this.likeService.toggleLike(currentMember, input);
 		} catch (error) {
-			console.error(
+			this.logger.error(
 				'Mutation toggleLike failed',
 				currentMember?._id ?? 'unknown',
 				input.likeGroup,
@@ -47,10 +50,10 @@ export class LikeResolver {
 		@Args('likeGroup', { type: () => LikeGroup }) likeGroup: LikeGroup,
 	): Promise<number> {
 		try {
-			console.log('Query getLikeCount', likeGroup, likeRefId);
+			this.logger.log('Query getLikeCount', likeGroup, likeRefId);
 			return this.likeService.getLikeCount(likeRefId, likeGroup);
 		} catch (error) {
-			console.error('Query getLikeCount failed', likeGroup, likeRefId, error);
+			this.logger.error('Query getLikeCount failed', likeGroup, likeRefId, error);
 			throw error;
 		}
 	}
@@ -66,10 +69,10 @@ export class LikeResolver {
 		@Args('likeGroup', { type: () => LikeGroup }) likeGroup: LikeGroup,
 	): Promise<boolean> {
 		try {
-			console.log('Query hasLiked', currentMember?._id ?? 'unknown', likeGroup, likeRefId);
+			this.logger.log('Query hasLiked', currentMember?._id ?? 'unknown', likeGroup, likeRefId);
 			return this.likeService.hasLiked(currentMember._id, likeRefId, likeGroup);
 		} catch (error) {
-			console.error('Query hasLiked failed', currentMember?._id ?? 'unknown', likeGroup, likeRefId, error);
+			this.logger.error('Query hasLiked failed', currentMember?._id ?? 'unknown', likeGroup, likeRefId, error);
 			throw error;
 		}
 	}
@@ -84,10 +87,10 @@ export class LikeResolver {
 		@Args('likeGroup', { type: () => LikeGroup }) likeGroup: LikeGroup,
 	): Promise<LikeDto[]> {
 		try {
-			console.log('Query getMyLikes', currentMember?._id ?? 'unknown', likeGroup);
+			this.logger.log('Query getMyLikes', currentMember?._id ?? 'unknown', likeGroup);
 			return this.likeService.getMemberLikes(currentMember._id, likeGroup);
 		} catch (error) {
-			console.error('Query getMyLikes failed', currentMember?._id ?? 'unknown', likeGroup, error);
+			this.logger.error('Query getMyLikes failed', currentMember?._id ?? 'unknown', likeGroup, error);
 			throw error;
 		}
 	}

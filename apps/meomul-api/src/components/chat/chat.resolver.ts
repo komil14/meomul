@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver, Int } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { ChatDto } from '../../libs/dto/chat/chat';
 import { StartChatInput } from '../../libs/dto/chat/chat.input';
 import { SendMessageInput } from '../../libs/dto/chat/message.input';
@@ -13,6 +14,8 @@ import { ChatService } from './chat.service';
 
 @Resolver()
 export class ChatResolver {
+	private readonly logger = new Logger(ChatResolver.name);
+
 	constructor(private readonly chatService: ChatService) {}
 
 	/**
@@ -24,7 +27,7 @@ export class ChatResolver {
 		@CurrentMember() currentMember: any,
 		@Args('input') input: StartChatInput,
 	): Promise<ChatDto> {
-		console.log('Mutation startChat', currentMember?._id, input.hotelId);
+		this.logger.log('Mutation startChat', currentMember?._id, input.hotelId);
 		return this.chatService.startChat(currentMember, input);
 	}
 
@@ -37,7 +40,7 @@ export class ChatResolver {
 		@CurrentMember() currentMember: any,
 		@Args('input') input: SendMessageInput,
 	): Promise<ChatDto> {
-		console.log('Mutation sendMessage', currentMember?._id, input.chatId, input.messageType);
+		this.logger.log('Mutation sendMessage', currentMember?._id, input.chatId, input.messageType);
 		return this.chatService.sendMessage(currentMember, input);
 	}
 
@@ -50,7 +53,7 @@ export class ChatResolver {
 		@CurrentMember() currentMember: any,
 		@Args('input') input: ClaimChatInput,
 	): Promise<ChatDto> {
-		console.log('Mutation claimChat', currentMember?._id, input.chatId);
+		this.logger.log('Mutation claimChat', currentMember?._id, input.chatId);
 		return this.chatService.claimChat(currentMember, input);
 	}
 
@@ -63,7 +66,7 @@ export class ChatResolver {
 		@CurrentMember() currentMember: any,
 		@Args('chatId') chatId: string,
 	): Promise<ChatDto> {
-		console.log('Mutation closeChat', currentMember?._id, chatId);
+		this.logger.log('Mutation closeChat', currentMember?._id, chatId);
 		return this.chatService.closeChat(currentMember, chatId);
 	}
 
@@ -76,7 +79,7 @@ export class ChatResolver {
 		@CurrentMember() currentMember: any,
 		@Args('chatId') chatId: string,
 	): Promise<ChatDto> {
-		console.log('Mutation markChatMessagesAsRead', currentMember?._id, chatId);
+		this.logger.log('Mutation markChatMessagesAsRead', currentMember?._id, chatId);
 		return this.chatService.markMessagesAsRead(currentMember, chatId);
 	}
 
@@ -89,7 +92,7 @@ export class ChatResolver {
 		@CurrentMember() currentMember: any,
 		@Args('chatId') chatId: string,
 	): Promise<ChatDto> {
-		console.log('Query getChat', currentMember?._id, chatId);
+		this.logger.log('Query getChat', currentMember?._id, chatId);
 		return this.chatService.getChat(currentMember, chatId);
 	}
 
@@ -102,7 +105,7 @@ export class ChatResolver {
 		@CurrentMember() currentMember: any,
 		@Args('input') input: PaginationInput,
 	): Promise<ChatsDto> {
-		console.log('Query getMyChats', currentMember?._id);
+		this.logger.log('Query getMyChats', currentMember?._id);
 		return this.chatService.getMyChats(currentMember, input);
 	}
 
@@ -117,7 +120,7 @@ export class ChatResolver {
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => ChatStatus, nullable: true }) statusFilter?: ChatStatus,
 	): Promise<ChatsDto> {
-		console.log('Query getHotelChats', currentMember?._id, hotelId, statusFilter);
+		this.logger.log('Query getHotelChats', currentMember?._id, hotelId, statusFilter);
 		return this.chatService.getHotelChats(currentMember, hotelId, input, statusFilter);
 	}
 
@@ -127,7 +130,7 @@ export class ChatResolver {
 	@Query(() => Int)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyUnreadChatCount(@CurrentMember() currentMember: any): Promise<number> {
-		console.log('Query getMyUnreadChatCount', currentMember?._id);
+		this.logger.log('Query getMyUnreadChatCount', currentMember?._id);
 		return this.chatService.getMyUnreadCount(currentMember);
 	}
 
@@ -140,7 +143,7 @@ export class ChatResolver {
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => ChatStatus, nullable: true }) statusFilter?: ChatStatus,
 	): Promise<ChatsDto> {
-		console.log('Query getAllChatsAdmin', statusFilter);
+		this.logger.log('Query getAllChatsAdmin', statusFilter);
 		return this.chatService.getAllChatsAdmin(input, statusFilter);
 	}
 
@@ -153,7 +156,7 @@ export class ChatResolver {
 		@Args('chatId') chatId: string,
 		@Args('newAgentId') newAgentId: string,
 	): Promise<ChatDto> {
-		console.log('Mutation reassignChat', chatId, newAgentId);
+		this.logger.log('Mutation reassignChat', chatId, newAgentId);
 		return this.chatService.reassignChat(chatId, newAgentId);
 	}
 }

@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver, Int } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { FollowDto, Followers, Followings } from '../../libs/dto/follow/follow';
 import { FollowInput, FollowInquiry } from '../../libs/dto/follow/follow.input';
 import { ToggleFollowDto } from '../../libs/dto/follow/toggle-follow';
@@ -10,6 +11,8 @@ import { FollowService } from './follow.service';
 
 @Resolver()
 export class FollowResolver {
+	private readonly logger = new Logger(FollowResolver.name);
+
 	constructor(private readonly followService: FollowService) {}
 
 	/**
@@ -22,10 +25,10 @@ export class FollowResolver {
 		@Args('input') input: FollowInput,
 	): Promise<ToggleFollowDto> {
 		try {
-			console.log('Mutation toggleFollow', currentMember?._id ?? 'unknown', input.followingId);
+			this.logger.log('Mutation toggleFollow', currentMember?._id ?? 'unknown', input.followingId);
 			return this.followService.toggleFollow(currentMember, input);
 		} catch (error) {
-			console.error('Mutation toggleFollow failed', currentMember?._id ?? 'unknown', input.followingId, error);
+			this.logger.error('Mutation toggleFollow failed', currentMember?._id ?? 'unknown', input.followingId, error);
 			throw error;
 		}
 	}
@@ -37,10 +40,10 @@ export class FollowResolver {
 	@Public()
 	public async getFollowerCount(@Args('memberId') memberId: string): Promise<number> {
 		try {
-			console.log('Query getFollowerCount', memberId);
+			this.logger.log('Query getFollowerCount', memberId);
 			return this.followService.getFollowerCount(memberId);
 		} catch (error) {
-			console.error('Query getFollowerCount failed', memberId, error);
+			this.logger.error('Query getFollowerCount failed', memberId, error);
 			throw error;
 		}
 	}
@@ -52,10 +55,10 @@ export class FollowResolver {
 	@Public()
 	public async getFollowingCount(@Args('memberId') memberId: string): Promise<number> {
 		try {
-			console.log('Query getFollowingCount', memberId);
+			this.logger.log('Query getFollowingCount', memberId);
 			return this.followService.getFollowingCount(memberId);
 		} catch (error) {
-			console.error('Query getFollowingCount failed', memberId, error);
+			this.logger.error('Query getFollowingCount failed', memberId, error);
 			throw error;
 		}
 	}
@@ -70,10 +73,10 @@ export class FollowResolver {
 		@Args('followingId') followingId: string,
 	): Promise<boolean> {
 		try {
-			console.log('Query isFollowing', currentMember?._id ?? 'unknown', followingId);
+			this.logger.log('Query isFollowing', currentMember?._id ?? 'unknown', followingId);
 			return this.followService.isFollowing(currentMember._id, followingId);
 		} catch (error) {
-			console.error('Query isFollowing failed', currentMember?._id ?? 'unknown', followingId, error);
+			this.logger.error('Query isFollowing failed', currentMember?._id ?? 'unknown', followingId, error);
 			throw error;
 		}
 	}
@@ -85,10 +88,10 @@ export class FollowResolver {
 	@Public()
 	public async getFollowers(@Args('memberId') memberId: string): Promise<FollowDto[]> {
 		try {
-			console.log('Query getFollowers', memberId);
+			this.logger.log('Query getFollowers', memberId);
 			return this.followService.getFollowers(memberId);
 		} catch (error) {
-			console.error('Query getFollowers failed', memberId, error);
+			this.logger.error('Query getFollowers failed', memberId, error);
 			throw error;
 		}
 	}
@@ -100,10 +103,10 @@ export class FollowResolver {
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyFollowing(@CurrentMember() currentMember: any): Promise<FollowDto[]> {
 		try {
-			console.log('Query getMyFollowing', currentMember?._id ?? 'unknown');
+			this.logger.log('Query getMyFollowing', currentMember?._id ?? 'unknown');
 			return this.followService.getFollowing(currentMember._id);
 		} catch (error) {
-			console.error('Query getMyFollowing failed', currentMember?._id ?? 'unknown', error);
+			this.logger.error('Query getMyFollowing failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}
@@ -115,10 +118,10 @@ export class FollowResolver {
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyFollowers(@CurrentMember() currentMember: any): Promise<FollowDto[]> {
 		try {
-			console.log('Query getMyFollowers', currentMember?._id ?? 'unknown');
+			this.logger.log('Query getMyFollowers', currentMember?._id ?? 'unknown');
 			return this.followService.getFollowers(currentMember._id);
 		} catch (error) {
-			console.error('Query getMyFollowers failed', currentMember?._id ?? 'unknown', error);
+			this.logger.error('Query getMyFollowers failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}
@@ -134,10 +137,10 @@ export class FollowResolver {
 		@CurrentMember() currentMember?: any,
 	): Promise<Followers> {
 		try {
-			console.log('Query getMemberFollowersPaginated', memberId, input, currentMember?._id);
+			this.logger.log('Query getMemberFollowersPaginated', memberId, input, currentMember?._id);
 			return this.followService.getMemberFollowersPaginated(memberId, input, currentMember);
 		} catch (error) {
-			console.error('Query getMemberFollowersPaginated failed', memberId, input, error);
+			this.logger.error('Query getMemberFollowersPaginated failed', memberId, input, error);
 			throw error;
 		}
 	}
@@ -153,10 +156,10 @@ export class FollowResolver {
 		@CurrentMember() currentMember?: any,
 	): Promise<Followings> {
 		try {
-			console.log('Query getMemberFollowingsPaginated', memberId, input, currentMember?._id);
+			this.logger.log('Query getMemberFollowingsPaginated', memberId, input, currentMember?._id);
 			return this.followService.getMemberFollowingsPaginated(memberId, input, currentMember);
 		} catch (error) {
-			console.error('Query getMemberFollowingsPaginated failed', memberId, input, error);
+			this.logger.error('Query getMemberFollowingsPaginated failed', memberId, input, error);
 			throw error;
 		}
 	}

@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { BookingDto } from '../../libs/dto/booking/booking';
 import { BookingInput } from '../../libs/dto/booking/booking.input';
 import { BookingsDto } from '../../libs/dto/common/bookings';
@@ -11,6 +12,8 @@ import { BookingService } from './booking.service';
 
 @Resolver()
 export class BookingResolver {
+	private readonly logger = new Logger(BookingResolver.name);
+
 	constructor(private readonly bookingService: BookingService) {}
 
 	/**
@@ -23,10 +26,10 @@ export class BookingResolver {
 		@Args('statusFilter', { type: () => BookingStatus, nullable: true }) statusFilter?: BookingStatus,
 	): Promise<BookingsDto> {
 		try {
-			console.log('Query getAllBookingsAdmin', statusFilter ?? 'all');
+			this.logger.log('Query getAllBookingsAdmin', statusFilter ?? 'all');
 			return this.bookingService.getAllBookingsAdmin(input, statusFilter);
 		} catch (error) {
-			console.error('Query getAllBookingsAdmin failed', error);
+			this.logger.error('Query getAllBookingsAdmin failed', error);
 			throw error;
 		}
 	}
@@ -41,10 +44,10 @@ export class BookingResolver {
 		@Args('input') input: BookingInput,
 	): Promise<BookingDto> {
 		try {
-			console.log('Mutation createBooking', currentMember?._id ?? 'unknown', input.hotelId);
+			this.logger.log('Mutation createBooking', currentMember?._id ?? 'unknown', input.hotelId);
 			return this.bookingService.createBooking(currentMember, input);
 		} catch (error) {
-			console.error('Mutation createBooking failed', currentMember?._id ?? 'unknown', input.hotelId, error);
+			this.logger.error('Mutation createBooking failed', currentMember?._id ?? 'unknown', input.hotelId, error);
 			throw error;
 		}
 	}
@@ -59,10 +62,10 @@ export class BookingResolver {
 		@Args('bookingId') bookingId: string,
 	): Promise<BookingDto> {
 		try {
-			console.log('Query getBooking', currentMember?._id ?? 'unknown', bookingId);
+			this.logger.log('Query getBooking', currentMember?._id ?? 'unknown', bookingId);
 			return this.bookingService.getBooking(currentMember, bookingId);
 		} catch (error) {
-			console.error('Query getBooking failed', currentMember?._id ?? 'unknown', bookingId, error);
+			this.logger.error('Query getBooking failed', currentMember?._id ?? 'unknown', bookingId, error);
 			throw error;
 		}
 	}
@@ -77,10 +80,10 @@ export class BookingResolver {
 		@Args('input') input: PaginationInput,
 	): Promise<BookingsDto> {
 		try {
-			console.log('Query getMyBookings', currentMember?._id ?? 'unknown', input.page);
+			this.logger.log('Query getMyBookings', currentMember?._id ?? 'unknown', input.page);
 			return this.bookingService.getMyBookings(currentMember, input);
 		} catch (error) {
-			console.error('Query getMyBookings failed', currentMember?._id ?? 'unknown', input.page, error);
+			this.logger.error('Query getMyBookings failed', currentMember?._id ?? 'unknown', input.page, error);
 			throw error;
 		}
 	}
@@ -96,10 +99,10 @@ export class BookingResolver {
 		@Args('input') input: PaginationInput,
 	): Promise<BookingsDto> {
 		try {
-			console.log('Query getAgentBookings', currentMember?._id ?? 'unknown', hotelId);
+			this.logger.log('Query getAgentBookings', currentMember?._id ?? 'unknown', hotelId);
 			return this.bookingService.getAgentBookings(currentMember, hotelId, input);
 		} catch (error) {
-			console.error('Query getAgentBookings failed', currentMember?._id ?? 'unknown', hotelId, error);
+			this.logger.error('Query getAgentBookings failed', currentMember?._id ?? 'unknown', hotelId, error);
 			throw error;
 		}
 	}
@@ -115,10 +118,10 @@ export class BookingResolver {
 		@Args('status', { type: () => BookingStatus }) status: BookingStatus,
 	): Promise<BookingDto> {
 		try {
-			console.log('Mutation updateBookingStatus', currentMember?._id ?? 'unknown', bookingId, status);
+			this.logger.log('Mutation updateBookingStatus', currentMember?._id ?? 'unknown', bookingId, status);
 			return this.bookingService.updateBookingStatus(currentMember, bookingId, status);
 		} catch (error) {
-			console.error('Mutation updateBookingStatus failed', currentMember?._id ?? 'unknown', bookingId, error);
+			this.logger.error('Mutation updateBookingStatus failed', currentMember?._id ?? 'unknown', bookingId, error);
 			throw error;
 		}
 	}
@@ -134,10 +137,10 @@ export class BookingResolver {
 		@Args('reason') reason: string,
 	): Promise<BookingDto> {
 		try {
-			console.log('Mutation cancelBooking', currentMember?._id ?? 'unknown', bookingId);
+			this.logger.log('Mutation cancelBooking', currentMember?._id ?? 'unknown', bookingId);
 			return this.bookingService.cancelBooking(currentMember, bookingId, reason);
 		} catch (error) {
-			console.error('Mutation cancelBooking failed', currentMember?._id ?? 'unknown', bookingId, error);
+			this.logger.error('Mutation cancelBooking failed', currentMember?._id ?? 'unknown', bookingId, error);
 			throw error;
 		}
 	}
@@ -154,10 +157,10 @@ export class BookingResolver {
 		@Args('paidAmount') paidAmount: number,
 	): Promise<BookingDto> {
 		try {
-			console.log('Mutation updatePaymentStatus', currentMember?._id ?? 'unknown', bookingId, paymentStatus);
+			this.logger.log('Mutation updatePaymentStatus', currentMember?._id ?? 'unknown', bookingId, paymentStatus);
 			return this.bookingService.updatePaymentStatus(currentMember, bookingId, paymentStatus, paidAmount);
 		} catch (error) {
-			console.error('Mutation updatePaymentStatus failed', currentMember?._id ?? 'unknown', bookingId, error);
+			this.logger.error('Mutation updatePaymentStatus failed', currentMember?._id ?? 'unknown', bookingId, error);
 			throw error;
 		}
 	}

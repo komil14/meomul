@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { FollowInput, FollowInquiry } from '../../libs/dto/follow/follow.input';
@@ -19,6 +19,8 @@ export interface ToggleFollowResult {
 
 @Injectable()
 export class FollowService {
+	private readonly logger = new Logger(FollowService.name);
+
 	constructor(
 		@InjectModel('Follow') private readonly followModel: Model<FollowDocument>,
 		private readonly memberService: MemberService,
@@ -102,7 +104,7 @@ export class FollowService {
 		} catch (error) {
 			// Rollback on any error
 			await session.abortTransaction();
-			console.error('Transaction failed in toggleFollow:', error);
+			this.logger.error('Transaction failed in toggleFollow:', error);
 			throw error;
 		} finally {
 			// Always end session

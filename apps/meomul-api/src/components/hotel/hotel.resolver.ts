@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { HotelDto } from '../../libs/dto/hotel/hotel';
 import { HotelInput } from '../../libs/dto/hotel/hotel.input';
 import { HotelUpdate } from '../../libs/dto/hotel/hotel.update';
@@ -14,6 +15,8 @@ import { HotelService } from './hotel.service';
 
 @Resolver()
 export class HotelResolver {
+	private readonly logger = new Logger(HotelResolver.name);
+
 	constructor(private readonly hotelService: HotelService) {}
 
 	/**
@@ -26,10 +29,10 @@ export class HotelResolver {
 		@Args('statusFilter', { type: () => HotelStatus, nullable: true }) statusFilter?: HotelStatus,
 	): Promise<HotelsDto> {
 		try {
-			console.log('Query getAllHotelsAdmin', statusFilter ?? 'all');
+			this.logger.log('Query getAllHotelsAdmin', statusFilter ?? 'all');
 			return this.hotelService.getAllHotelsAdmin(input, statusFilter);
 		} catch (error) {
-			console.error('Query getAllHotelsAdmin failed', error);
+			this.logger.error('Query getAllHotelsAdmin failed', error);
 			throw error;
 		}
 	}
@@ -44,10 +47,10 @@ export class HotelResolver {
 		@Args('input') input: HotelInput,
 	): Promise<HotelDto> {
 		try {
-			console.log('Mutation createHotel', currentMember?._id ?? 'unknown');
+			this.logger.log('Mutation createHotel', currentMember?._id ?? 'unknown');
 			return this.hotelService.createHotel(currentMember, input);
 		} catch (error) {
-			console.error('Mutation createHotel failed', currentMember?._id ?? 'unknown', error);
+			this.logger.error('Mutation createHotel failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}
@@ -62,10 +65,10 @@ export class HotelResolver {
 		@Args('input') input: HotelUpdate,
 	): Promise<HotelDto> {
 		try {
-			console.log('Mutation updateHotel', currentMember?._id ?? 'unknown', input._id);
+			this.logger.log('Mutation updateHotel', currentMember?._id ?? 'unknown', input._id);
 			return this.hotelService.updateHotel(currentMember, input);
 		} catch (error) {
-			console.error('Mutation updateHotel failed', currentMember?._id ?? 'unknown', input._id, error);
+			this.logger.error('Mutation updateHotel failed', currentMember?._id ?? 'unknown', input._id, error);
 			throw error;
 		}
 	}
@@ -77,10 +80,10 @@ export class HotelResolver {
 	@Roles(MemberType.ADMIN)
 	public async updateHotelByAdmin(@Args('input') input: HotelUpdate): Promise<HotelDto> {
 		try {
-			console.log('Mutation updateHotelByAdmin', input._id);
+			this.logger.log('Mutation updateHotelByAdmin', input._id);
 			return this.hotelService.updateHotelByAdmin(input);
 		} catch (error) {
-			console.error('Mutation updateHotelByAdmin failed', input._id, error);
+			this.logger.error('Mutation updateHotelByAdmin failed', input._id, error);
 			throw error;
 		}
 	}
@@ -96,10 +99,10 @@ export class HotelResolver {
 		@CurrentMember() currentMember?: any,
 	): Promise<HotelDto> {
 		try {
-			console.log('Query getHotel', hotelId, currentMember?._id ?? 'anonymous');
+			this.logger.log('Query getHotel', hotelId, currentMember?._id ?? 'anonymous');
 			return this.hotelService.getHotel(hotelId, currentMember);
 		} catch (error) {
-			console.error('Query getHotel failed', hotelId, error);
+			this.logger.error('Query getHotel failed', hotelId, error);
 			throw error;
 		}
 	}
@@ -115,10 +118,10 @@ export class HotelResolver {
 		@CurrentMember() currentMember?: any,
 	): Promise<HotelsDto> {
 		try {
-			console.log('Query getHotels', input.page, search?.location ?? 'all');
+			this.logger.log('Query getHotels', input.page, search?.location ?? 'all');
 			return this.hotelService.getHotels(input, search, currentMember);
 		} catch (error) {
-			console.error('Query getHotels failed', input.page, error);
+			this.logger.error('Query getHotels failed', input.page, error);
 			throw error;
 		}
 	}
@@ -133,10 +136,10 @@ export class HotelResolver {
 		@Args('input') input: PaginationInput,
 	): Promise<HotelsDto> {
 		try {
-			console.log('Query getAgentHotels', currentMember?._id ?? 'unknown');
+			this.logger.log('Query getAgentHotels', currentMember?._id ?? 'unknown');
 			return this.hotelService.getAgentHotels(currentMember, input);
 		} catch (error) {
-			console.error('Query getAgentHotels failed', currentMember?._id ?? 'unknown', error);
+			this.logger.error('Query getAgentHotels failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}

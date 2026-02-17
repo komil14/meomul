@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { NotificationInput } from '../../libs/dto/notification/notification.input';
@@ -15,6 +15,8 @@ import { NotificationGateway } from '../../socket/notification.gateway';
 
 @Injectable()
 export class NotificationService {
+	private readonly logger = new Logger(NotificationService.name);
+
 	constructor(
 		@InjectModel('Notification') private readonly notificationModel: Model<NotificationDocument>,
 		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
@@ -220,6 +222,6 @@ export class NotificationService {
 			});
 		}
 
-		console.log(`Admin notification sent: ${title} (${admins.length} admins)`);
+		this.logger.log(`Admin notification sent: ${title} (${admins.length} admins)`);
 	}
 }

@@ -1,4 +1,5 @@
 import { Args, Int, Query, Resolver } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { HotelDto } from '../../libs/dto/hotel/hotel';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
@@ -9,6 +10,8 @@ import { RecommendationService } from './recommendation.service';
 
 @Resolver()
 export class RecommendationResolver {
+	private readonly logger = new Logger(RecommendationResolver.name);
+
 	constructor(private readonly recommendationService: RecommendationService) {}
 
 	/**
@@ -21,10 +24,10 @@ export class RecommendationResolver {
 		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
 	): Promise<HotelDto[]> {
 		try {
-			console.log('Query getRecommendedHotels', currentMember?._id ?? 'unknown');
+			this.logger.log('Query getRecommendedHotels', currentMember?._id ?? 'unknown');
 			return this.recommendationService.getRecommendedHotels(currentMember._id, limit);
 		} catch (error) {
-			console.error('Query getRecommendedHotels failed', currentMember?._id ?? 'unknown', error);
+			this.logger.error('Query getRecommendedHotels failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}
@@ -38,10 +41,10 @@ export class RecommendationResolver {
 		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
 	): Promise<HotelDto[]> {
 		try {
-			console.log('Query getTrendingHotels');
+			this.logger.log('Query getTrendingHotels');
 			return this.recommendationService.getTrendingHotels(limit);
 		} catch (error) {
-			console.error('Query getTrendingHotels failed', error);
+			this.logger.error('Query getTrendingHotels failed', error);
 			throw error;
 		}
 	}
@@ -56,10 +59,10 @@ export class RecommendationResolver {
 		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
 	): Promise<HotelDto[]> {
 		try {
-			console.log('Query getTrendingByLocation', location);
+			this.logger.log('Query getTrendingByLocation', location);
 			return this.recommendationService.getTrendingByLocation(location, limit);
 		} catch (error) {
-			console.error('Query getTrendingByLocation failed', location, error);
+			this.logger.error('Query getTrendingByLocation failed', location, error);
 			throw error;
 		}
 	}
@@ -74,10 +77,10 @@ export class RecommendationResolver {
 		@Args('limit', { type: () => Int, nullable: true, defaultValue: 6 }) limit: number,
 	): Promise<HotelDto[]> {
 		try {
-			console.log('Query getSimilarHotels', hotelId);
+			this.logger.log('Query getSimilarHotels', hotelId);
 			return this.recommendationService.getSimilarHotels(hotelId, limit);
 		} catch (error) {
-			console.error('Query getSimilarHotels failed', hotelId, error);
+			this.logger.error('Query getSimilarHotels failed', hotelId, error);
 			throw error;
 		}
 	}

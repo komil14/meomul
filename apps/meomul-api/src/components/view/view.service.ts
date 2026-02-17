@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { Types } from 'mongoose';
@@ -16,6 +16,8 @@ export interface RecordViewResult {
 
 @Injectable()
 export class ViewService {
+	private readonly logger = new Logger(ViewService.name);
+
 	constructor(@InjectModel('View') private readonly viewModel: Model<ViewDocument>) {}
 
 	/**
@@ -26,11 +28,7 @@ export class ViewService {
 		const viewRefId = new Types.ObjectId(input.viewRefId);
 		const memberId = new Types.ObjectId(currentMember._id);
 
-		console.log('🔎 ViewService.recordView called:', {
-			viewGroup: input.viewGroup,
-			viewRefId: viewRefId.toString(),
-			memberId: memberId.toString(),
-		});
+		this.logger.log(`recordView: ${input.viewGroup} ${viewRefId} by ${memberId}`);
 
 		// Check if view already exists
 		const existingView = await this.viewModel
@@ -42,7 +40,6 @@ export class ViewService {
 			.exec();
 
 		if (existingView) {
-			console.log('👁️  Found existing view - returning isNewView: false');
 			// Already viewed - return existing view
 			return {
 				view: toViewDto(existingView),
@@ -50,7 +47,6 @@ export class ViewService {
 			};
 		}
 
-		console.log('✨ No existing view found - creating new view');
 		// Create new view
 		const view = await this.viewModel.create({
 			viewRefId,
@@ -58,7 +54,6 @@ export class ViewService {
 			viewGroup: input.viewGroup,
 		});
 
-		console.log('✅ New view created successfully - returning isNewView: true');
 		return {
 			view: toViewDto(view),
 			isNewView: true,

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { ReviewInput } from '../../libs/dto/review/review.input';
@@ -22,6 +22,8 @@ import { NotificationType } from '../../libs/enums/common.enum';
 
 @Injectable()
 export class ReviewService {
+	private readonly logger = new Logger(ReviewService.name);
+
 	constructor(
 		@InjectModel('Review') private readonly reviewModel: Model<ReviewDocument>,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
@@ -439,7 +441,7 @@ export class ReviewService {
 				})
 				.exec();
 		} catch (error) {
-			console.error('Error updating hotel review stats:', error);
+			this.logger.error('Error updating hotel review stats:', error);
 		}
 	}
 }

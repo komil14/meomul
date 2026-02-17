@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Logger } from '@nestjs/common';
 import { ReviewDto } from '../../libs/dto/review/review';
 import { ReviewInput } from '../../libs/dto/review/review.input';
 import { ReviewUpdate } from '../../libs/dto/review/review.update';
@@ -13,6 +14,8 @@ import { ReviewService } from './review.service';
 
 @Resolver()
 export class ReviewResolver {
+	private readonly logger = new Logger(ReviewResolver.name);
+
 	constructor(private readonly reviewService: ReviewService) {}
 
 	/**
@@ -25,10 +28,10 @@ export class ReviewResolver {
 		@Args('statusFilter', { type: () => ReviewStatus, nullable: true }) statusFilter?: ReviewStatus,
 	): Promise<ReviewsDto> {
 		try {
-			console.log('Query getAllReviewsAdmin', statusFilter ?? 'all');
+			this.logger.log('Query getAllReviewsAdmin', statusFilter ?? 'all');
 			return this.reviewService.getAllReviewsAdmin(input, statusFilter);
 		} catch (error) {
-			console.error('Query getAllReviewsAdmin failed', error);
+			this.logger.error('Query getAllReviewsAdmin failed', error);
 			throw error;
 		}
 	}
@@ -43,10 +46,10 @@ export class ReviewResolver {
 		@Args('input') input: ReviewInput,
 	): Promise<ReviewDto> {
 		try {
-			console.log('Mutation createReview', currentMember?._id ?? 'unknown', input.bookingId);
+			this.logger.log('Mutation createReview', currentMember?._id ?? 'unknown', input.bookingId);
 			return this.reviewService.createReview(currentMember, input);
 		} catch (error) {
-			console.error('Mutation createReview failed', currentMember?._id ?? 'unknown', input.bookingId, error);
+			this.logger.error('Mutation createReview failed', currentMember?._id ?? 'unknown', input.bookingId, error);
 			throw error;
 		}
 	}
@@ -61,10 +64,10 @@ export class ReviewResolver {
 		@Args('input') input: ReviewUpdate,
 	): Promise<ReviewDto> {
 		try {
-			console.log('Mutation updateReview', currentMember?._id ?? 'unknown', input._id);
+			this.logger.log('Mutation updateReview', currentMember?._id ?? 'unknown', input._id);
 			return this.reviewService.updateReview(currentMember, input);
 		} catch (error) {
-			console.error('Mutation updateReview failed', currentMember?._id ?? 'unknown', input._id, error);
+			this.logger.error('Mutation updateReview failed', currentMember?._id ?? 'unknown', input._id, error);
 			throw error;
 		}
 	}
@@ -79,10 +82,10 @@ export class ReviewResolver {
 		@Args('reviewId') reviewId: string,
 	): Promise<ReviewDto> {
 		try {
-			console.log('Mutation deleteReview', currentMember?._id ?? 'unknown', reviewId);
+			this.logger.log('Mutation deleteReview', currentMember?._id ?? 'unknown', reviewId);
 			return this.reviewService.deleteReview(currentMember, reviewId);
 		} catch (error) {
-			console.error('Mutation deleteReview failed', currentMember?._id ?? 'unknown', reviewId, error);
+			this.logger.error('Mutation deleteReview failed', currentMember?._id ?? 'unknown', reviewId, error);
 			throw error;
 		}
 	}
@@ -98,10 +101,10 @@ export class ReviewResolver {
 		@CurrentMember() currentMember?: any,
 	): Promise<ReviewDto> {
 		try {
-			console.log('Query getReview', reviewId, currentMember?._id ?? 'anonymous');
+			this.logger.log('Query getReview', reviewId, currentMember?._id ?? 'anonymous');
 			return this.reviewService.getReview(reviewId, currentMember);
 		} catch (error) {
-			console.error('Query getReview failed', reviewId, error);
+			this.logger.error('Query getReview failed', reviewId, error);
 			throw error;
 		}
 	}
@@ -116,10 +119,10 @@ export class ReviewResolver {
 		@Args('input') input: PaginationInput,
 	): Promise<ReviewsDto> {
 		try {
-			console.log('Query getHotelReviews', hotelId, input.page);
+			this.logger.log('Query getHotelReviews', hotelId, input.page);
 			return this.reviewService.getHotelReviews(hotelId, input);
 		} catch (error) {
-			console.error('Query getHotelReviews failed', hotelId, input.page, error);
+			this.logger.error('Query getHotelReviews failed', hotelId, input.page, error);
 			throw error;
 		}
 	}
@@ -134,10 +137,10 @@ export class ReviewResolver {
 		@Args('input') input: PaginationInput,
 	): Promise<ReviewsDto> {
 		try {
-			console.log('Query getMyReviews', currentMember?._id ?? 'unknown', input.page);
+			this.logger.log('Query getMyReviews', currentMember?._id ?? 'unknown', input.page);
 			return this.reviewService.getMyReviews(currentMember, input);
 		} catch (error) {
-			console.error('Query getMyReviews failed', currentMember?._id ?? 'unknown', input.page, error);
+			this.logger.error('Query getMyReviews failed', currentMember?._id ?? 'unknown', input.page, error);
 			throw error;
 		}
 	}
@@ -153,10 +156,10 @@ export class ReviewResolver {
 		@Args('responseText') responseText: string,
 	): Promise<ReviewDto> {
 		try {
-			console.log('Mutation respondToReview', currentMember?._id ?? 'unknown', reviewId);
+			this.logger.log('Mutation respondToReview', currentMember?._id ?? 'unknown', reviewId);
 			return this.reviewService.respondToReview(currentMember, reviewId, responseText);
 		} catch (error) {
-			console.error('Mutation respondToReview failed', currentMember?._id ?? 'unknown', reviewId, error);
+			this.logger.error('Mutation respondToReview failed', currentMember?._id ?? 'unknown', reviewId, error);
 			throw error;
 		}
 	}
@@ -171,10 +174,10 @@ export class ReviewResolver {
 		@Args('reviewId') reviewId: string,
 	): Promise<ReviewDto> {
 		try {
-			console.log('Mutation markHelpful', currentMember?._id ?? 'unknown', reviewId);
+			this.logger.log('Mutation markHelpful', currentMember?._id ?? 'unknown', reviewId);
 			return this.reviewService.markHelpful(currentMember, reviewId);
 		} catch (error) {
-			console.error('Mutation markHelpful failed', currentMember?._id ?? 'unknown', reviewId, error);
+			this.logger.error('Mutation markHelpful failed', currentMember?._id ?? 'unknown', reviewId, error);
 			throw error;
 		}
 	}
@@ -190,10 +193,10 @@ export class ReviewResolver {
 		@Args('status', { type: () => ReviewStatus }) status: ReviewStatus,
 	): Promise<ReviewDto> {
 		try {
-			console.log('Mutation updateReviewStatus', currentMember?._id ?? 'unknown', reviewId, status);
+			this.logger.log('Mutation updateReviewStatus', currentMember?._id ?? 'unknown', reviewId, status);
 			return this.reviewService.updateReviewStatus(currentMember, reviewId, status);
 		} catch (error) {
-			console.error('Mutation updateReviewStatus failed', currentMember?._id ?? 'unknown', reviewId, error);
+			this.logger.error('Mutation updateReviewStatus failed', currentMember?._id ?? 'unknown', reviewId, error);
 			throw error;
 		}
 	}
