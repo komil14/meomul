@@ -14,8 +14,9 @@ import { PriceLockModule } from './price-lock/price-lock.module';
 import { PriceCalendarModule } from './price-calendar/price-calendar.module';
 import { StatsModule } from './stats/stats.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
+import { SearchHistoryModule } from './search-history/search-history.module';
 
 @Module({
-  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule, PriceLockModule, PriceCalendarModule, StatsModule, RecommendationModule]
+  imports: [MemberModule, HotelModule, AuthModule, ReviewModule, RoomModule, BookingModule, LikeModule, ViewModule, FollowModule, NotificationModule, ChatModule, PriceLockModule, PriceCalendarModule, StatsModule, RecommendationModule, SearchHistoryModule]
 })
 export class ComponentsModule {}
