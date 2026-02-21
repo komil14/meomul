@@ -21,6 +21,9 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "paths": {}
+    "paths": {
+      "@nestjs/graphql/lib/*": ["./node_modules/@nestjs/graphql/dist/*"],
+      "@nestjs/apollo/lib/*": ["./node_modules/@nestjs/apollo/dist/*"]
+    }
   }
 }
