@@ -163,6 +163,13 @@ type BookingDto {
   weekendSurcharge: Int!
 }
 
+type BookingGuestCandidateDto {
+  _id: String!
+  memberFullName: String
+  memberNick: String!
+  memberPhone: String!
+}
+
 input BookingInput {
   adultCount: Int!
   checkInDate: DateTime!
@@ -860,6 +867,7 @@ type Query {
   hasLiked(likeGroup: LikeGroup!, likeRefId: String!): Boolean!
   hello: String!
   isFollowing(followingId: String!): Boolean!
+  searchMembersForBooking(keyword: String!, limit: Int = 10): [BookingGuestCandidateDto!]!
 }
 
 type ResponseDto {

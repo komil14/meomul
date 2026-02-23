@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model, ClientSession } from 'mongoose';
 import { Types } from 'mongoose';
@@ -10,6 +10,7 @@ import { MembersDto } from '../../libs/dto/common/members';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { ResponseDto } from '../../libs/dto/common/response';
 import { SubscriptionStatusDto } from '../../libs/dto/member/subscription-status';
+import { BookingGuestCandidateDto } from '../../libs/dto/member/booking-guest-candidate';
 import { OnboardingPreferenceInput } from '../../libs/dto/preference/onboarding-preference.input';
 import { MemberStatus, MemberType, SubscriptionTier } from '../../libs/enums/member.enum';
 import { TravelStyle, BudgetLevel } from '../../libs/enums/preference.enum';
@@ -121,6 +122,51 @@ export class MemberService {
 			list,
 			metaCounter: { total },
 		};
+	}
+
+	public async searchMembersForBooking(
+		currentMember: MemberJwtPayload,
+		keyword: string,
+		limit = 10,
+	): Promise<BookingGuestCandidateDto[]> {
+		const isStaffCreator =
+			currentMember.memberType === MemberType.AGENT ||
+			currentMember.memberType === MemberType.ADMIN ||
+			currentMember.memberType === MemberType.ADMIN_OPERATOR;
+		if (!isStaffCreator) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		if (currentMember.memberStatus !== MemberStatus.ACTIVE) {
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
+		}
+
+		const trimmedKeyword = keyword.trim();
+		if (trimmedKeyword.length < 2) {
+			return [];
+		}
+
+		const safeLimit = Math.min(Math.max(limit, 1), 20);
+		const escapedKeyword = this.escapeRegExp(trimmedKeyword);
+		const regex = new RegExp(escapedKeyword, 'i');
+
+		const members = await this.memberModel
+			.find({
+				memberType: MemberType.USER,
+				memberStatus: MemberStatus.ACTIVE,
+				$or: [{ memberNick: regex }, { memberFullName: regex }, { memberPhone: regex }],
+			})
+			.select('_id memberNick memberFullName memberPhone')
+			.sort({ createdAt: -1 })
+			.limit(safeLimit)
+			.exec();
+
+		return members.map((member) => ({
+			_id: member._id as unknown as BookingGuestCandidateDto['_id'],
+			memberNick: member.memberNick,
+			memberFullName: member.memberFullName,
+			memberPhone: member.memberPhone,
+		}));
 	}
 
 	public async getMemberByAdmin(memberId: string): Promise<MemberDocument> {
@@ -483,5 +529,9 @@ export class MemberService {
 			...memberObject,
 			accessToken,
 		};
+	}
+
+	private escapeRegExp(value: string): string {
+		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	}
 }

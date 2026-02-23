@@ -5,6 +5,7 @@ import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
 import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MemberDto } from '../../libs/dto/member/member';
+import { BookingGuestCandidateDto } from '../../libs/dto/member/booking-guest-candidate';
 import { SubscriptionStatusDto } from '../../libs/dto/member/subscription-status';
 import { MembersDto } from '../../libs/dto/common/members';
 import { PaginationInput } from '../../libs/dto/common/pagination';
@@ -81,6 +82,22 @@ export class MemberResolver {
 			return this.memberService.getAllMembersByAdmin(input);
 		} catch (error) {
 			this.logger.error('Query getAllMembersByAdmin failed', error);
+			throw error;
+		}
+	}
+
+	@Query(() => [BookingGuestCandidateDto])
+	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
+	public async searchMembersForBooking(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('keyword') keyword: string,
+		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit?: number,
+	): Promise<BookingGuestCandidateDto[]> {
+		try {
+			this.logger.log('Query searchMembersForBooking', currentMember?._id ?? 'unknown');
+			return this.memberService.searchMembersForBooking(currentMember, keyword, limit ?? 10);
+		} catch (error) {
+			this.logger.error('Query searchMembersForBooking failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}
