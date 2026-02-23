@@ -8,6 +8,7 @@ import { ChatDto } from '../../libs/dto/chat/chat';
 import { ChatsDto } from '../../libs/dto/common/chats';
 import { PaginationInput } from '../../libs/dto/common/pagination';
 import { ChatStatus, SenderType, MessageType, NotificationType } from '../../libs/enums/common.enum';
+import { HotelStatus } from '../../libs/enums/hotel.enum';
 import { MemberType } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
@@ -30,6 +31,11 @@ export class ChatService {
 	 * Guest starts a new chat with a hotel
 	 */
 	public async startChat(currentMember: MemberJwtPayload, input: StartChatInput): Promise<ChatDto> {
+		const hotel = await this.hotelModel.findById(input.hotelId).select('hotelStatus').exec();
+		if (!hotel || hotel.hotelStatus !== HotelStatus.ACTIVE) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
 		// Check if guest already has an active/waiting chat with this hotel
 		const existingChat = await this.chatModel
 			.findOne({
@@ -155,6 +161,8 @@ export class ChatService {
 			throw new BadRequestException(Messages.CHAT_ALREADY_CLAIMED);
 		}
 
+		await this.assertHotelChatAccess(currentMember, String(chat.hotelId));
+
 		const updatedChat = await this.chatModel
 			.findByIdAndUpdate(
 				input.chatId,
@@ -246,19 +254,7 @@ export class ChatService {
 		input: PaginationInput,
 		statusFilter?: ChatStatus,
 	): Promise<ChatsDto> {
-		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
-			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
-		}
-
-		if (currentMember.memberType !== MemberType.ADMIN) {
-			const hotel = await this.hotelModel.findById(hotelId).select('memberId').exec();
-			if (!hotel) {
-				throw new NotFoundException(Messages.NO_DATA_FOUND);
-			}
-			if (String(hotel.memberId) !== String(currentMember._id)) {
-				throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
-			}
-		}
+		await this.assertHotelChatAccess(currentMember, hotelId);
 
 		const { page, limit } = input;
 		const skip = (page - 1) * limit;
@@ -409,8 +405,24 @@ export class ChatService {
 			return SenderType.AGENT;
 		}
 
-		// Allow hotel owner/agent to access even if not assigned yet
-		// This is checked at resolver level via hotel ownership
 		throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+	}
+
+	private async assertHotelChatAccess(currentMember: MemberJwtPayload, hotelId: string): Promise<void> {
+		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		if (currentMember.memberType === MemberType.ADMIN) {
+			return;
+		}
+
+		const hotel = await this.hotelModel.findById(hotelId).select('memberId').exec();
+		if (!hotel) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+		if (String(hotel.memberId) !== String(currentMember._id)) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
 	}
 }

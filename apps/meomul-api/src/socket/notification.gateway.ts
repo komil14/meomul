@@ -12,6 +12,21 @@ import { Injectable } from '@nestjs/common';
 import { AuthService } from '../components/auth/auth.service';
 import { MemberType } from '../libs/enums/member.enum';
 
+const resolveSocketOrigins = (): string[] => {
+	const envList = (process.env.SOCKET_CORS_ORIGINS ?? '')
+		.split(',')
+		.map((origin) => origin.trim())
+		.filter(Boolean);
+	const frontendUrl = process.env.FRONTEND_URL?.trim();
+
+	return Array.from(new Set([
+		'http://localhost:3000',
+		'http://localhost:3001',
+		...(frontendUrl ? [frontendUrl] : []),
+		...envList,
+	]));
+};
+
 interface NotificationPayload {
 	type: 'BOOKING' | 'PAYMENT' | 'REVIEW' | 'HOTEL' | 'SYSTEM';
 	title: string;
@@ -30,7 +45,7 @@ interface UserSession {
 @Injectable()
 @WebSocketGateway({
 	cors: {
-		origin: '*',
+		origin: resolveSocketOrigins(),
 		credentials: true,
 	},
 	namespace: '/notifications',

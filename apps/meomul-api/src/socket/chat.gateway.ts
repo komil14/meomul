@@ -16,6 +16,21 @@ import type { ChatDocument } from '../libs/types/chat';
 import type { HotelDocument } from '../libs/types/hotel';
 import { AuthService } from '../components/auth/auth.service';
 
+const resolveSocketOrigins = (): string[] => {
+	const envList = (process.env.SOCKET_CORS_ORIGINS ?? '')
+		.split(',')
+		.map((origin) => origin.trim())
+		.filter(Boolean);
+	const frontendUrl = process.env.FRONTEND_URL?.trim();
+
+	return Array.from(new Set([
+		'http://localhost:3000',
+		'http://localhost:3001',
+		...(frontendUrl ? [frontendUrl] : []),
+		...envList,
+	]));
+};
+
 interface UserSession {
 	socketId: string;
 	userId: string;
@@ -40,7 +55,7 @@ interface ChatMessagePayload {
 @Injectable()
 @WebSocketGateway({
 	cors: {
-		origin: '*',
+		origin: resolveSocketOrigins(),
 		credentials: true,
 	},
 	namespace: '/chat',

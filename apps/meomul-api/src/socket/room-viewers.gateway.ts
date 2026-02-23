@@ -13,6 +13,21 @@ import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import type { RoomDocument } from '../libs/types/room';
 
+const resolveSocketOrigins = (): string[] => {
+	const envList = (process.env.SOCKET_CORS_ORIGINS ?? '')
+		.split(',')
+		.map((origin) => origin.trim())
+		.filter(Boolean);
+	const frontendUrl = process.env.FRONTEND_URL?.trim();
+
+	return Array.from(new Set([
+		'http://localhost:3000',
+		'http://localhost:3001',
+		...(frontendUrl ? [frontendUrl] : []),
+		...envList,
+	]));
+};
+
 interface ViewerSession {
 	socketId: string;
 	roomId: string;
@@ -23,7 +38,7 @@ interface ViewerSession {
 @Injectable()
 @WebSocketGateway({
 	cors: {
-		origin: '*',
+		origin: resolveSocketOrigins(),
 		credentials: true,
 	},
 	namespace: '/room-viewers',
@@ -71,7 +86,7 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 			// Leave previous room if any
 			const previousSession = this.viewerSessions.get(client.id);
 			if (previousSession) {
-				await this.handleLeaveRoom(client, { roomId: previousSession.roomId });
+				await this.leaveViewerSession(client, previousSession.roomId);
 			}
 
 			// Join new room
@@ -117,16 +132,24 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 	@SubscribeMessage('leaveRoom')
 	async handleLeaveRoom(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string }) {
 		try {
-			const { roomId } = data;
+			const session = this.viewerSessions.get(client.id);
+			if (!session) {
+				return {
+					success: true,
+					roomId: data.roomId,
+					viewerCount: 0,
+				};
+			}
 
-			// Leave room
-			client.leave(`room:${roomId}`);
+			if (data.roomId && data.roomId !== session.roomId) {
+				return {
+					success: false,
+					error: 'Room mismatch for active viewer session',
+				};
+			}
 
-			// Decrement viewer count
-			await this.decrementViewerCount(roomId);
-
-			// Remove session
-			this.viewerSessions.delete(client.id);
+			const roomId = session.roomId;
+			await this.leaveViewerSession(client, roomId);
 
 			// Get updated count
 			const viewerCount = await this.getCurrentViewerCount(roomId);
@@ -149,6 +172,12 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 				error: 'Failed to leave room',
 			};
 		}
+	}
+
+	private async leaveViewerSession(client: Socket, roomId: string): Promise<void> {
+		client.leave(`room:${roomId}`);
+		await this.decrementViewerCount(roomId);
+		this.viewerSessions.delete(client.id);
 	}
 
 	/**
