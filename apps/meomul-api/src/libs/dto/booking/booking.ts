@@ -1,6 +1,7 @@
 import { Field, ObjectType, Int } from '@nestjs/graphql';
 import type { ObjectId } from 'mongoose';
-import { BookingStatus, PaymentStatus, PaymentMethod } from '../../enums/booking.enum';
+import { BookingStatus, PaymentStatus, PaymentMethod, CancellationFlow } from '../../enums/booking.enum';
+import { MemberType } from '../../enums/member.enum';
 
 @ObjectType()
 export class BookedRoomDto {
@@ -102,6 +103,15 @@ export class BookingDto {
 
 	@Field(() => String, { nullable: true })
 	cancellationReason?: string;
+
+	@Field(() => CancellationFlow, { nullable: true })
+	cancellationFlow?: CancellationFlow;
+
+	@Field(() => String, { nullable: true })
+	cancelledByMemberId?: string;
+
+	@Field(() => MemberType, { nullable: true })
+	cancelledByMemberType?: MemberType;
 
 	@Field(() => Int, { nullable: true })
 	refundAmount?: number;

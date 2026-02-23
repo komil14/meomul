@@ -26,6 +26,12 @@ export enum PaymentMethod {
 	AT_HOTEL = 'AT_HOTEL',
 }
 
+export enum CancellationFlow {
+	GUEST = 'GUEST',
+	OPERATOR = 'OPERATOR',
+}
+
 registerEnumType(BookingStatus, { name: 'BookingStatus' });
 registerEnumType(PaymentStatus, { name: 'PaymentStatus' });
 registerEnumType(PaymentMethod, { name: 'PaymentMethod' });
+registerEnumType(CancellationFlow, { name: 'CancellationFlow' });

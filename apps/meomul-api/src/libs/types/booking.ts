@@ -1,6 +1,7 @@
 import type { Document, Types } from 'mongoose';
 import { BookingDto, BookedRoomDto } from '../dto/booking/booking';
-import { BookingStatus, PaymentStatus, PaymentMethod } from '../enums/booking.enum';
+import { BookingStatus, PaymentStatus, PaymentMethod, CancellationFlow } from '../enums/booking.enum';
+import { MemberType } from '../enums/member.enum';
 
 export interface BookedRoomDocument {
 	roomId: Types.ObjectId;
@@ -38,6 +39,9 @@ export interface BookingDocument extends Document {
 	lateCheckOut: boolean;
 	cancellationDate?: Date;
 	cancellationReason?: string;
+	cancellationFlow?: CancellationFlow;
+	cancelledByMemberId?: Types.ObjectId;
+	cancelledByMemberType?: MemberType;
 	refundAmount?: number;
 	refundDate?: Date;
 	refundReason?: string;
@@ -87,9 +91,12 @@ export function toBookingDto(doc: BookingDocument): BookingDto {
 		specialRequests: doc.specialRequests,
 		earlyCheckIn: doc.earlyCheckIn,
 		lateCheckOut: doc.lateCheckOut,
-		cancellationDate: doc.cancellationDate,
-		cancellationReason: doc.cancellationReason,
-		refundAmount: doc.refundAmount,
+			cancellationDate: doc.cancellationDate,
+			cancellationReason: doc.cancellationReason,
+			cancellationFlow: doc.cancellationFlow,
+			cancelledByMemberId: doc.cancelledByMemberId?.toString(),
+			cancelledByMemberType: doc.cancelledByMemberType,
+			refundAmount: doc.refundAmount,
 		refundDate: doc.refundDate,
 		refundReason: doc.refundReason,
 		refundEvidence: doc.refundEvidence,
