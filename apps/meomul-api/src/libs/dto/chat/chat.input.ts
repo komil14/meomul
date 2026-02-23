@@ -3,19 +3,19 @@ import { IsNotEmpty, IsString, IsOptional, Length } from 'class-validator';
 
 @InputType()
 export class StartChatInput {
-  @IsNotEmpty()
-  @IsString()
-  @Field(() => String)
-  hotelId: string;
+	@IsNotEmpty()
+	@IsString()
+	@Field(() => String)
+	hotelId: string;
 
-  @IsOptional()
-  @IsString()
-  @Field(() => String, { nullable: true })
-  bookingId?: string;
+	@IsOptional()
+	@IsString()
+	@Field(() => String, { nullable: true })
+	bookingId?: string;
 
-  @IsNotEmpty()
-  @IsString()
-  @Length(1, 500)
-  @Field(() => String)
-  initialMessage: string;
+	@IsNotEmpty()
+	@IsString()
+	@Length(1, 500)
+	@Field(() => String)
+	initialMessage: string;
 }

@@ -5,6 +5,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { HotelLocation } from '../../libs/enums/hotel.enum';
 import { RecommendationService } from './recommendation.service';
 
@@ -20,7 +21,7 @@ export class RecommendationResolver {
 	@Query(() => [HotelDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getRecommendedHotels(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
 	): Promise<HotelDto[]> {
 		try {

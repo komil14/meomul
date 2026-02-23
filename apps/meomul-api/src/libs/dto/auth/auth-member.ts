@@ -3,6 +3,6 @@ import { MemberDto } from '../member/member';
 
 @ObjectType()
 export class AuthMemberDto extends MemberDto {
-  @Field(() => String)
-  accessToken: string;
+	@Field(() => String)
+	accessToken: string;
 }

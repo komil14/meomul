@@ -31,7 +31,7 @@ export interface ChatDocument extends Document {
 
 export function toMessageDto(msg: MessageSubDocument): MessageDto {
 	return {
-		senderId: msg.senderId as unknown as any,
+		senderId: msg.senderId as unknown as MessageDto['senderId'],
 		senderType: msg.senderType,
 		messageType: msg.messageType,
 		content: msg.content,
@@ -44,11 +44,11 @@ export function toMessageDto(msg: MessageSubDocument): MessageDto {
 
 export function toChatDto(doc: ChatDocument): ChatDto {
 	return {
-		_id: doc._id as unknown as any,
-		guestId: doc.guestId as unknown as any,
-		hotelId: doc.hotelId as unknown as any,
-		assignedAgentId: doc.assignedAgentId as unknown as any,
-		bookingId: doc.bookingId as unknown as any,
+		_id: doc._id as unknown as ChatDto['_id'],
+		guestId: doc.guestId as unknown as ChatDto['guestId'],
+		hotelId: doc.hotelId as unknown as ChatDto['hotelId'],
+		assignedAgentId: doc.assignedAgentId as unknown as ChatDto['assignedAgentId'],
+		bookingId: doc.bookingId as unknown as ChatDto['bookingId'],
 		messages: doc.messages.map(toMessageDto),
 		chatStatus: doc.chatStatus,
 		unreadGuestMessages: doc.unreadGuestMessages,

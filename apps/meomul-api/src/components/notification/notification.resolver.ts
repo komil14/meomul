@@ -7,6 +7,7 @@ import { PaginationInput } from '../../libs/dto/common/pagination';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { NotificationService } from './notification.service';
 
 @Resolver()
@@ -36,7 +37,7 @@ export class NotificationResolver {
 	@Query(() => [NotificationDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyNotifications(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('unreadOnly', { type: () => Boolean, nullable: true }) unreadOnly?: boolean,
 	): Promise<NotificationDto[]> {
 		try {
@@ -54,7 +55,7 @@ export class NotificationResolver {
 	@Query(() => NotificationDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getNotification(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('notificationId') notificationId: string,
 	): Promise<NotificationDto> {
 		try {
@@ -72,7 +73,7 @@ export class NotificationResolver {
 	@Mutation(() => NotificationDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async markAsRead(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('notificationId') notificationId: string,
 	): Promise<NotificationDto> {
 		try {
@@ -89,7 +90,7 @@ export class NotificationResolver {
 	 */
 	@Mutation(() => Int)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async markAllAsRead(@CurrentMember() currentMember: any): Promise<number> {
+	public async markAllAsRead(@CurrentMember() currentMember: MemberJwtPayload): Promise<number> {
 		try {
 			this.logger.log('Mutation markAllAsRead', currentMember?._id ?? 'unknown');
 			return this.notificationService.markAllAsRead(currentMember);
@@ -105,7 +106,7 @@ export class NotificationResolver {
 	@Mutation(() => Boolean)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async deleteNotification(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('notificationId') notificationId: string,
 	): Promise<boolean> {
 		try {
@@ -122,7 +123,7 @@ export class NotificationResolver {
 	 */
 	@Query(() => Int)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async getUnreadCount(@CurrentMember() currentMember: any): Promise<number> {
+	public async getUnreadCount(@CurrentMember() currentMember: MemberJwtPayload): Promise<number> {
 		try {
 			this.logger.log('Query getUnreadCount', currentMember?._id ?? 'unknown');
 			return this.notificationService.getUnreadCount(currentMember);

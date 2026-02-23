@@ -12,10 +12,10 @@ export interface LikeDocument extends Document {
 
 export function toLikeDto(doc: LikeDocument): LikeDto {
 	return {
-		_id: doc._id as unknown as any,
+		_id: doc._id as unknown as LikeDto['_id'],
 		likeGroup: doc.likeGroup,
-		likeRefId: doc.likeRefId as unknown as any,
-		memberId: doc.memberId as unknown as any,
+		likeRefId: doc.likeRefId as unknown as LikeDto['likeRefId'],
+		memberId: doc.memberId as unknown as LikeDto['memberId'],
 		createdAt: doc.createdAt,
 	};
 }

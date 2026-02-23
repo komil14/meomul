@@ -4,13 +4,13 @@ import { LikeGroup } from '../../enums/common.enum';
 
 @InputType()
 export class LikeInput {
-  @IsNotEmpty()
-  @IsEnum(LikeGroup)
-  @Field(() => LikeGroup)
-  likeGroup: LikeGroup;
+	@IsNotEmpty()
+	@IsEnum(LikeGroup)
+	@Field(() => LikeGroup)
+	likeGroup: LikeGroup;
 
-  @IsNotEmpty()
-  @IsString()
-  @Field(() => String)
-  likeRefId: string;
+	@IsNotEmpty()
+	@IsString()
+	@Field(() => String)
+	likeRefId: string;
 }

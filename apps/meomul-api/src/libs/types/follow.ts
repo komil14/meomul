@@ -11,9 +11,9 @@ export interface FollowDocument extends Document {
 
 export function toFollowDto(doc: FollowDocument): FollowDto {
 	return {
-		_id: doc._id as unknown as any,
-		followerId: doc.followerId as unknown as any,
-		followingId: doc.followingId as unknown as any,
+		_id: doc._id as unknown as FollowDto['_id'],
+		followerId: doc.followerId as unknown as FollowDto['followerId'],
+		followingId: doc.followingId as unknown as FollowDto['followingId'],
 		createdAt: doc.createdAt,
 	};
 }

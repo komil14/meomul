@@ -1,4 +1,4 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema } from 'mongoose';
 import { NotificationType } from '../libs/enums/common.enum';
 
 const NotificationSchema = new Schema(

@@ -6,10 +6,7 @@ import { SearchHistoryService } from './search-history.service';
 import { SearchHistoryResolver } from './search-history.resolver';
 
 @Module({
-	imports: [
-		MongooseModule.forFeature([{ name: 'SearchHistory', schema: SearchHistorySchema }]),
-		AuthModule,
-	],
+	imports: [MongooseModule.forFeature([{ name: 'SearchHistory', schema: SearchHistorySchema }]), AuthModule],
 	providers: [SearchHistoryService, SearchHistoryResolver],
 	exports: [SearchHistoryService],
 })

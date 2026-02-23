@@ -99,7 +99,7 @@ export class ReviewService {
 				NotificationType.NEW_REVIEW,
 				'New Review',
 				`New review posted for hotel "${hotel.hotelTitle}"`,
-				`/admin/reviews/${review._id}`,
+				`/admin/reviews/${review._id.toString()}`,
 			)
 			.catch(() => {});
 
@@ -315,10 +315,7 @@ export class ReviewService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		if (
-			String(hotel.memberId) !== String(currentMember._id) &&
-			currentMember.memberType !== MemberType.ADMIN
-		) {
+		if (String(hotel.memberId) !== String(currentMember._id) && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException('You can only respond to reviews for your hotel');
 		}
 

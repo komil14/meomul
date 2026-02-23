@@ -4,9 +4,9 @@ import { MetaCounterDto } from './pagination';
 
 @ObjectType()
 export class BookingsDto {
-  @Field(() => [BookingDto])
-  list: BookingDto[];
+	@Field(() => [BookingDto])
+	list: BookingDto[];
 
-  @Field(() => MetaCounterDto)
-  metaCounter: MetaCounterDto;
+	@Field(() => MetaCounterDto)
+	metaCounter: MetaCounterDto;
 }

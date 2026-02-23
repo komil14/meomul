@@ -23,12 +23,9 @@ const resolveSocketOrigins = (): string[] => {
 		.filter(Boolean);
 	const frontendUrl = process.env.FRONTEND_URL?.trim();
 
-	return Array.from(new Set([
-		'http://localhost:3000',
-		'http://localhost:3001',
-		...(frontendUrl ? [frontendUrl] : []),
-		...envList,
-	]));
+	return Array.from(
+		new Set(['http://localhost:3000', 'http://localhost:3001', ...(frontendUrl ? [frontendUrl] : []), ...envList]),
+	);
 };
 
 interface UserSession {
@@ -74,11 +71,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	private userSocketMap: Map<string, Set<string>> = new Map();
 	private socketChatMap: Map<string, Set<string>> = new Map(); // socketId -> Set of chatIds
 
-	async handleConnection(client: Socket) {
+	handleConnection(client: Socket) {
 		console.log(`Chat Client Connected: ${client.id}`);
 	}
 
-	async handleDisconnect(client: Socket) {
+	handleDisconnect(client: Socket) {
 		console.log(`Chat Client Disconnected: ${client.id}`);
 
 		const session = this.userSessions.get(client.id);
@@ -100,7 +97,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 * Client authenticates and joins their personal room
 	 */
 	@SubscribeMessage('authenticate')
-	async handleAuthenticate(@ConnectedSocket() client: Socket, @MessageBody() data: { token?: string; userId?: string }) {
+	async handleAuthenticate(
+		@ConnectedSocket() client: Socket,
+		@MessageBody() data: { token?: string; userId?: string },
+	) {
 		try {
 			const rawToken = this.extractToken(client, data?.token);
 			if (!rawToken) {
@@ -117,7 +117,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				return { success: false, error: 'Token user mismatch' };
 			}
 
-			client.join(`user:${userId}`);
+			await client.join(`user:${userId}`);
 
 			this.userSessions.set(client.id, {
 				socketId: client.id,
@@ -158,7 +158,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				return { success: false, error: 'Not allowed to join this chat' };
 			}
 
-			client.join(`chat:${chatId}`);
+			await client.join(`chat:${chatId}`);
 
 			if (!this.socketChatMap.has(client.id)) {
 				this.socketChatMap.set(client.id, new Set());
@@ -182,7 +182,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		try {
 			const { chatId } = data;
 
-			client.leave(`chat:${chatId}`);
+			await client.leave(`chat:${chatId}`);
 
 			const chatIds = this.socketChatMap.get(client.id);
 			if (chatIds) {
@@ -200,7 +200,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 * Client is typing in a chat
 	 */
 	@SubscribeMessage('typing')
-	async handleTyping(@ConnectedSocket() client: Socket, @MessageBody() data: { chatId: string }) {
+	handleTyping(@ConnectedSocket() client: Socket, @MessageBody() data: { chatId: string }) {
 		const session = this.userSessions.get(client.id);
 		if (!session) return;
 		if (!this.socketChatMap.get(client.id)?.has(data.chatId)) return;
@@ -216,7 +216,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 * Client stopped typing
 	 */
 	@SubscribeMessage('stopTyping')
-	async handleStopTyping(@ConnectedSocket() client: Socket, @MessageBody() data: { chatId: string }) {
+	handleStopTyping(@ConnectedSocket() client: Socket, @MessageBody() data: { chatId: string }) {
 		const session = this.userSessions.get(client.id);
 		if (!session) return;
 		if (!this.socketChatMap.get(client.id)?.has(data.chatId)) return;
@@ -228,12 +228,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	}
 
 	private extractToken(client: Socket, tokenFromPayload?: string): string | null {
-		const authHeader = typeof client.handshake.headers.authorization === 'string'
-			? client.handshake.headers.authorization
-			: null;
-		const authToken = typeof client.handshake.auth?.token === 'string'
-			? client.handshake.auth.token
-			: null;
+		const authHeader =
+			typeof client.handshake.headers.authorization === 'string' ? client.handshake.headers.authorization : null;
+		const authToken = typeof client.handshake.auth?.token === 'string' ? client.handshake.auth.token : null;
 		const rawToken = tokenFromPayload || authToken || authHeader;
 		if (!rawToken) return null;
 
@@ -245,10 +242,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	}
 
 	private async canAccessChat(session: UserSession, chatId: string): Promise<boolean> {
-		const chat = await this.chatModel
-			.findById(chatId)
-			.select('guestId assignedAgentId hotelId')
-			.exec();
+		const chat = await this.chatModel.findById(chatId).select('guestId assignedAgentId hotelId').exec();
 
 		if (!chat) return false;
 

@@ -13,9 +13,9 @@ export interface PriceLockDocument extends Document {
 
 export function toPriceLockDto(doc: PriceLockDocument): PriceLockDto {
 	return {
-		_id: doc._id as unknown as any,
-		userId: doc.userId as unknown as any,
-		roomId: doc.roomId as unknown as any,
+		_id: doc._id.toString(),
+		userId: doc.userId.toString(),
+		roomId: doc.roomId.toString(),
 		lockedPrice: doc.lockedPrice,
 		expiresAt: doc.expiresAt,
 		createdAt: doc.createdAt,

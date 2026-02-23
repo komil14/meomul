@@ -9,7 +9,7 @@ export class LoggingInterceptor implements NestInterceptor {
 
 	public intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
 		const gqlContext = GqlExecutionContext.create(context);
-		const info = gqlContext.getInfo();
+		const info = gqlContext.getInfo<{ fieldName?: string } | undefined>();
 		const operationName = info?.fieldName ?? 'unknown';
 		const start = Date.now();
 
@@ -18,9 +18,10 @@ export class LoggingInterceptor implements NestInterceptor {
 				const duration = Date.now() - start;
 				this.logger.log(`[GraphQL] ${operationName} ${duration}ms`);
 			}),
-			catchError((error) => {
+			catchError((error: unknown) => {
 				const duration = Date.now() - start;
-				this.logger.error(`[GraphQL] ${operationName} failed ${duration}ms`, error?.stack ?? error);
+				const errorStack = error instanceof Error ? (error.stack ?? error.message) : String(error);
+				this.logger.error(`[GraphQL] ${operationName} failed ${duration}ms`, errorStack);
 				throw error;
 			}),
 		);

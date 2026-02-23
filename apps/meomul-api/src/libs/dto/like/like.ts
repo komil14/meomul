@@ -4,18 +4,18 @@ import { LikeGroup } from '../../enums/common.enum';
 
 @ObjectType()
 export class LikeDto {
-  @Field(() => String)
-  _id: ObjectId;
+	@Field(() => String)
+	_id: ObjectId;
 
-  @Field(() => LikeGroup)
-  likeGroup: LikeGroup;
+	@Field(() => LikeGroup)
+	likeGroup: LikeGroup;
 
-  @Field(() => String)
-  likeRefId: ObjectId;
+	@Field(() => String)
+	likeRefId: ObjectId;
 
-  @Field(() => String)
-  memberId: ObjectId;
+	@Field(() => String)
+	memberId: ObjectId;
 
-  @Field(() => Date)
-  createdAt: Date;
+	@Field(() => Date)
+	createdAt: Date;
 }

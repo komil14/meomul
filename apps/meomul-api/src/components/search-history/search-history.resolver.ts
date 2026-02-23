@@ -4,6 +4,7 @@ import { SearchHistoryDto } from '../../libs/dto/search-history/search-history';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { SearchHistoryService } from './search-history.service';
 
 @Resolver()
@@ -18,7 +19,7 @@ export class SearchHistoryResolver {
 	@Query(() => [SearchHistoryDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMySearchHistory(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('limit', { type: () => Int, nullable: true }) limit?: number,
 	): Promise<SearchHistoryDto[]> {
 		try {
@@ -36,7 +37,7 @@ export class SearchHistoryResolver {
 	@Mutation(() => Boolean)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async deleteSearchHistoryItem(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('historyId') historyId: string,
 	): Promise<boolean> {
 		try {
@@ -53,7 +54,7 @@ export class SearchHistoryResolver {
 	 */
 	@Mutation(() => Int)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async clearMySearchHistory(@CurrentMember() currentMember: any): Promise<number> {
+	public async clearMySearchHistory(@CurrentMember() currentMember: MemberJwtPayload): Promise<number> {
 		try {
 			this.logger.log('Mutation clearMySearchHistory', currentMember?._id ?? 'unknown');
 			return this.searchHistoryService.clearMySearchHistory(currentMember);

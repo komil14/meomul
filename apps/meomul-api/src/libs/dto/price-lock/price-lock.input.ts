@@ -3,14 +3,14 @@ import { IsNotEmpty, IsString, IsNumber, Min } from 'class-validator';
 
 @InputType()
 export class CreatePriceLockInput {
-  @IsNotEmpty()
-  @IsString()
-  @Field(() => String)
-  roomId: string;
+	@IsNotEmpty()
+	@IsString()
+	@Field(() => String)
+	roomId: string;
 
-  @IsNotEmpty()
-  @IsNumber()
-  @Min(0)
-  @Field(() => Int)
-  currentPrice: number;
+	@IsNotEmpty()
+	@IsNumber()
+	@Min(0)
+	@Field(() => Int)
+	currentPrice: number;
 }

@@ -6,6 +6,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver } from '@nestjs/apollo';
+import type { Request } from 'express';
 import { AppResolver } from './app.resolver';
 import { ComponentsModule } from './components/components.module';
 import { AuthModule } from './components/auth/auth.module';
@@ -30,7 +31,7 @@ import { RolesGuard } from './components/auth/guards/roles.guard';
 			playground: process.env.NODE_ENV !== 'production',
 			introspection: process.env.NODE_ENV !== 'production',
 			uploads: true,
-			context: ({ req }) => ({ req }),
+			context: ({ req }: { req: Request }) => ({ req }),
 		}),
 		ComponentsModule,
 		AuthModule,

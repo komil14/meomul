@@ -10,6 +10,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { HotelStatus } from '../../libs/enums/hotel.enum';
 import { HotelService } from './hotel.service';
 
@@ -43,7 +44,7 @@ export class HotelResolver {
 	@Mutation(() => HotelDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN)
 	public async createHotel(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: HotelInput,
 	): Promise<HotelDto> {
 		try {
@@ -61,7 +62,7 @@ export class HotelResolver {
 	@Mutation(() => HotelDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN)
 	public async updateHotel(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: HotelUpdate,
 	): Promise<HotelDto> {
 		try {
@@ -96,7 +97,7 @@ export class HotelResolver {
 	@Public()
 	public async getHotel(
 		@Args('hotelId') hotelId: string,
-		@CurrentMember() currentMember?: any,
+		@CurrentMember() currentMember?: MemberJwtPayload,
 	): Promise<HotelDto> {
 		try {
 			this.logger.log('Query getHotel', hotelId, currentMember?._id ?? 'anonymous');
@@ -115,7 +116,7 @@ export class HotelResolver {
 	public async getHotels(
 		@Args('input') input: PaginationInput,
 		@Args('search', { nullable: true }) search?: HotelSearchInput,
-		@CurrentMember() currentMember?: any,
+		@CurrentMember() currentMember?: MemberJwtPayload,
 	): Promise<HotelsDto> {
 		try {
 			this.logger.log('Query getHotels', input.page, search?.location ?? 'all');
@@ -132,7 +133,7 @@ export class HotelResolver {
 	@Query(() => HotelsDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN)
 	public async getAgentHotels(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: PaginationInput,
 	): Promise<HotelsDto> {
 		try {

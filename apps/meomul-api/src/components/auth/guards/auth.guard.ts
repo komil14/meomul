@@ -1,9 +1,13 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
+import type { Request } from 'express';
 import { Messages } from '../../../libs/messages';
+import type { MemberJwtPayload } from '../../../libs/types/member';
 import { AuthService } from '../auth.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+
+type AuthenticatedRequest = Request & { member?: MemberJwtPayload | null };
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -19,8 +23,15 @@ export class AuthGuard implements CanActivate {
 		]);
 
 		const gqlContext = GqlExecutionContext.create(context);
-		const req = gqlContext.getContext().req;
-		const authHeader = req?.headers?.authorization ?? req?.headers?.Authorization;
+		const requestContext = gqlContext.getContext<{ req: AuthenticatedRequest }>();
+		const req = requestContext.req;
+		const authorizationHeader = req.headers.authorization;
+		const authHeader =
+			typeof authorizationHeader === 'string'
+				? authorizationHeader
+				: Array.isArray(authorizationHeader)
+					? authorizationHeader[0]
+					: undefined;
 
 		// If public route, try to extract user if token exists, but don't fail if it doesn't
 		if (isPublic) {
@@ -30,7 +41,7 @@ export class AuthGuard implements CanActivate {
 					try {
 						const member = await this.authService.verifyToken(token);
 						req.member = member;
-					} catch (error) {
+					} catch {
 						// Invalid token on public route - just continue without user
 						req.member = null;
 					}

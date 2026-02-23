@@ -35,17 +35,17 @@ export interface ReviewDocument extends Document {
 function toHotelResponseDto(response: HotelResponseDocument): HotelResponseDto {
 	return {
 		responseText: response.responseText,
-		respondedBy: response.respondedBy as unknown as any,
+		respondedBy: response.respondedBy as unknown as HotelResponseDto['respondedBy'],
 		respondedAt: response.respondedAt,
 	};
 }
 
 export function toReviewDto(doc: ReviewDocument): ReviewDto {
 	return {
-		_id: doc._id as unknown as any,
-		reviewerId: doc.reviewerId as unknown as any,
-		hotelId: doc.hotelId as unknown as any,
-		bookingId: doc.bookingId as unknown as any,
+		_id: doc._id as unknown as ReviewDto['_id'],
+		reviewerId: doc.reviewerId as unknown as ReviewDto['reviewerId'],
+		hotelId: doc.hotelId as unknown as ReviewDto['hotelId'],
+		bookingId: doc.bookingId as unknown as ReviewDto['bookingId'],
 		verifiedStay: doc.verifiedStay,
 		stayDate: doc.stayDate,
 		overallRating: doc.overallRating,
@@ -59,7 +59,8 @@ export function toReviewDto(doc: ReviewDocument): ReviewDto {
 		guestPhotos: doc.guestPhotos,
 		helpfulCount: doc.helpfulCount,
 		reviewViews: doc.reviewViews,
-		hotelResponse: doc.hotelResponse && doc.hotelResponse.responseText ? toHotelResponseDto(doc.hotelResponse) : undefined,
+		hotelResponse:
+			doc.hotelResponse && doc.hotelResponse.responseText ? toHotelResponseDto(doc.hotelResponse) : undefined,
 		reviewStatus: doc.reviewStatus,
 		createdAt: doc.createdAt,
 		updatedAt: doc.updatedAt,

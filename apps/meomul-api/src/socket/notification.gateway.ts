@@ -19,12 +19,9 @@ const resolveSocketOrigins = (): string[] => {
 		.filter(Boolean);
 	const frontendUrl = process.env.FRONTEND_URL?.trim();
 
-	return Array.from(new Set([
-		'http://localhost:3000',
-		'http://localhost:3001',
-		...(frontendUrl ? [frontendUrl] : []),
-		...envList,
-	]));
+	return Array.from(
+		new Set(['http://localhost:3000', 'http://localhost:3001', ...(frontendUrl ? [frontendUrl] : []), ...envList]),
+	);
 };
 
 interface NotificationPayload {
@@ -59,11 +56,11 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 	private userSessions: Map<string, UserSession> = new Map();
 	private userSocketMap: Map<string, Set<string>> = new Map(); // userId -> Set of socketIds
 
-	async handleConnection(client: Socket) {
+	handleConnection(client: Socket) {
 		console.log(`Notification Client Connected: ${client.id}`);
 	}
 
-	async handleDisconnect(client: Socket) {
+	handleDisconnect(client: Socket) {
 		console.log(`Notification Client Disconnected: ${client.id}`);
 
 		// Remove user session
@@ -84,7 +81,10 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 	 * User authenticates and joins their notification channel
 	 */
 	@SubscribeMessage('authenticate')
-	async handleAuthenticate(@ConnectedSocket() client: Socket, @MessageBody() data: { token?: string; userId?: string }) {
+	async handleAuthenticate(
+		@ConnectedSocket() client: Socket,
+		@MessageBody() data: { token?: string; userId?: string },
+	) {
 		try {
 			const rawToken = this.extractToken(client, data?.token);
 			if (!rawToken) {
@@ -111,7 +111,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 			}
 
 			// Join user-specific room
-			client.join(`user:${userId}`);
+			await client.join(`user:${userId}`);
 
 			// Store session
 			this.userSessions.set(client.id, {
@@ -147,7 +147,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 	 * User marks notification as read
 	 */
 	@SubscribeMessage('markAsRead')
-	async handleMarkAsRead(@ConnectedSocket() client: Socket, @MessageBody() data: { notificationId: string }) {
+	handleMarkAsRead(@ConnectedSocket() client: Socket, @MessageBody() data: { notificationId: string }) {
 		try {
 			const session = this.userSessions.get(client.id);
 			if (!session) {
@@ -238,11 +238,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 	/**
 	 * Send booking status update notification
 	 */
-	public notifyBookingStatusUpdate(
-		userId: string,
-		status: string,
-		bookingData: Record<string, unknown>,
-	): void {
+	public notifyBookingStatusUpdate(userId: string, status: string, bookingData: Record<string, unknown>): void {
 		const statusMessages: Record<string, string> = {
 			CONFIRMED: 'Your booking has been confirmed',
 			CHECKED_IN: 'Check-in successful. Enjoy your stay!',
@@ -288,12 +284,9 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 	}
 
 	private extractToken(client: Socket, tokenFromPayload?: string): string | null {
-		const authHeader = typeof client.handshake.headers.authorization === 'string'
-			? client.handshake.headers.authorization
-			: null;
-		const authToken = typeof client.handshake.auth?.token === 'string'
-			? client.handshake.auth.token
-			: null;
+		const authHeader =
+			typeof client.handshake.headers.authorization === 'string' ? client.handshake.headers.authorization : null;
+		const authToken = typeof client.handshake.auth?.token === 'string' ? client.handshake.auth.token : null;
 		const rawToken = tokenFromPayload || authToken || authHeader;
 		if (!rawToken) return null;
 

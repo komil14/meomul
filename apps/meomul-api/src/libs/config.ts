@@ -1,5 +1,5 @@
 import { ObjectId } from 'bson';
-export const shapeIntoMongoObjectId = (target: any) => {
+export const shapeIntoMongoObjectId = (target: string | ObjectId): ObjectId => {
 	return typeof target === 'string' ? new ObjectId(target) : target;
 };
 
@@ -10,4 +10,4 @@ export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/
 export const VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 
 export const VIDEO_SIZE_LIMIT = 50 * 1024 * 1024; // 50MB
-export const IMAGE_SIZE_LIMIT = 5 * 1024 * 1024;  // 5MB
+export const IMAGE_SIZE_LIMIT = 5 * 1024 * 1024; // 5MB

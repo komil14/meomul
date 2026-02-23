@@ -11,11 +11,11 @@ import { NotificationModule } from '../notification/notification.module';
 
 @Module({
 	imports: [
-			MongooseModule.forFeature([
-				{ name: 'Chat', schema: ChatSchema },
-				{ name: 'Hotel', schema: HotelSchema },
-				{ name: 'Member', schema: MemberSchema },
-			]),
+		MongooseModule.forFeature([
+			{ name: 'Chat', schema: ChatSchema },
+			{ name: 'Hotel', schema: HotelSchema },
+			{ name: 'Member', schema: MemberSchema },
+		]),
 		AuthModule,
 		SocketModule,
 		NotificationModule,

@@ -28,7 +28,7 @@ export class ViewService {
 		const viewRefId = new Types.ObjectId(input.viewRefId);
 		const memberId = new Types.ObjectId(currentMember._id);
 
-		this.logger.log(`recordView: ${input.viewGroup} ${viewRefId} by ${memberId}`);
+		this.logger.log(`recordView: ${input.viewGroup} ${viewRefId.toString()} by ${memberId.toString()}`);
 
 		// Check if view already exists
 		const existingView = await this.viewModel

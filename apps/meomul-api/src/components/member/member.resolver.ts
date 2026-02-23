@@ -14,6 +14,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType, SubscriptionTier } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { MemberService } from './member.service';
 
 @Resolver()
@@ -48,7 +49,7 @@ export class MemberResolver {
 
 	@Mutation(() => MemberDto)
 	public async updateMember(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: MemberUpdate,
 	): Promise<MemberDto> {
 		try {
@@ -111,7 +112,7 @@ export class MemberResolver {
 	@Mutation(() => ResponseDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async requestSubscription(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('requestedTier', { type: () => SubscriptionTier }) requestedTier: SubscriptionTier,
 	): Promise<ResponseDto> {
 		try {
@@ -168,7 +169,7 @@ export class MemberResolver {
 
 	@Query(() => SubscriptionStatusDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async getSubscriptionStatus(@CurrentMember() currentMember: any): Promise<SubscriptionStatusDto> {
+	public async getSubscriptionStatus(@CurrentMember() currentMember: MemberJwtPayload): Promise<SubscriptionStatusDto> {
 		try {
 			this.logger.log('Query getSubscriptionStatus', currentMember?._id ?? 'unknown');
 			return this.memberService.getSubscriptionStatus(currentMember);
@@ -179,7 +180,7 @@ export class MemberResolver {
 	}
 
 	@Query(() => MemberDto)
-	public async getMember(@CurrentMember() currentMember: any): Promise<MemberDto> {
+	public async getMember(@CurrentMember() currentMember: MemberJwtPayload): Promise<MemberDto> {
 		try {
 			this.logger.log('Query getMember', currentMember?._id ?? 'unknown');
 			return this.memberService.getMember(currentMember);
@@ -190,7 +191,7 @@ export class MemberResolver {
 	}
 
 	@Query(() => String)
-	public async checkAuth(@CurrentMember() currentMember: any): Promise<string> {
+	public checkAuth(@CurrentMember() currentMember: MemberJwtPayload): string {
 		try {
 			this.logger.log('Query checkAuth', currentMember?._id ?? 'unknown');
 			const memberNick = currentMember?.memberNick ?? 'unknown';
@@ -205,7 +206,7 @@ export class MemberResolver {
 
 	@Query(() => ResponseDto)
 	@Roles(MemberType.ADMIN)
-	public async checkAuthRoles(@CurrentMember() currentMember: any): Promise<ResponseDto> {
+	public checkAuthRoles(@CurrentMember() currentMember: MemberJwtPayload): ResponseDto {
 		try {
 			this.logger.log('Query checkAuthRoles', currentMember?._id ?? 'unknown');
 			return this.memberService.checkAuthRoles(currentMember);
@@ -218,7 +219,7 @@ export class MemberResolver {
 	@Mutation(() => ResponseDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async saveOnboardingPreferences(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: OnboardingPreferenceInput,
 	): Promise<ResponseDto> {
 		try {

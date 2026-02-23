@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { CreatePriceLockInput } from '../../libs/dto/price-lock/price-lock.input';
 import { PriceLockDto } from '../../libs/dto/price-lock/price-lock';
 import { Messages } from '../../libs/messages';
@@ -132,11 +132,7 @@ export class PriceLockService {
 		}
 
 		// Check for active last-minute deal
-		if (
-			room.lastMinuteDeal &&
-			room.lastMinuteDeal.isActive &&
-			room.lastMinuteDeal.validUntil > new Date()
-		) {
+		if (room.lastMinuteDeal && room.lastMinuteDeal.isActive && room.lastMinuteDeal.validUntil > new Date()) {
 			return {
 				price: room.lastMinuteDeal.dealPrice,
 				isLocked: false,

@@ -5,6 +5,7 @@ import { CreatePriceLockInput } from '../../libs/dto/price-lock/price-lock.input
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { PriceLockService } from './price-lock.service';
 
 @Resolver()
@@ -19,7 +20,7 @@ export class PriceLockResolver {
 	@Mutation(() => PriceLockDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async lockPrice(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: CreatePriceLockInput,
 	): Promise<PriceLockDto> {
 		this.logger.log('Mutation lockPrice', currentMember?._id, input.roomId);
@@ -32,7 +33,7 @@ export class PriceLockResolver {
 	@Query(() => PriceLockDto, { nullable: true })
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyPriceLock(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('roomId') roomId: string,
 	): Promise<PriceLockDto | null> {
 		this.logger.log('Query getMyPriceLock', currentMember?._id, roomId);
@@ -44,7 +45,7 @@ export class PriceLockResolver {
 	 */
 	@Query(() => [PriceLockDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async getMyPriceLocks(@CurrentMember() currentMember: any): Promise<PriceLockDto[]> {
+	public async getMyPriceLocks(@CurrentMember() currentMember: MemberJwtPayload): Promise<PriceLockDto[]> {
 		this.logger.log('Query getMyPriceLocks', currentMember?._id);
 		return this.priceLockService.getMyPriceLocks(currentMember);
 	}
@@ -55,7 +56,7 @@ export class PriceLockResolver {
 	@Mutation(() => Boolean)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async cancelPriceLock(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('priceLockId') priceLockId: string,
 	): Promise<boolean> {
 		this.logger.log('Mutation cancelPriceLock', currentMember?._id, priceLockId);

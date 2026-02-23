@@ -64,7 +64,9 @@ export class HotelService {
 		}
 
 		// Calculate Safe Stay Certification
-		const safeStayCertified = this.calculateSafeStayCertification(input.safetyFeatures as unknown as Record<string, unknown>);
+		const safeStayCertified = this.calculateSafeStayCertification(
+			input.safetyFeatures as unknown as Record<string, unknown>,
+		);
 
 		// Calculate suitable purposes based on amenities
 		const suitableFor = input.suitableFor?.length
@@ -88,7 +90,7 @@ export class HotelService {
 				NotificationType.NEW_HOTEL,
 				'New Hotel Registered',
 				`"${hotel.hotelTitle}" was registered by agent`,
-				`/admin/hotels/${hotel._id}`,
+				`/admin/hotels/${hotel._id.toString()}`,
 			)
 			.catch(() => {});
 
@@ -110,10 +112,7 @@ export class HotelService {
 		}
 
 		// Check ownership (only hotel owner can update, unless admin)
-		if (
-			String(hotel.memberId) !== String(currentMember._id) &&
-			currentMember.memberType !== MemberType.ADMIN
-		) {
+		if (String(hotel.memberId) !== String(currentMember._id) && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
@@ -122,7 +121,9 @@ export class HotelService {
 
 		// Recalculate safe stay certification if safety features changed
 		if (input.safetyFeatures) {
-			updateData.safeStayCertified = this.calculateSafeStayCertification(input.safetyFeatures as unknown as Record<string, unknown>);
+			updateData.safeStayCertified = this.calculateSafeStayCertification(
+				input.safetyFeatures as unknown as Record<string, unknown>,
+			);
 		}
 
 		// Recalculate suitable purposes if amenities changed
@@ -528,11 +529,7 @@ export class HotelService {
 			case StayPurpose.FAMILY:
 				// Family room, kids friendly, playground
 				return {
-					$or: [
-						{ 'amenities.familyRoom': true },
-						{ 'amenities.kidsFriendly': true },
-						{ 'amenities.playground': true },
-					],
+					$or: [{ 'amenities.familyRoom': true }, { 'amenities.kidsFriendly': true }, { 'amenities.playground': true }],
 				};
 
 			case StayPurpose.SOLO:

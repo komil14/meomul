@@ -7,6 +7,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { FollowService } from './follow.service';
 
 @Resolver()
@@ -21,7 +22,7 @@ export class FollowResolver {
 	@Mutation(() => ToggleFollowDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async toggleFollow(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: FollowInput,
 	): Promise<ToggleFollowDto> {
 		try {
@@ -69,7 +70,7 @@ export class FollowResolver {
 	@Query(() => Boolean)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async isFollowing(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('followingId') followingId: string,
 	): Promise<boolean> {
 		try {
@@ -101,7 +102,7 @@ export class FollowResolver {
 	 */
 	@Query(() => [FollowDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async getMyFollowing(@CurrentMember() currentMember: any): Promise<FollowDto[]> {
+	public async getMyFollowing(@CurrentMember() currentMember: MemberJwtPayload): Promise<FollowDto[]> {
 		try {
 			this.logger.log('Query getMyFollowing', currentMember?._id ?? 'unknown');
 			return this.followService.getFollowing(currentMember._id);
@@ -116,7 +117,7 @@ export class FollowResolver {
 	 */
 	@Query(() => [FollowDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async getMyFollowers(@CurrentMember() currentMember: any): Promise<FollowDto[]> {
+	public async getMyFollowers(@CurrentMember() currentMember: MemberJwtPayload): Promise<FollowDto[]> {
 		try {
 			this.logger.log('Query getMyFollowers', currentMember?._id ?? 'unknown');
 			return this.followService.getFollowers(currentMember._id);
@@ -134,7 +135,7 @@ export class FollowResolver {
 	public async getMemberFollowersPaginated(
 		@Args('memberId') memberId: string,
 		@Args('input') input: FollowInquiry,
-		@CurrentMember() currentMember?: any,
+		@CurrentMember() currentMember?: MemberJwtPayload,
 	): Promise<Followers> {
 		try {
 			this.logger.log('Query getMemberFollowersPaginated', memberId, input, currentMember?._id);
@@ -153,7 +154,7 @@ export class FollowResolver {
 	public async getMemberFollowingsPaginated(
 		@Args('memberId') memberId: string,
 		@Args('input') input: FollowInquiry,
-		@CurrentMember() currentMember?: any,
+		@CurrentMember() currentMember?: MemberJwtPayload,
 	): Promise<Followings> {
 		try {
 			this.logger.log('Query getMemberFollowingsPaginated', memberId, input, currentMember?._id);

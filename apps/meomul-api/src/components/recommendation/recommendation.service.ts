@@ -36,6 +36,11 @@ interface UserPreferenceProfile {
 	bookedHotelIds: Types.ObjectId[];
 }
 
+interface RecommendationFacetResult {
+	recommended: HotelDto[];
+	fallback: HotelDto[];
+}
+
 @Injectable()
 export class RecommendationService {
 	constructor(
@@ -61,9 +66,7 @@ export class RecommendationService {
 
 		// If user has no activity, fall back to trending
 		const hasActivity =
-			profile.preferredLocations.length > 0 ||
-			profile.likedHotelIds.length > 0 ||
-			profile.bookedHotelIds.length > 0;
+			profile.preferredLocations.length > 0 || profile.likedHotelIds.length > 0 || profile.bookedHotelIds.length > 0;
 
 		if (!hasActivity) {
 			return this.getTrendingHotels(limit);
@@ -71,18 +74,18 @@ export class RecommendationService {
 
 		// Single query with $facet: scored recommendations + fallback in one DB call
 		const pipeline = this.buildRecommendationPipeline(profile, limit);
-		const [facetResult] = await this.hotelModel.aggregate(pipeline).exec();
+		const [facetResult] = await this.hotelModel.aggregate<RecommendationFacetResult>(pipeline).exec();
 
-		const scored: any[] = facetResult?.recommended ?? [];
-		const fallback: any[] = facetResult?.fallback ?? [];
+		const scored = facetResult?.recommended ?? [];
+		const fallback = facetResult?.fallback ?? [];
 
 		// Use scored results, pad with fallback if not enough
-		const usedIds = new Set(scored.map((r: any) => String(r._id)));
+		const usedIds = scored.map((r) => r._id as unknown as Types.ObjectId);
 		const padding = fallback
-			.filter((r: any) => !usedIds.has(String(r._id)))
+			.filter((r) => !usedIds.some((id) => id.equals(r._id as unknown as Types.ObjectId)))
 			.slice(0, limit - scored.length);
 
-		const finalResults = [...scored, ...padding].map((doc: any) => this.aggregateDocToHotelDto(doc));
+		const finalResults = [...scored, ...padding].map((doc) => this.aggregateDocToHotelDto(doc));
 
 		await this.cacheManager.set(cacheKey, finalResults, 600000); // 10 min
 		return finalResults;
@@ -104,7 +107,7 @@ export class RecommendationService {
 
 		// Single pipeline: $unionWith merges views + likes + bookings,
 		// then $group sums weighted scores, then $lookup hotel data
-		const trendingPipeline = await this.viewModel.aggregate([
+		const trendingPipeline = await this.viewModel.aggregate<HotelDto>([
 			// Start with views (weight: 1)
 			{
 				$match: {
@@ -149,9 +152,7 @@ export class RecommendationService {
 			},
 
 			// Exclude specific hotel IDs if provided
-			...(excludeObjectIds.length > 0
-				? [{ $match: { hotelId: { $nin: excludeObjectIds } } }]
-				: []),
+			...(excludeObjectIds.length > 0 ? [{ $match: { hotelId: { $nin: excludeObjectIds } } }] : []),
 
 			// Group by hotel and sum weighted scores
 			{
@@ -197,7 +198,7 @@ export class RecommendationService {
 				.exec();
 			result = hotels.map(toHotelDto);
 		} else {
-			result = trendingPipeline.map((doc: any) => this.aggregateDocToHotelDto(doc));
+			result = trendingPipeline.map((doc) => this.aggregateDocToHotelDto(doc));
 		}
 
 		if (cacheKey) await this.cacheManager.set(cacheKey, result, 900000); // 15 min
@@ -214,21 +215,18 @@ export class RecommendationService {
 		if (cached) return cached;
 
 		// Check batch-precomputed data first
-		const precomputed = await this.recCacheModel
-			.findOne({ cacheKey: `trending:${location}` })
-			.exec();
+		const precomputed = await this.recCacheModel.findOne({ cacheKey: `trending:${location}` }).exec();
+		const precomputedData = Array.isArray(precomputed?.data) ? (precomputed.data as HotelDto[]) : [];
 
-		if (precomputed && precomputed.data?.length > 0) {
-			const result = (precomputed.data as HotelDto[]).slice(0, limit);
+		if (precomputedData.length > 0) {
+			const result = precomputedData.slice(0, limit);
 			await this.cacheManager.set(cacheKey, result, 900000); // 15 min
 			return result;
 		}
 
 		// Fallback: filter global trending by location
 		const globalTrending = await this.getTrendingHotels(50);
-		const locationFiltered = globalTrending
-			.filter((h) => h.hotelLocation === location)
-			.slice(0, limit);
+		const locationFiltered = globalTrending.filter((h) => h.hotelLocation === location).slice(0, limit);
 
 		if (locationFiltered.length >= limit) {
 			await this.cacheManager.set(cacheKey, locationFiltered, 900000);
@@ -236,12 +234,12 @@ export class RecommendationService {
 		}
 
 		// Not enough trending — pad with top-rated hotels from this location
-		const existingIds = locationFiltered.map((h) => new Types.ObjectId(String(h._id)));
+		const existingIds = locationFiltered.map((h) => h._id as unknown as Types.ObjectId);
 		const additional = await this.hotelModel
 			.find({
 				hotelStatus: HotelStatus.ACTIVE,
 				hotelLocation: location,
-				_id: { $nin: existingIds } as any,
+				_id: { $nin: existingIds },
 			})
 			.sort({ hotelRank: -1, hotelRating: -1 })
 			.limit(limit - locationFiltered.length)
@@ -267,7 +265,7 @@ export class RecommendationService {
 
 		const sourceId = new Types.ObjectId(hotelId);
 
-		const hotels = await this.hotelModel.aggregate([
+		const hotels = await this.hotelModel.aggregate<HotelDto>([
 			{
 				$match: {
 					_id: { $ne: sourceId },
@@ -286,10 +284,7 @@ export class RecommendationService {
 						$multiply: [
 							{
 								$size: {
-									$setIntersection: [
-										{ $ifNull: ['$suitableFor', []] },
-										sourceHotel.suitableFor || [],
-									],
+									$setIntersection: [{ $ifNull: ['$suitableFor', []] }, sourceHotel.suitableFor || []],
 								},
 							},
 							10,
@@ -309,7 +304,7 @@ export class RecommendationService {
 			{ $limit: limit },
 		]);
 
-		const result = hotels.map((doc: any) => this.aggregateDocToHotelDto(doc));
+		const result = hotels.map((doc) => this.aggregateDocToHotelDto(doc));
 		await this.cacheManager.set(cacheKey, result, 1800000); // 30 min
 		return result;
 	}
@@ -330,10 +325,7 @@ export class RecommendationService {
 		const precomputed = await this.userProfileModel
 			.findOne({
 				memberId: new Types.ObjectId(memberId),
-				$or: [
-					{ source: 'onboarding' },
-					{ computedAt: { $gte: new Date(Date.now() - 2 * 3600000) } },
-				],
+				$or: [{ source: 'onboarding' }, { computedAt: { $gte: new Date(Date.now() - 2 * 3600000) } }],
 			})
 			.lean()
 			.exec();
@@ -374,10 +366,7 @@ export class RecommendationService {
 				.exec(),
 
 			// Get liked hotel IDs
-			this.likeModel
-				.find({ memberId: memberObjectId, likeGroup: LikeGroup.HOTEL })
-				.select('likeRefId')
-				.exec(),
+			this.likeModel.find({ memberId: memberObjectId, likeGroup: LikeGroup.HOTEL }).select('likeRefId').exec(),
 
 			// Get booked hotel IDs
 			this.bookingModel
@@ -405,21 +394,21 @@ export class RecommendationService {
 			const weight = this.getTimeDecayWeight(ageMs);
 			const repeatCount = Math.max(1, Math.round(weight * 5)); // 1-5 entries
 
-			if ((search as any).location) {
-				for (let i = 0; i < repeatCount; i++) weightedLocations.push((search as any).location);
+			if (search.location) {
+				for (let i = 0; i < repeatCount; i++) weightedLocations.push(search.location);
 			}
-			for (const t of (search as any).hotelTypes || []) {
+			for (const t of search.hotelTypes || []) {
 				for (let i = 0; i < repeatCount; i++) weightedTypes.push(t);
 			}
-			if ((search as any).purpose) {
-				for (let i = 0; i < repeatCount; i++) weightedPurposes.push((search as any).purpose);
+			if (search.purpose) {
+				for (let i = 0; i < repeatCount; i++) weightedPurposes.push(search.purpose);
 			}
-			for (const a of (search as any).amenities || []) {
+			for (const a of search.amenities || []) {
 				for (let i = 0; i < repeatCount; i++) weightedAmenities.push(a);
 			}
-			if ((search as any).priceMin != null || (search as any).priceMax != null) {
-				weightedPriceMin += ((search as any).priceMin || 0) * weight;
-				weightedPriceMax += ((search as any).priceMax || 0) * weight;
+			if (search.priceMin != null || search.priceMax != null) {
+				weightedPriceMin += (search.priceMin || 0) * weight;
+				weightedPriceMax += (search.priceMax || 0) * weight;
 				totalPriceWeight += weight;
 			}
 		}
@@ -459,7 +448,7 @@ export class RecommendationService {
 			avgPriceMin: totalPriceWeight > 0 ? weightedPriceMin / totalPriceWeight : undefined,
 			avgPriceMax: totalPriceWeight > 0 ? weightedPriceMax / totalPriceWeight : undefined,
 			viewedHotelIds: viewedHotels.map((v) => v.viewRefId),
-			likedHotelIds: likedHotels.map((l) => (l as any).likeRefId),
+			likedHotelIds: likedHotels.map((l) => l.likeRefId),
 			bookedHotelIds: bookedHotels.map((b) => b.hotelId),
 		};
 	}
@@ -564,72 +553,45 @@ export class RecommendationService {
 			$addFields: {
 				seasonalScore: {
 					$add: [
-						seasonal.locations.length > 0
-							? { $cond: [{ $in: ['$hotelLocation', seasonal.locations] }, 10, 0] }
-							: 0,
-						seasonal.types.length > 0
-							? { $cond: [{ $in: ['$hotelType', seasonal.types] }, 5, 0] }
-							: 0,
+						seasonal.locations.length > 0 ? { $cond: [{ $in: ['$hotelLocation', seasonal.locations] }, 10, 0] } : 0,
+						seasonal.types.length > 0 ? { $cond: [{ $in: ['$hotelType', seasonal.types] }, 5, 0] } : 0,
 					],
 				},
 				locationScore: {
-					$cond: [
-						{ $in: ['$hotelLocation', profile.preferredLocations] },
-						30,
-						0,
-					],
+					$cond: [{ $in: ['$hotelLocation', profile.preferredLocations] }, 30, 0],
 				},
 				typeScore: {
-					$cond: [
-						{ $in: ['$hotelType', profile.preferredTypes] },
-						15,
-						0,
-					],
+					$cond: [{ $in: ['$hotelType', profile.preferredTypes] }, 15, 0],
 				},
 				purposeScore: {
 					$multiply: [
 						{
 							$size: {
-								$setIntersection: [
-									{ $ifNull: ['$suitableFor', []] },
-									profile.preferredPurposes,
-								],
+								$setIntersection: [{ $ifNull: ['$suitableFor', []] }, profile.preferredPurposes],
 							},
 						},
 						10,
 					],
 				},
-				amenityScore: amenityScoreFields.length > 0
-					? { $add: amenityScoreFields }
-					: 0,
+				amenityScore: amenityScoreFields.length > 0 ? { $add: amenityScoreFields } : 0,
 				ratingScore: {
 					$multiply: [{ $ifNull: ['$hotelRating', 0] }, 5],
 				},
 				popularityScore: {
 					$min: [
 						{
-							$add: [
-								{ $ifNull: ['$hotelViews', 0] },
-								{ $multiply: [{ $ifNull: ['$hotelLikes', 0] }, 3] },
-							],
+							$add: [{ $ifNull: ['$hotelViews', 0] }, { $multiply: [{ $ifNull: ['$hotelLikes', 0] }, 3] }],
 						},
 						10,
 					],
 				},
 				likedBonus: {
-					$cond: [
-						{ $in: ['$_id', profile.likedHotelIds] },
-						20,
-						0,
-					],
+					$cond: [{ $in: ['$_id', profile.likedHotelIds] }, 20, 0],
 				},
 				recencyBonus: {
 					$cond: [
 						{
-							$gte: [
-								'$updatedAt',
-								new Date(Date.now() - 14 * 86400000),
-							],
+							$gte: ['$updatedAt', new Date(Date.now() - 14 * 86400000)],
 						},
 						5,
 						0,
@@ -676,15 +638,9 @@ export class RecommendationService {
 		pipeline.push({
 			$facet: {
 				// Primary: personalized scored results
-				recommended: [
-					{ $sort: { recommendationScore: -1, hotelRating: -1 } },
-					{ $limit: limit },
-				],
+				recommended: [{ $sort: { recommendationScore: -1, hotelRating: -1 } }, { $limit: limit }],
 				// Fallback: top-rated hotels (used when scored results < limit)
-				fallback: [
-					{ $sort: { hotelRank: -1, hotelRating: -1 } },
-					{ $limit: limit },
-				],
+				fallback: [{ $sort: { hotelRank: -1, hotelRating: -1 } }, { $limit: limit }],
 			},
 		});
 
@@ -708,7 +664,7 @@ export class RecommendationService {
 	/**
 	 * Convert aggregation result document to HotelDto
 	 */
-	private aggregateDocToHotelDto(doc: any): HotelDto {
+	private aggregateDocToHotelDto(doc: HotelDto): HotelDto {
 		return {
 			_id: doc._id,
 			memberId: doc.memberId,
@@ -743,7 +699,7 @@ export class RecommendationService {
 			hotelRating: doc.hotelRating ?? 0,
 			hotelRank: doc.hotelRank ?? 0,
 			warningStrikes: doc.warningStrikes ?? 0,
-			strikeHistory: (doc.strikeHistory || []).map((s: any) => ({
+			strikeHistory: (doc.strikeHistory || []).map((s) => ({
 				bookingId: String(s.bookingId),
 				reason: s.reason,
 				date: s.date,

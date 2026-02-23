@@ -9,6 +9,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { RoomStatus } from '../../libs/enums/room.enum';
 import { RoomService } from './room.service';
 
@@ -24,7 +25,7 @@ export class RoomResolver {
 	@Mutation(() => RoomDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN)
 	public async createRoom(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: RoomInput,
 	): Promise<RoomDto> {
 		try {
@@ -42,7 +43,7 @@ export class RoomResolver {
 	@Mutation(() => RoomDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN)
 	public async updateRoom(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: RoomUpdate,
 	): Promise<RoomDto> {
 		try {
@@ -93,7 +94,7 @@ export class RoomResolver {
 	@Query(() => RoomsDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN)
 	public async getAgentRooms(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('hotelId') hotelId: string,
 		@Args('input') input: PaginationInput,
 	): Promise<RoomsDto> {

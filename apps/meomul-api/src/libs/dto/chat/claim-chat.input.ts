@@ -3,8 +3,8 @@ import { IsNotEmpty, IsString } from 'class-validator';
 
 @InputType()
 export class ClaimChatInput {
-  @IsNotEmpty()
-  @IsString()
-  @Field(() => String)
-  chatId: string;
+	@IsNotEmpty()
+	@IsString()
+	@Field(() => String)
+	chatId: string;
 }

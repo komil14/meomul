@@ -43,10 +43,7 @@ export class RoomService {
 		}
 
 		// Check hotel ownership (only hotel owner can add rooms, unless admin)
-		if (
-			String(hotel.memberId) !== String(currentMember._id) &&
-			currentMember.memberType !== MemberType.ADMIN
-		) {
+		if (String(hotel.memberId) !== String(currentMember._id) && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
@@ -102,10 +99,7 @@ export class RoomService {
 		}
 
 		// Check ownership (only hotel owner can update, unless admin)
-		if (
-			String(hotel.memberId) !== String(currentMember._id) &&
-			currentMember.memberType !== MemberType.ADMIN
-		) {
+		if (String(hotel.memberId) !== String(currentMember._id) && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
@@ -179,7 +173,11 @@ export class RoomService {
 	/**
 	 * Get agent's hotel rooms
 	 */
-	public async getAgentRooms(currentMember: MemberJwtPayload, hotelId: string, input: PaginationInput): Promise<RoomsDto> {
+	public async getAgentRooms(
+		currentMember: MemberJwtPayload,
+		hotelId: string,
+		input: PaginationInput,
+	): Promise<RoomsDto> {
 		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
@@ -190,10 +188,7 @@ export class RoomService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		if (
-			String(hotel.memberId) !== String(currentMember._id) &&
-			currentMember.memberType !== MemberType.ADMIN
-		) {
+		if (String(hotel.memberId) !== String(currentMember._id) && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
@@ -320,11 +315,7 @@ export class RoomService {
 	/**
 	 * Create last-minute deal (for batch job)
 	 */
-	public async createLastMinuteDeal(
-		roomId: string,
-		discountPercent: number,
-		validUntil: Date,
-	): Promise<RoomDto> {
+	public async createLastMinuteDeal(roomId: string, discountPercent: number, validUntil: Date): Promise<RoomDto> {
 		const room = await this.roomModel.findById(roomId).exec();
 		if (!room) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);

@@ -9,6 +9,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { ReviewStatus } from '../../libs/enums/common.enum';
 import { ReviewService } from './review.service';
 
@@ -42,7 +43,7 @@ export class ReviewResolver {
 	@Mutation(() => ReviewDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async createReview(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: ReviewInput,
 	): Promise<ReviewDto> {
 		try {
@@ -60,7 +61,7 @@ export class ReviewResolver {
 	@Mutation(() => ReviewDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async updateReview(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: ReviewUpdate,
 	): Promise<ReviewDto> {
 		try {
@@ -78,7 +79,7 @@ export class ReviewResolver {
 	@Mutation(() => ReviewDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async deleteReview(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('reviewId') reviewId: string,
 	): Promise<ReviewDto> {
 		try {
@@ -98,7 +99,7 @@ export class ReviewResolver {
 	@Public()
 	public async getReview(
 		@Args('reviewId') reviewId: string,
-		@CurrentMember() currentMember?: any,
+		@CurrentMember() currentMember?: MemberJwtPayload,
 	): Promise<ReviewDto> {
 		try {
 			this.logger.log('Query getReview', reviewId, currentMember?._id ?? 'anonymous');
@@ -133,7 +134,7 @@ export class ReviewResolver {
 	@Query(() => ReviewsDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyReviews(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: PaginationInput,
 	): Promise<ReviewsDto> {
 		try {
@@ -151,7 +152,7 @@ export class ReviewResolver {
 	@Mutation(() => ReviewDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN)
 	public async respondToReview(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('reviewId') reviewId: string,
 		@Args('responseText') responseText: string,
 	): Promise<ReviewDto> {
@@ -170,7 +171,7 @@ export class ReviewResolver {
 	@Mutation(() => ReviewDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async markHelpful(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('reviewId') reviewId: string,
 	): Promise<ReviewDto> {
 		try {
@@ -188,7 +189,7 @@ export class ReviewResolver {
 	@Mutation(() => ReviewDto)
 	@Roles(MemberType.ADMIN)
 	public async updateReviewStatus(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('reviewId') reviewId: string,
 		@Args('status', { type: () => ReviewStatus }) status: ReviewStatus,
 	): Promise<ReviewDto> {

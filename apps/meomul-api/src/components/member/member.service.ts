@@ -50,7 +50,7 @@ export class MemberService {
 				NotificationType.NEW_MEMBER,
 				'New Member',
 				`${input.memberNick} just signed up`,
-				`/admin/members/${createdMember._id}`,
+				`/admin/members/${createdMember._id.toString()}`,
 			)
 			.catch(() => {});
 
@@ -144,7 +144,7 @@ export class MemberService {
 		return this.getMember(currentMember);
 	}
 
-	public async checkAuthRoles(currentMember: MemberJwtPayload): Promise<ResponseDto> {
+	public checkAuthRoles(currentMember: MemberJwtPayload): ResponseDto {
 		if (!currentMember?._id) {
 			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
 		}
@@ -156,7 +156,10 @@ export class MemberService {
 		};
 	}
 
-	public async requestSubscription(currentMember: MemberJwtPayload, requestedTier: SubscriptionTier): Promise<ResponseDto> {
+	public async requestSubscription(
+		currentMember: MemberJwtPayload,
+		requestedTier: SubscriptionTier,
+	): Promise<ResponseDto> {
 		if (!currentMember?._id) {
 			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
 		}
@@ -191,7 +194,11 @@ export class MemberService {
 		};
 	}
 
-	public async approveSubscription(memberId: string, tier: SubscriptionTier, durationDays: number): Promise<MemberDocument> {
+	public async approveSubscription(
+		memberId: string,
+		tier: SubscriptionTier,
+		durationDays: number,
+	): Promise<MemberDocument> {
 		const member = await this.memberModel.findById(memberId).exec();
 		if (!member) {
 			throw new BadRequestException(Messages.NO_MEMBER_NICK);
@@ -200,11 +207,7 @@ export class MemberService {
 		const subscriptionExpiry = new Date(Date.now() + durationDays * 86400000);
 
 		const updatedMember = await this.memberModel
-			.findByIdAndUpdate(
-				memberId,
-				{ subscriptionTier: tier, subscriptionExpiry },
-				{ returnDocument: 'after' },
-			)
+			.findByIdAndUpdate(memberId, { subscriptionTier: tier, subscriptionExpiry }, { returnDocument: 'after' })
 			.exec();
 
 		if (!updatedMember) {
@@ -296,8 +299,9 @@ export class MemberService {
 		}
 
 		const now = new Date();
-		const isActive = member.subscriptionTier !== SubscriptionTier.FREE
-			&& (!member.subscriptionExpiry || member.subscriptionExpiry > now);
+		const isActive =
+			member.subscriptionTier !== SubscriptionTier.FREE &&
+			(!member.subscriptionExpiry || member.subscriptionExpiry > now);
 
 		let daysRemaining: number | undefined;
 		if (member.subscriptionExpiry && member.subscriptionExpiry > now) {
@@ -342,9 +346,20 @@ export class MemberService {
 		}
 
 		const validAmenities = [
-			'pool', 'spa', 'wifi', 'parking', 'breakfast', 'gym',
-			'familyRoom', 'kidsFriendly', 'petFriendly', 'oceanView',
-			'mountainView', 'cityView', 'airportShuttle', 'roomService',
+			'pool',
+			'spa',
+			'wifi',
+			'parking',
+			'breakfast',
+			'gym',
+			'familyRoom',
+			'kidsFriendly',
+			'petFriendly',
+			'oceanView',
+			'mountainView',
+			'cityView',
+			'airportShuttle',
+			'roomService',
 		];
 		const invalidAmenities = input.preferredAmenities.filter((a) => !validAmenities.includes(a));
 		if (invalidAmenities.length > 0) {
@@ -359,9 +374,7 @@ export class MemberService {
 			[TravelStyle.FRIENDS]: StayPurpose.STAYCATION,
 			[TravelStyle.BUSINESS]: StayPurpose.BUSINESS,
 		};
-		const preferredPurposes = input.travelStyles
-			.map((style) => purposeMap[style])
-			.filter(Boolean);
+		const preferredPurposes = input.travelStyles.map((style) => purposeMap[style]).filter(Boolean);
 
 		// Map BudgetLevel → price range
 		const budgetRanges: Record<string, { min: number; max: number }> = {
@@ -456,12 +469,15 @@ export class MemberService {
 	}
 
 	private toAuthMember(member: MemberDocument, accessToken: string): AuthMemberDto {
-		const memberObject = typeof member.toObject === 'function' ? member.toObject() : { ...member };
+		const memberObject = (typeof member.toObject === 'function' ? member.toObject() : { ...member }) as unknown as Omit<
+			AuthMemberDto,
+			'accessToken'
+		> & { memberPassword?: string };
 		delete memberObject.memberPassword;
 
 		return {
 			...memberObject,
 			accessToken,
-		} as AuthMemberDto;
+		};
 	}
 }

@@ -7,6 +7,7 @@ import { PaginationInput } from '../../libs/dto/common/pagination';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { BookingStatus, PaymentStatus } from '../../libs/enums/booking.enum';
 import { BookingService } from './booking.service';
 
@@ -40,7 +41,7 @@ export class BookingResolver {
 	@Mutation(() => BookingDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async createBooking(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: BookingInput,
 	): Promise<BookingDto> {
 		try {
@@ -58,7 +59,7 @@ export class BookingResolver {
 	@Query(() => BookingDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getBooking(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('bookingId') bookingId: string,
 	): Promise<BookingDto> {
 		try {
@@ -76,7 +77,7 @@ export class BookingResolver {
 	@Query(() => BookingsDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyBookings(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: PaginationInput,
 	): Promise<BookingsDto> {
 		try {
@@ -94,7 +95,7 @@ export class BookingResolver {
 	@Query(() => BookingsDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAgentBookings(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('hotelId') hotelId: string,
 		@Args('input') input: PaginationInput,
 	): Promise<BookingsDto> {
@@ -113,7 +114,7 @@ export class BookingResolver {
 	@Mutation(() => BookingDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updateBookingStatus(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('bookingId') bookingId: string,
 		@Args('status', { type: () => BookingStatus }) status: BookingStatus,
 	): Promise<BookingDto> {
@@ -132,7 +133,7 @@ export class BookingResolver {
 	@Mutation(() => BookingDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async cancelBooking(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('bookingId') bookingId: string,
 		@Args('reason') reason: string,
 	): Promise<BookingDto> {
@@ -151,7 +152,7 @@ export class BookingResolver {
 	@Mutation(() => BookingDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async cancelBookingByOperator(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('bookingId') bookingId: string,
 		@Args('reason') reason: string,
 	): Promise<BookingDto> {
@@ -170,7 +171,7 @@ export class BookingResolver {
 	@Mutation(() => BookingDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updatePaymentStatus(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('bookingId') bookingId: string,
 		@Args('paymentStatus', { type: () => PaymentStatus }) paymentStatus: PaymentStatus,
 		@Args('paidAmount') paidAmount: number,

@@ -7,17 +7,17 @@ import type { RoomDto, LastMinuteDealDto } from '../dto/room/room';
 export interface RoomDocument extends Document {
 	_id: Types.ObjectId;
 	hotelId: Types.ObjectId;
-	roomType: string;
+	roomType: RoomDto['roomType'];
 	roomNumber?: string;
 	roomName: string;
 	roomDesc: string;
 	maxOccupancy: number;
-	bedType: string;
+	bedType: RoomDto['bedType'];
 	bedCount: number;
 	basePrice: number;
 	weekendSurcharge: number;
 	roomSize: number;
-	viewType: string;
+	viewType: RoomDto['viewType'];
 	roomAmenities: string[];
 	totalRooms: number;
 	availableRooms: number;
@@ -30,7 +30,7 @@ export interface RoomDocument extends Document {
 		validUntil: Date;
 	};
 	roomImages: string[];
-	roomStatus: string;
+	roomStatus: RoomDto['roomStatus'];
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -40,26 +40,26 @@ export interface RoomDocument extends Document {
  */
 export function toRoomDto(doc: RoomDocument): RoomDto {
 	return {
-		_id: doc._id as unknown as any,
-		hotelId: doc.hotelId as unknown as any,
-		roomType: doc.roomType as any,
+		_id: doc._id as unknown as RoomDto['_id'],
+		hotelId: doc.hotelId as unknown as RoomDto['hotelId'],
+		roomType: doc.roomType,
 		roomNumber: doc.roomNumber,
 		roomName: doc.roomName,
 		roomDesc: doc.roomDesc,
 		maxOccupancy: doc.maxOccupancy,
-		bedType: doc.bedType as any,
+		bedType: doc.bedType,
 		bedCount: doc.bedCount,
 		basePrice: doc.basePrice,
 		weekendSurcharge: doc.weekendSurcharge,
 		roomSize: doc.roomSize,
-		viewType: doc.viewType as any,
+		viewType: doc.viewType,
 		roomAmenities: doc.roomAmenities,
 		totalRooms: doc.totalRooms,
 		availableRooms: doc.availableRooms,
 		currentViewers: doc.currentViewers,
 		lastMinuteDeal: doc.lastMinuteDeal as LastMinuteDealDto | undefined,
 		roomImages: doc.roomImages,
-		roomStatus: doc.roomStatus as any,
+		roomStatus: doc.roomStatus,
 		createdAt: doc.createdAt,
 		updatedAt: doc.updatedAt,
 	};

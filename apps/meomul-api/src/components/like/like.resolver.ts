@@ -7,6 +7,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { LikeGroup } from '../../libs/enums/common.enum';
 import { LikeService } from './like.service';
 
@@ -22,7 +23,7 @@ export class LikeResolver {
 	@Mutation(() => ToggleLikeDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async toggleLike(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: LikeInput,
 	): Promise<ToggleLikeDto> {
 		try {
@@ -64,7 +65,7 @@ export class LikeResolver {
 	@Query(() => Boolean)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async hasLiked(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('likeRefId') likeRefId: string,
 		@Args('likeGroup', { type: () => LikeGroup }) likeGroup: LikeGroup,
 	): Promise<boolean> {
@@ -83,7 +84,7 @@ export class LikeResolver {
 	@Query(() => [LikeDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyLikes(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('likeGroup', { type: () => LikeGroup }) likeGroup: LikeGroup,
 	): Promise<LikeDto[]> {
 		try {

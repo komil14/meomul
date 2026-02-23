@@ -16,8 +16,8 @@ export interface NotificationDocument extends Document {
 
 export function toNotificationDto(doc: NotificationDocument): NotificationDto {
 	return {
-		_id: doc._id as unknown as any,
-		userId: doc.userId as unknown as any,
+		_id: doc._id as unknown as NotificationDto['_id'],
+		userId: doc.userId as unknown as NotificationDto['userId'],
 		type: doc.type,
 		title: doc.title,
 		message: doc.message,

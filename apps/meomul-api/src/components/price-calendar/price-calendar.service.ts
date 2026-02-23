@@ -89,11 +89,7 @@ export class PriceCalendarService {
 	/**
 	 * Count how many rooms are booked per day for a specific room type
 	 */
-	private async getBookingsPerDay(
-		roomId: string,
-		monthStart: Date,
-		monthEnd: Date,
-	): Promise<Map<string, number>> {
+	private async getBookingsPerDay(roomId: string, monthStart: Date, monthEnd: Date): Promise<Map<string, number>> {
 		const bookings = await this.bookingModel
 			.find({
 				'rooms.roomId': new Types.ObjectId(roomId),

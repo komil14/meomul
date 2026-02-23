@@ -1,11 +1,11 @@
-import { ArgumentsHost, Catch, HttpException, HttpStatus } from '@nestjs/common';
+import { Catch, HttpException, HttpStatus } from '@nestjs/common';
 import { GqlExceptionFilter } from '@nestjs/graphql';
 import { GraphQLError } from 'graphql';
 
 @Catch()
 export class GraphqlExceptionFilter implements GqlExceptionFilter {
-	public catch(exception: unknown, host: ArgumentsHost): GraphQLError {
-		const { message, statusCode } = this.resolveError(exception, host);
+	public catch(exception: unknown): GraphQLError {
+		const { message, statusCode } = this.resolveError(exception);
 		return new GraphQLError(message, {
 			extensions: {
 				success: false,
@@ -15,7 +15,7 @@ export class GraphqlExceptionFilter implements GqlExceptionFilter {
 		});
 	}
 
-	private resolveError(exception: unknown, _host: ArgumentsHost): { message: string; statusCode: number } {
+	private resolveError(exception: unknown): { message: string; statusCode: number } {
 		let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
 		let message = 'Internal server error';
 
@@ -45,19 +45,13 @@ export class GraphqlExceptionFilter implements GqlExceptionFilter {
 	}
 
 	private mapStatusToCode(statusCode: number): string {
-		switch (statusCode) {
-			case HttpStatus.BAD_REQUEST:
-				return 'BAD_USER_INPUT';
-			case HttpStatus.UNAUTHORIZED:
-				return 'UNAUTHENTICATED';
-			case HttpStatus.FORBIDDEN:
-				return 'FORBIDDEN';
-			case HttpStatus.NOT_FOUND:
-				return 'NOT_FOUND';
-			case HttpStatus.CONFLICT:
-				return 'CONFLICT';
-			default:
-				return 'INTERNAL_SERVER_ERROR';
-		}
+		const statusCodeToGraphCode: Record<number, string> = {
+			[HttpStatus.BAD_REQUEST]: 'BAD_USER_INPUT',
+			[HttpStatus.UNAUTHORIZED]: 'UNAUTHENTICATED',
+			[HttpStatus.FORBIDDEN]: 'FORBIDDEN',
+			[HttpStatus.NOT_FOUND]: 'NOT_FOUND',
+			[HttpStatus.CONFLICT]: 'CONFLICT',
+		};
+		return statusCodeToGraphCode[statusCode] ?? 'INTERNAL_SERVER_ERROR';
 	}
 }

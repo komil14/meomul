@@ -4,84 +4,84 @@ import { MemberType, MemberStatus, MemberAuthType, SubscriptionTier } from '../.
 
 @ObjectType()
 export class MemberDto {
-  @Field(() => String)
-  _id: ObjectId;
+	@Field(() => String)
+	_id: ObjectId;
 
-  @Field(() => MemberType)
-  memberType: MemberType;
+	@Field(() => MemberType)
+	memberType: MemberType;
 
-  @Field(() => MemberStatus)
-  memberStatus: MemberStatus;
+	@Field(() => MemberStatus)
+	memberStatus: MemberStatus;
 
-  @Field(() => MemberAuthType)
-  memberAuthType: MemberAuthType;
+	@Field(() => MemberAuthType)
+	memberAuthType: MemberAuthType;
 
-  @Field(() => String)
-  memberPhone: string;
+	@Field(() => String)
+	memberPhone: string;
 
-  @Field(() => String)
-  memberNick: string;
+	@Field(() => String)
+	memberNick: string;
 
-  memberPassword?: string;
+	memberPassword?: string;
 
-  @Field(() => String, { nullable: true })
-  memberFullName?: string;
+	@Field(() => String, { nullable: true })
+	memberFullName?: string;
 
-  @Field(() => String, { nullable: true })
-  memberImage?: string;
+	@Field(() => String, { nullable: true })
+	memberImage?: string;
 
-  @Field(() => String, { nullable: true })
-  memberAddress?: string;
+	@Field(() => String, { nullable: true })
+	memberAddress?: string;
 
-  @Field(() => String, { nullable: true })
-  memberDesc?: string;
+	@Field(() => String, { nullable: true })
+	memberDesc?: string;
 
-  // Subscription
-  @Field(() => SubscriptionTier)
-  subscriptionTier: SubscriptionTier;
+	// Subscription
+	@Field(() => SubscriptionTier)
+	subscriptionTier: SubscriptionTier;
 
-  @Field(() => Date, { nullable: true })
-  subscriptionExpiry?: Date;
+	@Field(() => Date, { nullable: true })
+	subscriptionExpiry?: Date;
 
-  // Points & Gamification
-  @Field(() => Int)
-  memberPoints: number;
+	// Points & Gamification
+	@Field(() => Int)
+	memberPoints: number;
 
-  @Field(() => [String])
-  memberBadges: string[];
+	@Field(() => [String])
+	memberBadges: string[];
 
-  // Statistics
-  @Field(() => Int)
-  memberProperties: number;
+	// Statistics
+	@Field(() => Int)
+	memberProperties: number;
 
-  @Field(() => Int)
-  memberArticles: number;
+	@Field(() => Int)
+	memberArticles: number;
 
-  @Field(() => Int)
-  memberFollowers: number;
+	@Field(() => Int)
+	memberFollowers: number;
 
-  @Field(() => Int)
-  memberFollowings: number;
+	@Field(() => Int)
+	memberFollowings: number;
 
-  @Field(() => Int)
-  memberViews: number;
+	@Field(() => Int)
+	memberViews: number;
 
-  @Field(() => Int)
-  memberLikes: number;
+	@Field(() => Int)
+	memberLikes: number;
 
-  @Field(() => Int)
-  memberComments: number;
+	@Field(() => Int)
+	memberComments: number;
 
-  @Field(() => Float)
-  memberRank: number;
+	@Field(() => Float)
+	memberRank: number;
 
-  // Timestamps
-  @Field(() => Date)
-  createdAt: Date;
+	// Timestamps
+	@Field(() => Date)
+	createdAt: Date;
 
-  @Field(() => Date)
-  updatedAt: Date;
+	@Field(() => Date)
+	updatedAt: Date;
 
-  @Field(() => Date, { nullable: true })
-  deletedAt?: Date;
+	@Field(() => Date, { nullable: true })
+	deletedAt?: Date;
 }

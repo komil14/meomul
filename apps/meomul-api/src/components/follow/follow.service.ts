@@ -1,15 +1,14 @@
-import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import type { PipelineStage } from 'mongoose';
 import { FollowInput, FollowInquiry } from '../../libs/dto/follow/follow.input';
-import { FollowDto, Followers, Followings, MemberBasicDto } from '../../libs/dto/follow/follow';
+import { FollowDto, Followers, Followings } from '../../libs/dto/follow/follow';
 import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { FollowDocument } from '../../libs/types/follow';
 import { toFollowDto } from '../../libs/types/follow';
 import { MemberService } from '../member/member.service';
-import { LikeService } from '../like/like.service';
-import { LikeGroup } from '../../libs/enums/common.enum';
 
 export interface ToggleFollowResult {
 	following: boolean;
@@ -24,7 +23,6 @@ export class FollowService {
 	constructor(
 		@InjectModel('Follow') private readonly followModel: Model<FollowDocument>,
 		private readonly memberService: MemberService,
-		private readonly likeService: LikeService,
 	) {}
 
 	/**
@@ -108,7 +106,7 @@ export class FollowService {
 			throw error;
 		} finally {
 			// Always end session
-			session.endSession();
+			await session.endSession();
 		}
 	}
 
@@ -188,7 +186,7 @@ export class FollowService {
 		const { page, limit } = input;
 		const skip = (page - 1) * limit;
 
-		const pipeline: any[] = [
+		const pipeline: PipelineStage[] = [
 			{ $match: { followingId: new Types.ObjectId(memberId) } },
 			{ $sort: { createdAt: -1 } },
 			{ $skip: skip },
@@ -268,7 +266,7 @@ export class FollowService {
 		}
 
 		const [list, total] = await Promise.all([
-			this.followModel.aggregate(pipeline).exec(),
+			this.followModel.aggregate<FollowDto>(pipeline).exec(),
 			this.followModel.countDocuments({ followingId: memberId }).exec(),
 		]);
 
@@ -290,7 +288,7 @@ export class FollowService {
 		const { page, limit } = input;
 		const skip = (page - 1) * limit;
 
-		const pipeline: any[] = [
+		const pipeline: PipelineStage[] = [
 			{ $match: { followerId: new Types.ObjectId(memberId) } },
 			{ $sort: { createdAt: -1 } },
 			{ $skip: skip },
@@ -370,7 +368,7 @@ export class FollowService {
 		}
 
 		const [list, total] = await Promise.all([
-			this.followModel.aggregate(pipeline).exec(),
+			this.followModel.aggregate<FollowDto>(pipeline).exec(),
 			this.followModel.countDocuments({ followerId: memberId }).exec(),
 		]);
 

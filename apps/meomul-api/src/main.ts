@@ -9,11 +9,7 @@ async function bootstrap() {
 
 	// CORS — allow frontend dev server and production domain
 	app.enableCors({
-		origin: [
-			'http://localhost:3000',
-			'http://localhost:3001',
-			process.env.FRONTEND_URL ?? '',
-		].filter(Boolean),
+		origin: ['http://localhost:3000', 'http://localhost:3001', process.env.FRONTEND_URL ?? ''].filter(Boolean),
 		credentials: true,
 		methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 		allowedHeaders: ['Content-Type', 'Authorization'],
@@ -32,4 +28,4 @@ async function bootstrap() {
 
 	await app.listen(process.env.PORT_API ?? 3001);
 }
-bootstrap();
+void bootstrap();

@@ -12,10 +12,10 @@ export interface ViewDocument extends Document {
 
 export function toViewDto(doc: ViewDocument): ViewDto {
 	return {
-		_id: doc._id as unknown as any,
+		_id: doc._id as unknown as ViewDto['_id'],
 		viewGroup: doc.viewGroup,
-		viewRefId: doc.viewRefId as unknown as any,
-		memberId: doc.memberId as unknown as any,
+		viewRefId: doc.viewRefId as unknown as ViewDto['viewRefId'],
+		memberId: doc.memberId as unknown as ViewDto['memberId'],
 		createdAt: doc.createdAt,
 	};
 }

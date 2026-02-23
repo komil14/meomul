@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { Messages } from '../../../libs/messages';
 import { MemberType } from '../../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../../libs/types/member';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 @Injectable()
@@ -17,7 +18,8 @@ export class RolesGuard implements CanActivate {
 		}
 
 		const gqlContext = GqlExecutionContext.create(context);
-		const member = gqlContext.getContext().req?.member;
+		const graphContext = gqlContext.getContext<{ req?: { member?: MemberJwtPayload } }>();
+		const member = graphContext.req?.member;
 
 		if (!member) {
 			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);

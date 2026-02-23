@@ -4,27 +4,27 @@ import { NotificationType } from '../../enums/common.enum';
 
 @ObjectType()
 export class NotificationDto {
-  @Field(() => String)
-  _id: ObjectId;
+	@Field(() => String)
+	_id: ObjectId;
 
-  @Field(() => String)
-  userId: ObjectId;
+	@Field(() => String)
+	userId: ObjectId;
 
-  @Field(() => NotificationType)
-  type: NotificationType;
+	@Field(() => NotificationType)
+	type: NotificationType;
 
-  @Field(() => String)
-  title: string;
+	@Field(() => String)
+	title: string;
 
-  @Field(() => String)
-  message: string;
+	@Field(() => String)
+	message: string;
 
-  @Field(() => String, { nullable: true })
-  link?: string;
+	@Field(() => String, { nullable: true })
+	link?: string;
 
-  @Field(() => Boolean)
-  read: boolean;
+	@Field(() => Boolean)
+	read: boolean;
 
-  @Field(() => Date)
-  createdAt: Date;
+	@Field(() => Date)
+	createdAt: Date;
 }

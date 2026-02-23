@@ -52,7 +52,7 @@ export interface BookingDocument extends Document {
 
 function toBookedRoomDto(room: BookedRoomDocument): BookedRoomDto {
 	return {
-		roomId: room.roomId as unknown as any,
+		roomId: room.roomId as unknown as BookedRoomDto['roomId'],
 		roomType: room.roomType,
 		quantity: room.quantity,
 		pricePerNight: room.pricePerNight,
@@ -62,9 +62,9 @@ function toBookedRoomDto(room: BookedRoomDocument): BookedRoomDto {
 
 export function toBookingDto(doc: BookingDocument): BookingDto {
 	return {
-		_id: doc._id as unknown as any,
-		guestId: doc.guestId as unknown as any,
-		hotelId: doc.hotelId as unknown as any,
+		_id: doc._id as unknown as BookingDto['_id'],
+		guestId: doc.guestId as unknown as BookingDto['guestId'],
+		hotelId: doc.hotelId as unknown as BookingDto['hotelId'],
 		rooms: doc.rooms.map(toBookedRoomDto),
 		checkInDate: doc.checkInDate,
 		checkOutDate: doc.checkOutDate,

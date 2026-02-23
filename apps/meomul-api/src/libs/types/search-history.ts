@@ -1,14 +1,16 @@
 import type { Document, Types } from 'mongoose';
 import { SearchHistoryDto } from '../dto/search-history/search-history';
+import { StayPurpose } from '../enums/common.enum';
+import { HotelLocation, HotelType } from '../enums/hotel.enum';
 
 export interface SearchHistoryDocument extends Document {
 	_id: Types.ObjectId;
 	memberId: Types.ObjectId;
-	location?: string;
-	hotelTypes: string[];
+	location?: HotelLocation;
+	hotelTypes: HotelType[];
 	priceMin?: number;
 	priceMax?: number;
-	purpose?: string;
+	purpose?: StayPurpose;
 	amenities: string[];
 	starRatings: number[];
 	guestCount?: number;
@@ -18,13 +20,13 @@ export interface SearchHistoryDocument extends Document {
 
 export function toSearchHistoryDto(doc: SearchHistoryDocument): SearchHistoryDto {
 	return {
-		_id: doc._id as unknown as any,
-		memberId: doc.memberId as unknown as any,
-		location: doc.location as any,
-		hotelTypes: doc.hotelTypes as any,
+		_id: doc._id as unknown as SearchHistoryDto['_id'],
+		memberId: doc.memberId as unknown as SearchHistoryDto['memberId'],
+		location: doc.location,
+		hotelTypes: doc.hotelTypes,
 		priceMin: doc.priceMin,
 		priceMax: doc.priceMax,
-		purpose: doc.purpose as any,
+		purpose: doc.purpose,
 		amenities: doc.amenities,
 		starRatings: doc.starRatings,
 		guestCount: doc.guestCount,

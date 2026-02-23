@@ -1,33 +1,35 @@
 import type { Document, Types } from 'mongoose';
 import type { HotelDto } from '../dto/hotel/hotel';
 
+type HotelStrikeHistoryEntry = HotelDto['strikeHistory'][number];
+
 /**
  * Mongoose Document type for Hotel
  */
 export interface HotelDocument extends Document {
 	_id: Types.ObjectId;
 	memberId: Types.ObjectId;
-	hotelType: string;
+	hotelType: HotelDto['hotelType'];
 	hotelTitle: string;
 	hotelDesc: string;
-	hotelLocation: string;
-	detailedLocation: any;
+	hotelLocation: HotelDto['hotelLocation'];
+	detailedLocation: HotelDto['detailedLocation'];
 	starRating: number;
 	checkInTime: string;
 	checkOutTime: string;
-	flexibleCheckIn: any;
-	flexibleCheckOut: any;
-	verificationStatus: string;
-	badgeLevel: string;
-	verificationDocs: any;
+	flexibleCheckIn: HotelDto['flexibleCheckIn'];
+	flexibleCheckOut: HotelDto['flexibleCheckOut'];
+	verificationStatus: HotelDto['verificationStatus'];
+	badgeLevel: HotelDto['badgeLevel'];
+	verificationDocs: HotelDto['verificationDocs'];
 	lastInspectionDate?: Date;
-	cancellationPolicy: string;
+	cancellationPolicy: HotelDto['cancellationPolicy'];
 	ageRestriction: number;
 	petsAllowed: boolean;
 	maxPetWeight?: number;
 	smokingAllowed: boolean;
-	amenities: any;
-	safetyFeatures: any;
+	amenities: HotelDto['amenities'];
+	safetyFeatures: HotelDto['safetyFeatures'];
 	safeStayCertified: boolean;
 	suitableFor: string[];
 	hotelImages: string[];
@@ -38,8 +40,8 @@ export interface HotelDocument extends Document {
 	hotelRating: number;
 	hotelRank: number;
 	warningStrikes: number;
-	strikeHistory: any[];
-	hotelStatus: string;
+	strikeHistory: HotelStrikeHistoryEntry[];
+	hotelStatus: HotelDto['hotelStatus'];
 	createdAt: Date;
 	updatedAt: Date;
 	deletedAt?: Date;
@@ -50,23 +52,23 @@ export interface HotelDocument extends Document {
  */
 export function toHotelDto(doc: HotelDocument): HotelDto {
 	return {
-		_id: doc._id as any,
-		memberId: doc.memberId as any,
-		hotelType: doc.hotelType as any,
+		_id: doc._id as unknown as HotelDto['_id'],
+		memberId: doc.memberId as unknown as HotelDto['memberId'],
+		hotelType: doc.hotelType,
 		hotelTitle: doc.hotelTitle,
 		hotelDesc: doc.hotelDesc,
-		hotelLocation: doc.hotelLocation as any,
+		hotelLocation: doc.hotelLocation,
 		detailedLocation: doc.detailedLocation,
 		starRating: doc.starRating,
 		checkInTime: doc.checkInTime,
 		checkOutTime: doc.checkOutTime,
 		flexibleCheckIn: doc.flexibleCheckIn,
 		flexibleCheckOut: doc.flexibleCheckOut,
-		verificationStatus: doc.verificationStatus as any,
-		badgeLevel: doc.badgeLevel as any,
+		verificationStatus: doc.verificationStatus,
+		badgeLevel: doc.badgeLevel,
 		verificationDocs: doc.verificationDocs,
 		lastInspectionDate: doc.lastInspectionDate,
-		cancellationPolicy: doc.cancellationPolicy as any,
+		cancellationPolicy: doc.cancellationPolicy,
 		ageRestriction: doc.ageRestriction,
 		petsAllowed: doc.petsAllowed,
 		maxPetWeight: doc.maxPetWeight,
@@ -83,12 +85,12 @@ export function toHotelDto(doc: HotelDocument): HotelDto {
 		hotelRating: doc.hotelRating,
 		hotelRank: doc.hotelRank,
 		warningStrikes: doc.warningStrikes,
-		strikeHistory: (doc.strikeHistory || []).map((s: any) => ({
+		strikeHistory: (doc.strikeHistory || []).map((s) => ({
 			bookingId: String(s.bookingId),
 			reason: s.reason,
 			date: s.date,
 		})),
-		hotelStatus: doc.hotelStatus as any,
+		hotelStatus: doc.hotelStatus,
 		createdAt: doc.createdAt,
 		updatedAt: doc.updatedAt,
 		deletedAt: doc.deletedAt,

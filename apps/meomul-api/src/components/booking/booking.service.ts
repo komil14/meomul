@@ -148,7 +148,10 @@ export class BookingService {
 					throw new NotFoundException(Messages.NO_DATA_FOUND);
 				}
 
-				const txRooms = await this.roomModel.find({ _id: { $in: roomIds } }).session(session).exec();
+				const txRooms = await this.roomModel
+					.find({ _id: { $in: roomIds } })
+					.session(session)
+					.exec();
 				if (txRooms.length !== roomIds.length) {
 					throw new NotFoundException('One or more rooms not found');
 				}
@@ -238,9 +241,9 @@ export class BookingService {
 
 		// Remove any price locks the user had on these rooms (they've been used)
 		for (const inputRoom of input.rooms) {
-			const lock = await this.priceLockService.getMyPriceLock(currentMember as MemberJwtPayload, inputRoom.roomId);
+			const lock = await this.priceLockService.getMyPriceLock(currentMember, inputRoom.roomId);
 			if (lock) {
-				await this.priceLockService.cancelPriceLock(currentMember as MemberJwtPayload, String(lock._id));
+				await this.priceLockService.cancelPriceLock(currentMember, lock._id);
 			}
 		}
 
@@ -408,11 +411,7 @@ export class BookingService {
 	/**
 	 * Cancel booking with refund
 	 */
-	public async cancelBooking(
-		currentMember: MemberJwtPayload,
-		bookingId: string,
-		reason: string,
-	): Promise<BookingDto> {
+	public async cancelBooking(currentMember: MemberJwtPayload, bookingId: string, reason: string): Promise<BookingDto> {
 		const booking = await this.bookingModel.findById(bookingId).exec();
 		if (!booking) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
@@ -473,17 +472,13 @@ export class BookingService {
 		}
 
 		if (paidAmount > booking.totalPrice) {
-			throw new BadRequestException(
-				`Payment amount (${paidAmount}) cannot exceed total price (${booking.totalPrice})`,
-			);
+			throw new BadRequestException(`Payment amount (${paidAmount}) cannot exceed total price (${booking.totalPrice})`);
 		}
 
 		// Validate payment status and amount consistency
 		if (paymentStatus === PaymentStatus.PAID) {
 			if (paidAmount !== booking.totalPrice) {
-				throw new BadRequestException(
-					`For PAID status, payment amount must equal total price (${booking.totalPrice})`,
-				);
+				throw new BadRequestException(`For PAID status, payment amount must equal total price (${booking.totalPrice})`);
 			}
 		}
 
@@ -579,19 +574,14 @@ export class BookingService {
 
 		const allowedTransitions = validTransitions[currentStatus] || [];
 		if (!allowedTransitions.includes(newStatus)) {
-			throw new BadRequestException(
-				`Invalid status transition from ${currentStatus} to ${newStatus}`,
-			);
+			throw new BadRequestException(`Invalid status transition from ${currentStatus} to ${newStatus}`);
 		}
 	}
 
 	/**
 	 * Validate operational access for booking management.
 	 */
-	private async assertHotelBookingManagementAccess(
-		currentMember: MemberJwtPayload,
-		hotelId: string,
-	): Promise<void> {
+	private async assertHotelBookingManagementAccess(currentMember: MemberJwtPayload, hotelId: string): Promise<void> {
 		if (this.isBackofficeOperator(currentMember.memberType)) {
 			return;
 		}
@@ -656,7 +646,7 @@ export class BookingService {
 						.updateOne({ _id: room.roomId }, { $inc: { availableRooms: room.quantity } }, { session })
 						.exec();
 					if (restoreResult.matchedCount === 0) {
-						throw new NotFoundException(`Room ${room.roomId} not found while restoring inventory`);
+						throw new NotFoundException(`Room ${room.roomId.toString()} not found while restoring inventory`);
 					}
 				}
 
@@ -689,7 +679,7 @@ export class BookingService {
 				NotificationType.BOOKING_CANCELLED,
 				'Booking Cancelled',
 				`Booking ${booking.bookingCode} was cancelled by ${initiatedByOperator ? 'operator' : 'guest'}`,
-				`/admin/bookings/${booking._id}`,
+				`/admin/bookings/${booking._id.toString()}`,
 			)
 			.catch(() => {});
 

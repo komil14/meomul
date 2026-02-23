@@ -86,7 +86,7 @@ export class ChatService {
 				NotificationType.CHAT_MESSAGE,
 				'New Support Chat',
 				`Guest started a chat for hotel ${input.hotelId}`,
-				`/admin/chats/${chat._id}`,
+				`/admin/chats/${chat._id.toString()}`,
 			)
 			.catch(() => {});
 
@@ -260,7 +260,7 @@ export class ChatService {
 		const { page, limit } = input;
 		const skip = (page - 1) * limit;
 
-		const filter: any = { hotelId };
+		const filter: Record<string, unknown> = { hotelId };
 		if (statusFilter) {
 			filter.chatStatus = statusFilter;
 		}
@@ -289,17 +289,18 @@ export class ChatService {
 		const otherSenderType = senderType === SenderType.GUEST ? SenderType.AGENT : SenderType.GUEST;
 
 		// Step 1: Reset unread counter
-		const counterReset =
-			senderType === SenderType.GUEST ? { unreadGuestMessages: 0 } : { unreadAgentMessages: 0 };
+		const counterReset = senderType === SenderType.GUEST ? { unreadGuestMessages: 0 } : { unreadAgentMessages: 0 };
 
 		await this.chatModel.findByIdAndUpdate(chatId, { $set: counterReset }).exec();
 
 		// Step 2: Mark individual messages as read
-		await this.chatModel.findByIdAndUpdate(
-			chatId,
-			{ $set: { 'messages.$[msg].read': true } },
-			{ arrayFilters: [{ 'msg.senderType': otherSenderType, 'msg.read': false }] },
-		).exec();
+		await this.chatModel
+			.findByIdAndUpdate(
+				chatId,
+				{ $set: { 'messages.$[msg].read': true } },
+				{ arrayFilters: [{ 'msg.senderType': otherSenderType, 'msg.read': false }] },
+			)
+			.exec();
 
 		// Emit WebSocket event for messages read
 		this.chatGateway.emitMessagesRead(chatId, currentMember._id);
@@ -315,7 +316,7 @@ export class ChatService {
 		const memberId = new Types.ObjectId(currentMember._id);
 
 		const result = await this.chatModel
-			.aggregate([
+			.aggregate<{ total: number }>([
 				{
 					$match: {
 						$or: [{ guestId: memberId }, { assignedAgentId: memberId }],
@@ -344,7 +345,7 @@ export class ChatService {
 		const { page, limit } = input;
 		const skip = (page - 1) * limit;
 
-		const filter: any = {};
+		const filter: Record<string, unknown> = {};
 		if (statusFilter) {
 			filter.chatStatus = statusFilter;
 		}
@@ -454,9 +455,7 @@ export class ChatService {
 
 	private isChatOperatorRole(memberType: MemberType): boolean {
 		return (
-			memberType === MemberType.AGENT ||
-			memberType === MemberType.ADMIN ||
-			memberType === MemberType.ADMIN_OPERATOR
+			memberType === MemberType.AGENT || memberType === MemberType.ADMIN || memberType === MemberType.ADMIN_OPERATOR
 		);
 	}
 }
