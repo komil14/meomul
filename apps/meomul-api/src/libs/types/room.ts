@@ -1,5 +1,6 @@
 import type { Document, Types } from 'mongoose';
 import type { RoomDto, LastMinuteDealDto } from '../dto/room/room';
+import { BedType, RoomStatus, RoomType, ViewType } from '../enums/room.enum';
 
 /**
  * Mongoose Document type for Room
@@ -39,28 +40,31 @@ export interface RoomDocument extends Document {
  * Convert Mongoose RoomDocument to RoomDto
  */
 export function toRoomDto(doc: RoomDocument): RoomDto {
+	const totalRooms = doc.totalRooms ?? 1;
+	const availableRooms = doc.availableRooms ?? totalRooms;
+
 	return {
 		_id: doc._id as unknown as RoomDto['_id'],
 		hotelId: doc.hotelId as unknown as RoomDto['hotelId'],
-		roomType: doc.roomType,
+		roomType: doc.roomType ?? RoomType.STANDARD,
 		roomNumber: doc.roomNumber,
-		roomName: doc.roomName,
-		roomDesc: doc.roomDesc,
-		maxOccupancy: doc.maxOccupancy,
-		bedType: doc.bedType,
-		bedCount: doc.bedCount,
-		basePrice: doc.basePrice,
-		weekendSurcharge: doc.weekendSurcharge,
-		roomSize: doc.roomSize,
-		viewType: doc.viewType,
-		roomAmenities: doc.roomAmenities,
-		totalRooms: doc.totalRooms,
-		availableRooms: doc.availableRooms,
-		currentViewers: doc.currentViewers,
+		roomName: doc.roomName ?? 'Room',
+		roomDesc: doc.roomDesc ?? '',
+		maxOccupancy: doc.maxOccupancy ?? 1,
+		bedType: doc.bedType ?? BedType.SINGLE,
+		bedCount: doc.bedCount ?? 1,
+		basePrice: doc.basePrice ?? 0,
+		weekendSurcharge: doc.weekendSurcharge ?? 0,
+		roomSize: doc.roomSize ?? 0,
+		viewType: doc.viewType ?? ViewType.NONE,
+		roomAmenities: doc.roomAmenities ?? [],
+		totalRooms,
+		availableRooms,
+		currentViewers: doc.currentViewers ?? 0,
 		lastMinuteDeal: doc.lastMinuteDeal as LastMinuteDealDto | undefined,
-		roomImages: doc.roomImages,
-		roomStatus: doc.roomStatus,
-		createdAt: doc.createdAt,
-		updatedAt: doc.updatedAt,
+		roomImages: doc.roomImages ?? [],
+		roomStatus: doc.roomStatus ?? RoomStatus.AVAILABLE,
+		createdAt: doc.createdAt ?? new Date(),
+		updatedAt: doc.updatedAt ?? new Date(),
 	};
 }

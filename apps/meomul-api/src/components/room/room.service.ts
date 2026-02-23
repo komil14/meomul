@@ -134,8 +134,8 @@ export class RoomService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Only show available rooms to public
-		if (room.roomStatus !== RoomStatus.AVAILABLE) {
+		// Only show available rooms to public; legacy documents may miss roomStatus.
+		if (room.roomStatus && room.roomStatus !== RoomStatus.AVAILABLE) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
@@ -150,8 +150,8 @@ export class RoomService {
 		const skip = (page - 1) * limit;
 
 		const query: Record<string, unknown> = {
-			hotelId,
-			roomStatus: RoomStatus.AVAILABLE,
+			hotelId: hotelId,
+			$or: [{ roomStatus: RoomStatus.AVAILABLE }, { roomStatus: { $exists: false } }],
 		};
 
 		const [list, total] = await Promise.all([
