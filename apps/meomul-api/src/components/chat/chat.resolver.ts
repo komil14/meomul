@@ -23,10 +23,7 @@ export class ChatResolver {
 	 */
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async startChat(
-		@CurrentMember() currentMember: any,
-		@Args('input') input: StartChatInput,
-	): Promise<ChatDto> {
+	public async startChat(@CurrentMember() currentMember: any, @Args('input') input: StartChatInput): Promise<ChatDto> {
 		this.logger.log('Mutation startChat', currentMember?._id, input.hotelId);
 		return this.chatService.startChat(currentMember, input);
 	}
@@ -49,10 +46,7 @@ export class ChatResolver {
 	 */
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async claimChat(
-		@CurrentMember() currentMember: any,
-		@Args('input') input: ClaimChatInput,
-	): Promise<ChatDto> {
+	public async claimChat(@CurrentMember() currentMember: any, @Args('input') input: ClaimChatInput): Promise<ChatDto> {
 		this.logger.log('Mutation claimChat', currentMember?._id, input.chatId);
 		return this.chatService.claimChat(currentMember, input);
 	}
@@ -62,10 +56,7 @@ export class ChatResolver {
 	 */
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async closeChat(
-		@CurrentMember() currentMember: any,
-		@Args('chatId') chatId: string,
-	): Promise<ChatDto> {
+	public async closeChat(@CurrentMember() currentMember: any, @Args('chatId') chatId: string): Promise<ChatDto> {
 		this.logger.log('Mutation closeChat', currentMember?._id, chatId);
 		return this.chatService.closeChat(currentMember, chatId);
 	}
@@ -88,10 +79,7 @@ export class ChatResolver {
 	 */
 	@Query(() => ChatDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async getChat(
-		@CurrentMember() currentMember: any,
-		@Args('chatId') chatId: string,
-	): Promise<ChatDto> {
+	public async getChat(@CurrentMember() currentMember: any, @Args('chatId') chatId: string): Promise<ChatDto> {
 		this.logger.log('Query getChat', currentMember?._id, chatId);
 		return this.chatService.getChat(currentMember, chatId);
 	}
@@ -113,7 +101,7 @@ export class ChatResolver {
 	 * Get hotel's chats (for agent/admin)
 	 */
 	@Query(() => ChatsDto)
-	@Roles(MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getHotelChats(
 		@CurrentMember() currentMember: any,
 		@Args('hotelId') hotelId: string,
@@ -152,10 +140,7 @@ export class ChatResolver {
 	 */
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async reassignChat(
-		@Args('chatId') chatId: string,
-		@Args('newAgentId') newAgentId: string,
-	): Promise<ChatDto> {
+	public async reassignChat(@Args('chatId') chatId: string, @Args('newAgentId') newAgentId: string): Promise<ChatDto> {
 		this.logger.log('Mutation reassignChat', chatId, newAgentId);
 		return this.chatService.reassignChat(chatId, newAgentId);
 	}

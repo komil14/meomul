@@ -20,12 +20,9 @@ const resolveSocketOrigins = (): string[] => {
 		.filter(Boolean);
 	const frontendUrl = process.env.FRONTEND_URL?.trim();
 
-	return Array.from(new Set([
-		'http://localhost:3000',
-		'http://localhost:3001',
-		...(frontendUrl ? [frontendUrl] : []),
-		...envList,
-	]));
+	return Array.from(
+		new Set(['http://localhost:3000', 'http://localhost:3001', ...(frontendUrl ? [frontendUrl] : []), ...envList]),
+	);
 };
 
 interface ViewerSession {
@@ -76,12 +73,10 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 	 * Client joins a room page
 	 */
 	@SubscribeMessage('joinRoom')
-	async handleJoinRoom(
-		@ConnectedSocket() client: Socket,
-		@MessageBody() data: { roomId: string; userId?: string },
-	) {
+	async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string; userId?: string }) {
 		try {
 			const { roomId, userId } = data;
+			await this.assertRoomExists(roomId);
 
 			// Leave previous room if any
 			const previousSession = this.viewerSessions.get(client.id);
@@ -187,6 +182,7 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 	async handleGetViewerCount(@MessageBody() data: { roomId: string }) {
 		try {
 			const { roomId } = data;
+			await this.assertRoomExists(roomId);
 			const count = await this.getCurrentViewerCount(roomId);
 
 			return {
@@ -240,6 +236,17 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 		} catch (error) {
 			console.error('Error getting current viewer count:', error);
 			return 0;
+		}
+	}
+
+	private async assertRoomExists(roomId: string): Promise<void> {
+		if (!roomId) {
+			throw new Error('roomId is required');
+		}
+
+		const roomExists = await this.roomModel.exists({ _id: roomId }).exec();
+		if (!roomExists) {
+			throw new Error('Room not found');
 		}
 	}
 

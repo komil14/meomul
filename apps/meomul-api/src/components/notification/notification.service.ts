@@ -195,12 +195,15 @@ export class NotificationService {
 	 * Send notification to all admin users (persists to DB + WebSocket push)
 	 */
 	public async notifyAdmins(type: NotificationType, title: string, message: string, link?: string): Promise<void> {
-		const admins = await this.memberModel.find({ memberType: MemberType.ADMIN }).select('_id').exec();
+		const admins = await this.memberModel
+			.find({ memberType: { $in: [MemberType.ADMIN, MemberType.ADMIN_OPERATOR] } })
+			.select('_id')
+			.exec();
 
 		if (admins.length === 0) return;
 
 		// Create notifications for all admins in bulk
-		const notifications = await this.notificationModel.insertMany(
+		await this.notificationModel.insertMany(
 			admins.map((admin) => ({
 				userId: admin._id,
 				type,
