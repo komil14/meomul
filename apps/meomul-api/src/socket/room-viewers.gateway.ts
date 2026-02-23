@@ -48,7 +48,7 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 
 	constructor(@InjectModel('Room') private readonly roomModel: Model<RoomDocument>) {}
 
-	async handleConnection(client: Socket) {
+	handleConnection(client: Socket) {
 		console.log(`Room Viewer Connected: ${client.id}`);
 	}
 
@@ -85,7 +85,7 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 			}
 
 			// Join new room
-			client.join(`room:${roomId}`);
+			await client.join(`room:${roomId}`);
 
 			// Increment viewer count
 			await this.incrementViewerCount(roomId);
@@ -170,7 +170,7 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 	}
 
 	private async leaveViewerSession(client: Socket, roomId: string): Promise<void> {
-		client.leave(`room:${roomId}`);
+		await client.leave(`room:${roomId}`);
 		await this.decrementViewerCount(roomId);
 		this.viewerSessions.delete(client.id);
 	}

@@ -10,6 +10,7 @@ import { ChatStatus } from '../../libs/enums/common.enum';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 import { ChatService } from './chat.service';
 
 @Resolver()
@@ -23,7 +24,10 @@ export class ChatResolver {
 	 */
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
-	public async startChat(@CurrentMember() currentMember: any, @Args('input') input: StartChatInput): Promise<ChatDto> {
+	public async startChat(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('input') input: StartChatInput,
+	): Promise<ChatDto> {
 		this.logger.log('Mutation startChat', currentMember?._id, input.hotelId);
 		return this.chatService.startChat(currentMember, input);
 	}
@@ -34,7 +38,7 @@ export class ChatResolver {
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async sendMessage(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: SendMessageInput,
 	): Promise<ChatDto> {
 		this.logger.log('Mutation sendMessage', currentMember?._id, input.chatId, input.messageType);
@@ -46,7 +50,10 @@ export class ChatResolver {
 	 */
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async claimChat(@CurrentMember() currentMember: any, @Args('input') input: ClaimChatInput): Promise<ChatDto> {
+	public async claimChat(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('input') input: ClaimChatInput,
+	): Promise<ChatDto> {
 		this.logger.log('Mutation claimChat', currentMember?._id, input.chatId);
 		return this.chatService.claimChat(currentMember, input);
 	}
@@ -56,7 +63,10 @@ export class ChatResolver {
 	 */
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async closeChat(@CurrentMember() currentMember: any, @Args('chatId') chatId: string): Promise<ChatDto> {
+	public async closeChat(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('chatId') chatId: string,
+	): Promise<ChatDto> {
 		this.logger.log('Mutation closeChat', currentMember?._id, chatId);
 		return this.chatService.closeChat(currentMember, chatId);
 	}
@@ -67,7 +77,7 @@ export class ChatResolver {
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async markChatMessagesAsRead(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('chatId') chatId: string,
 	): Promise<ChatDto> {
 		this.logger.log('Mutation markChatMessagesAsRead', currentMember?._id, chatId);
@@ -79,7 +89,10 @@ export class ChatResolver {
 	 */
 	@Query(() => ChatDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async getChat(@CurrentMember() currentMember: any, @Args('chatId') chatId: string): Promise<ChatDto> {
+	public async getChat(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('chatId') chatId: string,
+	): Promise<ChatDto> {
 		this.logger.log('Query getChat', currentMember?._id, chatId);
 		return this.chatService.getChat(currentMember, chatId);
 	}
@@ -90,7 +103,7 @@ export class ChatResolver {
 	@Query(() => ChatsDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyChats(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: PaginationInput,
 	): Promise<ChatsDto> {
 		this.logger.log('Query getMyChats', currentMember?._id);
@@ -103,7 +116,7 @@ export class ChatResolver {
 	@Query(() => ChatsDto)
 	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getHotelChats(
-		@CurrentMember() currentMember: any,
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('hotelId') hotelId: string,
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => ChatStatus, nullable: true }) statusFilter?: ChatStatus,
@@ -117,7 +130,7 @@ export class ChatResolver {
 	 */
 	@Query(() => Int)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async getMyUnreadChatCount(@CurrentMember() currentMember: any): Promise<number> {
+	public async getMyUnreadChatCount(@CurrentMember() currentMember: MemberJwtPayload): Promise<number> {
 		this.logger.log('Query getMyUnreadChatCount', currentMember?._id);
 		return this.chatService.getMyUnreadCount(currentMember);
 	}

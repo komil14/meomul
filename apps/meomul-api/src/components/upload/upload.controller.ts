@@ -15,6 +15,7 @@ import { diskStorage } from 'multer';
 import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import type { Request } from 'express';
 import { UploadGuard } from './upload.guard';
 import { Messages } from '../../libs/messages';
 import {
@@ -26,11 +27,17 @@ import {
 	VIDEO_MIME_TYPES,
 } from '../../libs/config';
 import { MemberType } from '../../libs/enums/member.enum';
+import type { MemberJwtPayload } from '../../libs/types/member';
 
-function createStorage(getTarget: (req: any) => string) {
+type UploadRequest = Request & {
+	query: Request['query'] & { target?: string };
+	member?: MemberJwtPayload;
+};
+
+function createStorage(getTarget: (req: UploadRequest) => string) {
 	return diskStorage({
 		destination: (req, _file, cb) => {
-			const target = getTarget(req);
+			const target = getTarget(req as UploadRequest);
 			if (!VALID_TARGETS.includes(target as UploadTarget)) {
 				return cb(new BadRequestException('Invalid upload target'), '');
 			}
@@ -71,7 +78,7 @@ export class UploadController {
 	@UseInterceptors(
 		FileInterceptor('file', {
 			storage: createStorage((req) => {
-				return (req.query?.target as string) ?? 'hotel';
+				return req.query.target ?? 'hotel';
 			}),
 			limits: { fileSize: IMAGE_SIZE_LIMIT },
 			fileFilter: (_req, file, cb) => {
@@ -84,7 +91,7 @@ export class UploadController {
 	)
 	public uploadImage(
 		@UploadedFile() file: Express.Multer.File,
-		@Req() req: any,
+		@Req() req: UploadRequest,
 		@Query('target') target: string = 'hotel',
 	): { url: string } {
 		if (!file) {
@@ -112,7 +119,7 @@ export class UploadController {
 	@UseInterceptors(
 		FileInterceptor('file', {
 			storage: createStorage((req) => {
-				return (req.query?.target as string) ?? 'hotel';
+				return req.query.target ?? 'hotel';
 			}),
 			limits: { fileSize: VIDEO_SIZE_LIMIT },
 			fileFilter: (_req, file, cb) => {
@@ -125,7 +132,7 @@ export class UploadController {
 	)
 	public uploadVideo(
 		@UploadedFile() file: Express.Multer.File,
-		@Req() req: any,
+		@Req() req: UploadRequest,
 		@Query('target') target: string = 'hotel',
 	): { url: string } {
 		if (!file) {
@@ -147,8 +154,8 @@ export class UploadController {
 		return target as UploadTarget;
 	}
 
-	private assertTargetPermission(req: any, target: UploadTarget): void {
-		const memberType = req?.member?.memberType as MemberType | undefined;
+	private assertTargetPermission(req: UploadRequest, target: UploadTarget): void {
+		const memberType = req.member?.memberType;
 		if (!memberType) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
