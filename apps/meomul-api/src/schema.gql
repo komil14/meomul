@@ -127,7 +127,10 @@ type BookingDto {
   bookingCode: String!
   bookingStatus: BookingStatus!
   cancellationDate: DateTime
+  cancellationFlow: CancellationFlow
   cancellationReason: String
+  cancelledByMemberId: String
+  cancelledByMemberType: MemberType
   checkInDate: DateTime!
   checkOutDate: DateTime!
   childCount: Int!
@@ -192,6 +195,11 @@ enum BudgetLevel {
   LUXURY
   MID
   PREMIUM
+}
+
+enum CancellationFlow {
+  GUEST
+  OPERATOR
 }
 
 enum CancellationPolicy {
@@ -652,8 +660,8 @@ type MetaCounterDto {
 
 type Mutation {
   approveSubscription(durationDays: Int!, memberId: String!, tier: SubscriptionTier!): MemberDto!
-  cancelBooking(bookingId: String!, reason: String!): BookingDto!
-  cancelBookingByOperator(bookingId: String!, reason: String!): BookingDto!
+  cancelBooking(bookingId: String!, evidencePhotos: [String!], reason: String!): BookingDto!
+  cancelBookingByOperator(bookingId: String!, evidencePhotos: [String!], reason: String!): BookingDto!
   cancelPriceLock(priceLockId: String!): Boolean!
   cancelSubscription(memberId: String!): MemberDto!
   claimChat(input: ClaimChatInput!): ChatDto!

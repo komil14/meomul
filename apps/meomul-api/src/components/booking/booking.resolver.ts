@@ -21,7 +21,7 @@ export class BookingResolver {
 	 * Get all bookings (ADMIN only)
 	 */
 	@Query(() => BookingsDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAllBookingsAdmin(
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => BookingStatus, nullable: true }) statusFilter?: BookingStatus,
@@ -136,10 +136,11 @@ export class BookingResolver {
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('bookingId') bookingId: string,
 		@Args('reason') reason: string,
+		@Args('evidencePhotos', { type: () => [String], nullable: true }) evidencePhotos?: string[],
 	): Promise<BookingDto> {
 		try {
 			this.logger.log('Mutation cancelBooking', currentMember?._id ?? 'unknown', bookingId);
-			return this.bookingService.cancelBooking(currentMember, bookingId, reason);
+			return this.bookingService.cancelBooking(currentMember, bookingId, reason, evidencePhotos);
 		} catch (error) {
 			this.logger.error('Mutation cancelBooking failed', currentMember?._id ?? 'unknown', bookingId, error);
 			throw error;
@@ -155,10 +156,11 @@ export class BookingResolver {
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('bookingId') bookingId: string,
 		@Args('reason') reason: string,
+		@Args('evidencePhotos', { type: () => [String], nullable: true }) evidencePhotos?: string[],
 	): Promise<BookingDto> {
 		try {
 			this.logger.log('Mutation cancelBookingByOperator', currentMember?._id ?? 'unknown', bookingId);
-			return this.bookingService.cancelBookingByOperator(currentMember, bookingId, reason);
+			return this.bookingService.cancelBookingByOperator(currentMember, bookingId, reason, evidencePhotos);
 		} catch (error) {
 			this.logger.error('Mutation cancelBookingByOperator failed', currentMember?._id ?? 'unknown', bookingId, error);
 			throw error;

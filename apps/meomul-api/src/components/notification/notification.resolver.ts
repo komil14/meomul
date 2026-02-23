@@ -20,7 +20,7 @@ export class NotificationResolver {
 	 * Create notification (admin/system only)
 	 */
 	@Mutation(() => NotificationDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async createNotification(@Args('input') input: NotificationInput): Promise<NotificationDto> {
 		try {
 			this.logger.log('Mutation createNotification', input.userId, input.type);
@@ -35,7 +35,7 @@ export class NotificationResolver {
 	 * Get current user's notifications
 	 */
 	@Query(() => [NotificationDto])
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getMyNotifications(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('unreadOnly', { type: () => Boolean, nullable: true }) unreadOnly?: boolean,
@@ -53,7 +53,7 @@ export class NotificationResolver {
 	 * Get single notification
 	 */
 	@Query(() => NotificationDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getNotification(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('notificationId') notificationId: string,
@@ -71,7 +71,7 @@ export class NotificationResolver {
 	 * Mark notification as read
 	 */
 	@Mutation(() => NotificationDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async markAsRead(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('notificationId') notificationId: string,
@@ -89,7 +89,7 @@ export class NotificationResolver {
 	 * Mark all notifications as read
 	 */
 	@Mutation(() => Int)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async markAllAsRead(@CurrentMember() currentMember: MemberJwtPayload): Promise<number> {
 		try {
 			this.logger.log('Mutation markAllAsRead', currentMember?._id ?? 'unknown');
@@ -104,7 +104,7 @@ export class NotificationResolver {
 	 * Delete notification
 	 */
 	@Mutation(() => Boolean)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async deleteNotification(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('notificationId') notificationId: string,
@@ -122,7 +122,7 @@ export class NotificationResolver {
 	 * Get unread notification count
 	 */
 	@Query(() => Int)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getUnreadCount(@CurrentMember() currentMember: MemberJwtPayload): Promise<number> {
 		try {
 			this.logger.log('Query getUnreadCount', currentMember?._id ?? 'unknown');
@@ -137,7 +137,7 @@ export class NotificationResolver {
 	 * Get subscription request notifications (admin only)
 	 */
 	@Query(() => [NotificationDto])
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getSubscriptionRequests(): Promise<NotificationDto[]> {
 		try {
 			this.logger.log('Query getSubscriptionRequests');
@@ -152,7 +152,7 @@ export class NotificationResolver {
 	 * Get all notifications (admin only)
 	 */
 	@Query(() => NotificationsDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAllNotificationsAdmin(@Args('input') input: PaginationInput): Promise<NotificationsDto> {
 		try {
 			this.logger.log('Query getAllNotificationsAdmin');

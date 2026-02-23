@@ -11,7 +11,7 @@ import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { ResponseDto } from '../../libs/dto/common/response';
 import { SubscriptionStatusDto } from '../../libs/dto/member/subscription-status';
 import { OnboardingPreferenceInput } from '../../libs/dto/preference/onboarding-preference.input';
-import { MemberStatus, SubscriptionTier } from '../../libs/enums/member.enum';
+import { MemberStatus, MemberType, SubscriptionTier } from '../../libs/enums/member.enum';
 import { TravelStyle, BudgetLevel } from '../../libs/enums/preference.enum';
 import { StayPurpose, NotificationType } from '../../libs/enums/common.enum';
 import { Messages } from '../../libs/messages';
@@ -30,6 +30,10 @@ export class MemberService {
 	) {}
 
 	public async signup(input: MemberInput): Promise<AuthMemberDto> {
+		if (input.memberType === MemberType.ADMIN || input.memberType === MemberType.ADMIN_OPERATOR) {
+			throw new BadRequestException('Admin account types cannot be created through public signup');
+		}
+
 		const existing = await this.memberModel.findOne({
 			$or: [{ memberNick: input.memberNick }, { memberPhone: input.memberPhone }],
 		});

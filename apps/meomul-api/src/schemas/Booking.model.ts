@@ -123,23 +123,23 @@ const BookingSchema = new Schema(
 			default: false,
 		},
 
-			cancellationDate: Date,
-			cancellationReason: String,
-			cancellationFlow: {
-				type: String,
-				enum: Object.values(CancellationFlow),
-			},
-			cancelledByMemberId: {
-				type: Schema.Types.ObjectId,
-				ref: 'Member',
-			},
-			cancelledByMemberType: {
-				type: String,
-				enum: Object.values(MemberType),
-			},
-			refundAmount: Number,
-			refundDate: Date,
-			refundReason: String,
+		cancellationDate: Date,
+		cancellationReason: String,
+		cancellationFlow: {
+			type: String,
+			enum: Object.values(CancellationFlow),
+		},
+		cancelledByMemberId: {
+			type: Schema.Types.ObjectId,
+			ref: 'Member',
+		},
+		cancelledByMemberType: {
+			type: String,
+			enum: Object.values(MemberType),
+		},
+		refundAmount: Number,
+		refundDate: Date,
+		refundReason: String,
 		refundEvidence: [String],
 
 		ageVerified: {

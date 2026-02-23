@@ -7,7 +7,8 @@ import { BookingInput } from '../../libs/dto/booking/booking.input';
 import { BookingDto } from '../../libs/dto/booking/booking';
 import { BookingsDto } from '../../libs/dto/common/bookings';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
-import { BookingStatus, PaymentStatus } from '../../libs/enums/booking.enum';
+import { BookingStatus, CancellationFlow, PaymentStatus } from '../../libs/enums/booking.enum';
+import { CancellationPolicy } from '../../libs/enums/hotel.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
 import { RoomStatus } from '../../libs/enums/room.enum';
 import { Messages } from '../../libs/messages';
@@ -411,7 +412,12 @@ export class BookingService {
 	/**
 	 * Cancel booking with refund
 	 */
-	public async cancelBooking(currentMember: MemberJwtPayload, bookingId: string, reason: string): Promise<BookingDto> {
+	public async cancelBooking(
+		currentMember: MemberJwtPayload,
+		bookingId: string,
+		reason: string,
+		evidencePhotos?: string[],
+	): Promise<BookingDto> {
 		const booking = await this.bookingModel.findById(bookingId).exec();
 		if (!booking) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
@@ -421,7 +427,22 @@ export class BookingService {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
-		return this.executeBookingCancellation(booking, reason, this.calculateGuestRefundAmount(booking), false);
+		this.ensureGuestCancellationBeforeCheckIn(booking);
+
+		const hotel = await this.hotelModel.findById(booking.hotelId).select('cancellationPolicy').exec();
+		if (!hotel) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		const refundAmount = this.calculateGuestRefundAmount(booking, hotel.cancellationPolicy);
+		return this.executeBookingCancellation(
+			currentMember,
+			booking,
+			reason,
+			refundAmount,
+			CancellationFlow.GUEST,
+			evidencePhotos,
+		);
 	}
 
 	/**
@@ -432,6 +453,7 @@ export class BookingService {
 		currentMember: MemberJwtPayload,
 		bookingId: string,
 		reason: string,
+		evidencePhotos?: string[],
 	): Promise<BookingDto> {
 		const booking = await this.bookingModel.findById(bookingId).exec();
 		if (!booking) {
@@ -439,7 +461,14 @@ export class BookingService {
 		}
 
 		await this.assertHotelBookingManagementAccess(currentMember, String(booking.hotelId));
-		return this.executeBookingCancellation(booking, reason, this.calculateOperatorRefundAmount(booking), true);
+		return this.executeBookingCancellation(
+			currentMember,
+			booking,
+			reason,
+			this.calculateOperatorRefundAmount(booking),
+			CancellationFlow.OPERATOR,
+			evidencePhotos,
+		);
 	}
 
 	/**
@@ -618,15 +647,21 @@ export class BookingService {
 	}
 
 	private async executeBookingCancellation(
+		currentMember: MemberJwtPayload,
 		booking: BookingDocument,
 		reason: string,
 		refundAmount: number,
-		initiatedByOperator: boolean,
+		cancellationFlow: CancellationFlow,
+		evidencePhotos?: string[],
 	): Promise<BookingDto> {
 		const cancellationReason = reason.trim();
 		if (!cancellationReason) {
 			throw new BadRequestException('Cancellation reason is required');
 		}
+		if (cancellationReason.length < 5 || cancellationReason.length > 500) {
+			throw new BadRequestException('Cancellation reason must be between 5 and 500 characters');
+		}
+		const sanitizedEvidence = this.sanitizeCancellationEvidence(evidencePhotos);
 		this.ensureBookingIsCancellable(booking.bookingStatus);
 
 		const session = await this.bookingModel.db.startSession();
@@ -642,12 +677,28 @@ export class BookingService {
 				this.ensureBookingIsCancellable(txBooking.bookingStatus);
 
 				for (const room of txBooking.rooms) {
-					const restoreResult = await this.roomModel
-						.updateOne({ _id: room.roomId }, { $inc: { availableRooms: room.quantity } }, { session })
+					const roomToRestore = await this.roomModel
+						.findById(room.roomId)
+						.select('availableRooms totalRooms')
+						.session(session)
 						.exec();
-					if (restoreResult.matchedCount === 0) {
+					if (!roomToRestore) {
 						throw new NotFoundException(`Room ${room.roomId.toString()} not found while restoring inventory`);
 					}
+
+					const restoredAvailableRooms = Math.min(
+						roomToRestore.totalRooms,
+						roomToRestore.availableRooms + room.quantity,
+					);
+					await this.roomModel
+						.updateOne(
+							{ _id: room.roomId },
+							{
+								$set: { availableRooms: restoredAvailableRooms },
+							},
+							{ session },
+						)
+						.exec();
 				}
 
 				const cancellationDate = new Date();
@@ -656,15 +707,29 @@ export class BookingService {
 					bookingStatus: BookingStatus.CANCELLED,
 					cancellationDate,
 					cancellationReason,
+					cancellationFlow,
+					cancelledByMemberId: currentMember._id,
+					cancelledByMemberType: currentMember.memberType,
 					refundAmount,
 					paymentStatus: paymentStatusAfterCancel,
 					refundDate: refundAmount > 0 ? cancellationDate : null,
 					refundReason: refundAmount > 0 ? cancellationReason : null,
+					refundEvidence: sanitizedEvidence.length > 0 ? sanitizedEvidence : null,
 				};
 
 				updatedBooking = await this.bookingModel
-					.findByIdAndUpdate(txBooking._id, updateData, { returnDocument: 'after', session })
+					.findOneAndUpdate(
+						{
+							_id: txBooking._id,
+							bookingStatus: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+						},
+						updateData,
+						{ returnDocument: 'after', session },
+					)
 					.exec();
+				if (!updatedBooking) {
+					throw new BadRequestException('Booking was already cancelled or no longer cancellable');
+				}
 			});
 		} finally {
 			await session.endSession();
@@ -678,7 +743,7 @@ export class BookingService {
 			.notifyAdmins(
 				NotificationType.BOOKING_CANCELLED,
 				'Booking Cancelled',
-				`Booking ${booking.bookingCode} was cancelled by ${initiatedByOperator ? 'operator' : 'guest'}`,
+				`Booking ${booking.bookingCode} was cancelled by ${cancellationFlow.toLowerCase()}`,
 				`/admin/bookings/${booking._id.toString()}`,
 			)
 			.catch(() => {});
@@ -692,16 +757,44 @@ export class BookingService {
 		}
 	}
 
+	private ensureGuestCancellationBeforeCheckIn(booking: BookingDocument): void {
+		const checkInDate = new Date(booking.checkInDate);
+		if (checkInDate.getTime() <= Date.now()) {
+			throw new BadRequestException('Guest cancellation is only allowed before check-in time');
+		}
+	}
+
 	/**
-	 * Guest cancellation policy:
-	 * - More than 7 days before check-in: 100% refund
-	 * - 3 to 7 days before check-in: 50% refund
-	 * - Less than 3 days before check-in: 0% refund
+	 * Guest cancellation policy by hotel:
+	 * - FLEXIBLE: >= 1 day => 100%, same day => 50%
+	 * - MODERATE: > 7 days => 100%, 3-7 days => 50%, < 3 days => 0%
+	 * - STRICT: > 14 days => 100%, 7-14 days => 50%, < 7 days => 0%
 	 */
-	private calculateGuestRefundAmount(booking: BookingDocument): number {
+	private calculateGuestRefundAmount(booking: BookingDocument, policy: CancellationPolicy): number {
+		if (booking.paymentStatus !== PaymentStatus.PAID && booking.paymentStatus !== PaymentStatus.PARTIAL) {
+			return 0;
+		}
+
 		const now = new Date();
 		const checkInDate = new Date(booking.checkInDate);
 		const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+		if (policy === CancellationPolicy.FLEXIBLE) {
+			if (daysUntilCheckIn >= 1) {
+				return booking.paidAmount;
+			}
+			return Math.round(booking.paidAmount * 0.5);
+		}
+
+		if (policy === CancellationPolicy.STRICT) {
+			if (daysUntilCheckIn > 14) {
+				return booking.paidAmount;
+			}
+			if (daysUntilCheckIn >= 7) {
+				return Math.round(booking.paidAmount * 0.5);
+			}
+			return 0;
+		}
 
 		if (daysUntilCheckIn > 7) {
 			return booking.paidAmount;
@@ -723,5 +816,17 @@ export class BookingService {
 			return booking.paidAmount;
 		}
 		return 0;
+	}
+
+	private sanitizeCancellationEvidence(evidencePhotos?: string[]): string[] {
+		if (!evidencePhotos || evidencePhotos.length === 0) {
+			return [];
+		}
+
+		const sanitized = evidencePhotos.map((photo) => photo.trim()).filter((photo) => photo.length > 0);
+		if (sanitized.length > 10) {
+			throw new BadRequestException('A maximum of 10 evidence photos can be attached');
+		}
+		return sanitized;
 	}
 }

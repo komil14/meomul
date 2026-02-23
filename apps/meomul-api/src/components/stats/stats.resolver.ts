@@ -15,7 +15,7 @@ export class StatsResolver {
 	constructor(private readonly statsService: StatsService) {}
 
 	@Query(() => DashboardStatsDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getDashboardStats(): Promise<DashboardStatsDto> {
 		this.logger.log('Query getDashboardStats');
 		return this.statsService.getDashboardStats();
