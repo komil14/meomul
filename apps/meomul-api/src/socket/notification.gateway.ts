@@ -9,6 +9,8 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Injectable } from '@nestjs/common';
+import { AuthService } from '../components/auth/auth.service';
+import { MemberType } from '../libs/enums/member.enum';
 
 interface NotificationPayload {
 	type: 'BOOKING' | 'PAYMENT' | 'REVIEW' | 'HOTEL' | 'SYSTEM';
@@ -21,6 +23,7 @@ interface NotificationPayload {
 interface UserSession {
 	socketId: string;
 	userId: string;
+	memberType: MemberType;
 	joinedAt: Date;
 }
 
@@ -35,6 +38,8 @@ interface UserSession {
 export class NotificationGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	@WebSocketServer()
 	server: Server;
+
+	constructor(private readonly authService: AuthService) {}
 
 	private userSessions: Map<string, UserSession> = new Map();
 	private userSocketMap: Map<string, Set<string>> = new Map(); // userId -> Set of socketIds
@@ -64,14 +69,29 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 	 * User authenticates and joins their notification channel
 	 */
 	@SubscribeMessage('authenticate')
-	async handleAuthenticate(@ConnectedSocket() client: Socket, @MessageBody() data: { userId: string }) {
+	async handleAuthenticate(@ConnectedSocket() client: Socket, @MessageBody() data: { token?: string; userId?: string }) {
 		try {
-			const { userId } = data;
+			const rawToken = this.extractToken(client, data?.token);
+			if (!rawToken) {
+				return {
+					success: false,
+					error: 'Authentication token is required',
+				};
+			}
 
+			const authMember = await this.authService.verifyToken(rawToken);
+			const userId = authMember._id;
 			if (!userId) {
 				return {
 					success: false,
-					error: 'User ID is required',
+					error: 'Invalid token payload',
+				};
+			}
+
+			if (data?.userId && data.userId !== userId) {
+				return {
+					success: false,
+					error: 'Token user mismatch',
 				};
 			}
 
@@ -82,6 +102,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 			this.userSessions.set(client.id, {
 				socketId: client.id,
 				userId,
+				memberType: authMember.memberType,
 				joinedAt: new Date(),
 			});
 
@@ -111,8 +132,16 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 	 * User marks notification as read
 	 */
 	@SubscribeMessage('markAsRead')
-	async handleMarkAsRead(@MessageBody() data: { notificationId: string }) {
+	async handleMarkAsRead(@ConnectedSocket() client: Socket, @MessageBody() data: { notificationId: string }) {
 		try {
+			const session = this.userSessions.get(client.id);
+			if (!session) {
+				return {
+					success: false,
+					error: 'Please authenticate first',
+				};
+			}
+
 			const { notificationId } = data;
 
 			// Here you would update the notification status in the database
@@ -241,5 +270,22 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 	 */
 	public getUserSocketCount(userId: string): number {
 		return this.userSocketMap.get(userId)?.size || 0;
+	}
+
+	private extractToken(client: Socket, tokenFromPayload?: string): string | null {
+		const authHeader = typeof client.handshake.headers.authorization === 'string'
+			? client.handshake.headers.authorization
+			: null;
+		const authToken = typeof client.handshake.auth?.token === 'string'
+			? client.handshake.auth.token
+			: null;
+		const rawToken = tokenFromPayload || authToken || authHeader;
+		if (!rawToken) return null;
+
+		if (rawToken.startsWith('Bearer ')) {
+			return rawToken.slice(7).trim();
+		}
+
+		return rawToken.trim();
 	}
 }

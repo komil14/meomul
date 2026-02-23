@@ -40,12 +40,6 @@ export class BookingService {
 			throw new ForbiddenException(Messages.NOT_AUTHENTICATED);
 		}
 
-		// Verify hotel exists
-		const hotel = await this.hotelModel.findById(input.hotelId).exec();
-		if (!hotel) {
-			throw new NotFoundException(Messages.NO_DATA_FOUND);
-		}
-
 		// Calculate nights
 		const checkIn = new Date(input.checkInDate);
 		const checkOut = new Date(input.checkOutDate);
@@ -64,17 +58,10 @@ export class BookingService {
 			);
 		}
 
-		// Verify all rooms exist and have availability
+		// Verify all rooms exist before opening a transaction (fast-fail)
 		const rooms = await this.roomModel.find({ _id: { $in: roomIds } }).exec();
-
 		if (rooms.length !== roomIds.length) {
 			throw new NotFoundException('One or more rooms not found');
-		}
-
-		// Check all rooms belong to the hotel
-		const invalidRooms = rooms.filter((room) => String(room.hotelId) !== String(input.hotelId));
-		if (invalidRooms.length > 0) {
-			throw new BadRequestException('All rooms must belong to the specified hotel');
 		}
 
 		// Check room availability and status, verify prices (honoring price locks)
@@ -151,44 +138,92 @@ export class BookingService {
 
 		// Generate unique booking code
 		const bookingCode = this.generateBookingCode();
+		const session = await this.bookingModel.db.startSession();
+		let booking: BookingDocument | null = null;
 
-		// Create booking
-		const booking = await this.bookingModel.create({
-			guestId: currentMember._id,
-			hotelId: input.hotelId,
-			rooms: input.rooms,
-			checkInDate: input.checkInDate,
-			checkOutDate: input.checkOutDate,
-			nights,
-			adultCount: input.adultCount,
-			childCount: input.childCount,
-			subtotal,
-			weekendSurcharge,
-			earlyCheckInFee,
-			lateCheckOutFee,
-			taxes,
-			serviceFee,
-			discount,
-			totalPrice,
-			paymentMethod: input.paymentMethod,
-			paymentStatus: PaymentStatus.PENDING,
-			paidAmount: 0,
-			bookingStatus: BookingStatus.PENDING,
-			specialRequests: input.specialRequests,
-			earlyCheckIn: input.earlyCheckIn,
-			lateCheckOut: input.lateCheckOut,
-			ageVerified: false,
-			bookingCode,
-		});
+		try {
+			await session.withTransaction(async () => {
+				const hotel = await this.hotelModel.findById(input.hotelId).session(session).exec();
+				if (!hotel) {
+					throw new NotFoundException(Messages.NO_DATA_FOUND);
+				}
 
-		// Update room availability and clean up used price locks
-		for (const inputRoom of input.rooms) {
-			await this.roomModel
-				.findByIdAndUpdate(inputRoom.roomId, {
-					$inc: { availableRooms: -inputRoom.quantity },
-				})
-				.exec();
+				const txRooms = await this.roomModel.find({ _id: { $in: roomIds } }).session(session).exec();
+				if (txRooms.length !== roomIds.length) {
+					throw new NotFoundException('One or more rooms not found');
+				}
+
+				const invalidRooms = txRooms.filter((room) => String(room.hotelId) !== String(input.hotelId));
+				if (invalidRooms.length > 0) {
+					throw new BadRequestException('All rooms must belong to the specified hotel');
+				}
+
+				for (const inputRoom of input.rooms) {
+					const availabilityUpdate = await this.roomModel
+						.updateOne(
+							{
+								_id: inputRoom.roomId,
+								hotelId: input.hotelId,
+								roomStatus: RoomStatus.AVAILABLE,
+								availableRooms: { $gte: inputRoom.quantity },
+							},
+							{
+								$inc: { availableRooms: -inputRoom.quantity },
+							},
+							{ session },
+						)
+						.exec();
+
+					if (availabilityUpdate.modifiedCount === 0) {
+						throw new BadRequestException(
+							'One or more rooms became unavailable while processing booking. Please refresh and try again.',
+						);
+					}
+				}
+
+				const [createdBooking] = await this.bookingModel.create(
+					[
+						{
+							guestId: currentMember._id,
+							hotelId: input.hotelId,
+							rooms: input.rooms,
+							checkInDate: input.checkInDate,
+							checkOutDate: input.checkOutDate,
+							nights,
+							adultCount: input.adultCount,
+							childCount: input.childCount,
+							subtotal,
+							weekendSurcharge,
+							earlyCheckInFee,
+							lateCheckOutFee,
+							taxes,
+							serviceFee,
+							discount,
+							totalPrice,
+							paymentMethod: input.paymentMethod,
+							paymentStatus: PaymentStatus.PENDING,
+							paidAmount: 0,
+							bookingStatus: BookingStatus.PENDING,
+							specialRequests: input.specialRequests,
+							earlyCheckIn: input.earlyCheckIn,
+							lateCheckOut: input.lateCheckOut,
+							ageVerified: false,
+							bookingCode,
+						},
+					],
+					{ session },
+				);
+
+				booking = createdBooking;
+			});
+		} finally {
+			await session.endSession();
 		}
+
+		if (!booking) {
+			throw new BadRequestException(Messages.CREATE_FAILED);
+		}
+		const createdBooking = booking as BookingDocument;
 
 		// Remove any price locks the user had on these rooms (they've been used)
 		for (const inputRoom of input.rooms) {
@@ -204,7 +239,7 @@ export class BookingService {
 				NotificationType.NEW_BOOKING,
 				'New Booking',
 				`Booking ${bookingCode} created for hotel ${input.hotelId}`,
-				`/admin/bookings/${booking._id}`,
+				`/admin/bookings/${createdBooking._id?.toString?.() ?? createdBooking._id}`,
 			)
 			.catch(() => {});
 
@@ -214,7 +249,7 @@ export class BookingService {
 			this.cacheManager.del(`rec:${currentMember._id}:20`),
 		]).catch(() => {});
 
-		return toBookingDto(booking);
+		return toBookingDto(createdBooking);
 	}
 
 	/**

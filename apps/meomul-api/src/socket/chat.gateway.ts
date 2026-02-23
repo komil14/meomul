@@ -9,10 +9,17 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import type { Model } from 'mongoose';
+import { MemberType } from '../libs/enums/member.enum';
+import type { ChatDocument } from '../libs/types/chat';
+import type { HotelDocument } from '../libs/types/hotel';
+import { AuthService } from '../components/auth/auth.service';
 
 interface UserSession {
 	socketId: string;
 	userId: string;
+	memberType: MemberType;
 	joinedAt: Date;
 }
 
@@ -41,6 +48,12 @@ interface ChatMessagePayload {
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	@WebSocketServer()
 	server: Server;
+
+	constructor(
+		private readonly authService: AuthService,
+		@InjectModel('Chat') private readonly chatModel: Model<ChatDocument>,
+		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
+	) {}
 
 	private userSessions: Map<string, UserSession> = new Map();
 	private userSocketMap: Map<string, Set<string>> = new Map();
@@ -72,12 +85,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 * Client authenticates and joins their personal room
 	 */
 	@SubscribeMessage('authenticate')
-	async handleAuthenticate(@ConnectedSocket() client: Socket, @MessageBody() data: { userId: string }) {
+	async handleAuthenticate(@ConnectedSocket() client: Socket, @MessageBody() data: { token?: string; userId?: string }) {
 		try {
-			const { userId } = data;
+			const rawToken = this.extractToken(client, data?.token);
+			if (!rawToken) {
+				return { success: false, error: 'Authentication token is required' };
+			}
 
+			const authMember = await this.authService.verifyToken(rawToken);
+			const userId = authMember._id;
 			if (!userId) {
-				return { success: false, error: 'User ID is required' };
+				return { success: false, error: 'Invalid token payload' };
+			}
+
+			if (data?.userId && data.userId !== userId) {
+				return { success: false, error: 'Token user mismatch' };
 			}
 
 			client.join(`user:${userId}`);
@@ -85,6 +107,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			this.userSessions.set(client.id, {
 				socketId: client.id,
 				userId,
+				memberType: authMember.memberType,
 				joinedAt: new Date(),
 			});
 
@@ -113,6 +136,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 			if (!session) {
 				return { success: false, error: 'Please authenticate first' };
+			}
+
+			const allowed = await this.canAccessChat(session, chatId);
+			if (!allowed) {
+				return { success: false, error: 'Not allowed to join this chat' };
 			}
 
 			client.join(`chat:${chatId}`);
@@ -160,6 +188,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	async handleTyping(@ConnectedSocket() client: Socket, @MessageBody() data: { chatId: string }) {
 		const session = this.userSessions.get(client.id);
 		if (!session) return;
+		if (!this.socketChatMap.get(client.id)?.has(data.chatId)) return;
 
 		client.to(`chat:${data.chatId}`).emit('userTyping', {
 			chatId: data.chatId,
@@ -175,11 +204,57 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	async handleStopTyping(@ConnectedSocket() client: Socket, @MessageBody() data: { chatId: string }) {
 		const session = this.userSessions.get(client.id);
 		if (!session) return;
+		if (!this.socketChatMap.get(client.id)?.has(data.chatId)) return;
 
 		client.to(`chat:${data.chatId}`).emit('userStopTyping', {
 			chatId: data.chatId,
 			userId: session.userId,
 		});
+	}
+
+	private extractToken(client: Socket, tokenFromPayload?: string): string | null {
+		const authHeader = typeof client.handshake.headers.authorization === 'string'
+			? client.handshake.headers.authorization
+			: null;
+		const authToken = typeof client.handshake.auth?.token === 'string'
+			? client.handshake.auth.token
+			: null;
+		const rawToken = tokenFromPayload || authToken || authHeader;
+		if (!rawToken) return null;
+
+		if (rawToken.startsWith('Bearer ')) {
+			return rawToken.slice(7).trim();
+		}
+
+		return rawToken.trim();
+	}
+
+	private async canAccessChat(session: UserSession, chatId: string): Promise<boolean> {
+		const chat = await this.chatModel
+			.findById(chatId)
+			.select('guestId assignedAgentId hotelId')
+			.exec();
+
+		if (!chat) return false;
+
+		if (String(chat.guestId) === session.userId) {
+			return true;
+		}
+
+		if (chat.assignedAgentId && String(chat.assignedAgentId) === session.userId) {
+			return true;
+		}
+
+		if (session.memberType === MemberType.ADMIN) {
+			return true;
+		}
+
+		if (session.memberType === MemberType.AGENT) {
+			const hotel = await this.hotelModel.findById(chat.hotelId).select('memberId').exec();
+			return !!hotel && String(hotel.memberId) === session.userId;
+		}
+
+		return false;
 	}
 
 	// --- Public methods called from ChatService ---

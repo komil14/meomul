@@ -27,7 +27,8 @@ import { RolesGuard } from './components/auth/guards/roles.guard';
 		GraphQLModule.forRoot({
 			autoSchemaFile: true,
 			driver: ApolloDriver,
-			playground: true,
+			playground: process.env.NODE_ENV !== 'production',
+			introspection: process.env.NODE_ENV !== 'production',
 			uploads: true,
 			context: ({ req }) => ({ req }),
 		}),

@@ -13,6 +13,7 @@ import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { ChatDocument } from '../../libs/types/chat';
 import { toChatDto } from '../../libs/types/chat';
+import type { HotelDocument } from '../../libs/types/hotel';
 import { ChatGateway } from '../../socket/chat.gateway';
 import { NotificationService } from '../notification/notification.service';
 
@@ -20,6 +21,7 @@ import { NotificationService } from '../notification/notification.service';
 export class ChatService {
 	constructor(
 		@InjectModel('Chat') private readonly chatModel: Model<ChatDocument>,
+		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		private readonly chatGateway: ChatGateway,
 		private readonly notificationService: NotificationService,
 	) {}
@@ -239,11 +241,25 @@ export class ChatService {
 	 * Get hotel's chats for agent (paginated)
 	 */
 	public async getHotelChats(
-		_currentMember: MemberJwtPayload,
+		currentMember: MemberJwtPayload,
 		hotelId: string,
 		input: PaginationInput,
 		statusFilter?: ChatStatus,
 	): Promise<ChatsDto> {
+		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		if (currentMember.memberType !== MemberType.ADMIN) {
+			const hotel = await this.hotelModel.findById(hotelId).select('memberId').exec();
+			if (!hotel) {
+				throw new NotFoundException(Messages.NO_DATA_FOUND);
+			}
+			if (String(hotel.memberId) !== String(currentMember._id)) {
+				throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+			}
+		}
+
 		const { page, limit } = input;
 		const skip = (page - 1) * limit;
 
@@ -381,6 +397,10 @@ export class ChatService {
 	 * Determine if user is guest or agent, and validate access
 	 */
 	private getSenderType(currentMember: MemberJwtPayload, chat: ChatDocument): SenderType {
+		if (currentMember.memberType === MemberType.ADMIN) {
+			return SenderType.AGENT;
+		}
+
 		if (chat.guestId.toString() === currentMember._id) {
 			return SenderType.GUEST;
 		}

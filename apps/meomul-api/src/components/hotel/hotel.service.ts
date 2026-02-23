@@ -180,13 +180,16 @@ export class HotelService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Only show ACTIVE hotels to public (unless admin/owner)
-		if (hotel.hotelStatus !== HotelStatus.ACTIVE) {
+		const isOwner = !!currentMember && String(hotel.memberId) === String(currentMember._id);
+		const isAdmin = currentMember?.memberType === MemberType.ADMIN;
+
+		// Public users can only see ACTIVE hotels. Owners/admins can view their non-active listings.
+		if (hotel.hotelStatus !== HotelStatus.ACTIVE && !isOwner && !isAdmin) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Track view for authenticated users only (idempotent - same user counts as 1 view)
-		if (currentMember) {
+		// Track views only for active hotels and authenticated users.
+		if (currentMember && hotel.hotelStatus === HotelStatus.ACTIVE) {
 			const result = await this.viewService.recordView(currentMember, {
 				viewGroup: ViewGroup.HOTEL,
 				viewRefId: hotelId,
@@ -195,12 +198,11 @@ export class HotelService {
 			// Only increment count for NEW views (not repeat views from same user)
 			if (result.isNewView) {
 				await this.hotelModel.findByIdAndUpdate(hotelId, { $inc: { hotelViews: 1 } }).exec();
+				hotel.hotelViews = (hotel.hotelViews ?? 0) + 1;
 			}
 		}
 
-		// Return hotel with current view count
-		const updatedHotel = await this.hotelModel.findById(hotelId).exec();
-		return toHotelDto(updatedHotel!);
+		return toHotelDto(hotel);
 	}
 
 	/**
@@ -237,7 +239,10 @@ export class HotelService {
 
 		// Apply purpose-based filters
 		if (searchInput?.purpose) {
-			this.applyPurposeFilters(query, searchInput.purpose);
+			const purposeFilter = this.getPurposeFilter(searchInput.purpose);
+			if (purposeFilter) {
+				this.appendAndFilter(query, purposeFilter);
+			}
 		}
 
 		// Apply room-based filters (price range, room types, guest count, date availability)
@@ -487,62 +492,72 @@ export class HotelService {
 
 		// Text search (hotel title or description)
 		if (searchInput.text) {
-			query.$or = [
-				{ hotelTitle: { $regex: searchInput.text, $options: 'i' } },
-				{ hotelDesc: { $regex: searchInput.text, $options: 'i' } },
-			];
+			this.appendAndFilter(query, {
+				$or: [
+					{ hotelTitle: { $regex: searchInput.text, $options: 'i' } },
+					{ hotelDesc: { $regex: searchInput.text, $options: 'i' } },
+				],
+			});
 		}
 
 		return query;
 	}
 
 	/**
-	 * Apply purpose-based filters (BUSINESS, ROMANTIC, FAMILY, etc.)
+	 * Return purpose-based filter (BUSINESS, ROMANTIC, FAMILY, etc.)
 	 */
-	private applyPurposeFilters(query: Record<string, unknown>, purpose: StayPurpose): void {
+	private getPurposeFilter(purpose: StayPurpose): Record<string, unknown> | null {
 		switch (purpose) {
 			case StayPurpose.BUSINESS:
 				// Workspace, WiFi, Meeting room
-				query['amenities.workspace'] = true;
-				query['amenities.wifi'] = true;
-				break;
+				return {
+					'amenities.workspace': true,
+					'amenities.wifi': true,
+				};
 
 			case StayPurpose.ROMANTIC:
 				// Couple room, romantic view, private bath
-				query.$or = [
-					{ 'amenities.coupleRoom': true },
-					{ 'amenities.romanticView': true },
-					{ 'amenities.privateBath': true },
-				];
-				break;
+				return {
+					$or: [
+						{ 'amenities.coupleRoom': true },
+						{ 'amenities.romanticView': true },
+						{ 'amenities.privateBath': true },
+					],
+				};
 
 			case StayPurpose.FAMILY:
 				// Family room, kids friendly, playground
-				query.$or = [
-					{ 'amenities.familyRoom': true },
-					{ 'amenities.kidsFriendly': true },
-					{ 'amenities.playground': true },
-				];
-				break;
+				return {
+					$or: [
+						{ 'amenities.familyRoom': true },
+						{ 'amenities.kidsFriendly': true },
+						{ 'amenities.playground': true },
+					],
+				};
 
 			case StayPurpose.SOLO:
 				// Safe, accessible, 24/7 front desk
-				query['safetyFeatures.frontDesk24h'] = true;
-				break;
+				return { 'safetyFeatures.frontDesk24h': true };
 
 			case StayPurpose.STAYCATION:
 				// Pool, spa, room service, restaurant
-				query.$or = [
-					{ 'amenities.pool': true },
-					{ 'amenities.spa': true },
-					{ 'amenities.roomService': true },
-					{ 'amenities.restaurant': true },
-				];
-				break;
+				return {
+					$or: [
+						{ 'amenities.pool': true },
+						{ 'amenities.spa': true },
+						{ 'amenities.roomService': true },
+						{ 'amenities.restaurant': true },
+					],
+				};
 
 			default:
-				break;
+				return null;
 		}
+	}
+
+	private appendAndFilter(query: Record<string, unknown>, condition: Record<string, unknown>): void {
+		const andFilters = (query.$and as Record<string, unknown>[] | undefined) ?? [];
+		query.$and = [...andFilters, condition];
 	}
 
 	/**
