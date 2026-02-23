@@ -254,7 +254,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			return true;
 		}
 
-		if (session.memberType === MemberType.ADMIN) {
+		if (session.memberType === MemberType.ADMIN || session.memberType === MemberType.ADMIN_OPERATOR) {
 			return true;
 		}
 
