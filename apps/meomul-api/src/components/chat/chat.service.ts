@@ -9,9 +9,9 @@ import { ChatsDto } from '../../libs/dto/common/chats';
 import { PaginationInput } from '../../libs/dto/common/pagination';
 import { ChatStatus, SenderType, MessageType, NotificationType } from '../../libs/enums/common.enum';
 import { HotelStatus } from '../../libs/enums/hotel.enum';
-import { MemberType } from '../../libs/enums/member.enum';
+import { MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
-import type { MemberJwtPayload } from '../../libs/types/member';
+import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import type { ChatDocument } from '../../libs/types/chat';
 import { toChatDto } from '../../libs/types/chat';
 import type { HotelDocument } from '../../libs/types/hotel';
@@ -23,6 +23,7 @@ export class ChatService {
 	constructor(
 		@InjectModel('Chat') private readonly chatModel: Model<ChatDocument>,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
+		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
 		private readonly chatGateway: ChatGateway,
 		private readonly notificationService: NotificationService,
 	) {}
@@ -370,12 +371,37 @@ export class ChatService {
 			throw new BadRequestException(Messages.CHAT_CLOSED);
 		}
 
+		const assignee = await this.memberModel.findById(newAgentId).select('memberType memberStatus').exec();
+		if (!assignee) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+		if (assignee.memberStatus !== MemberStatus.ACTIVE) {
+			throw new BadRequestException('Only active operators can be assigned to chats');
+		}
+		if (!this.isChatOperatorRole(assignee.memberType)) {
+			throw new BadRequestException('Chat assignee must be AGENT, ADMIN, or ADMIN_OPERATOR');
+		}
+
+		if (assignee.memberType === MemberType.AGENT) {
+			const hotel = await this.hotelModel.findById(chat.hotelId).select('memberId').exec();
+			if (!hotel) {
+				throw new NotFoundException(Messages.NO_DATA_FOUND);
+			}
+			if (String(hotel.memberId) !== String(assignee._id)) {
+				throw new BadRequestException('AGENT assignee must own the hotel for this chat');
+			}
+		}
+
+		if (chat.assignedAgentId?.toString() === String(assignee._id)) {
+			return toChatDto(chat);
+		}
+
 		const updatedChat = await this.chatModel
 			.findByIdAndUpdate(
 				chatId,
 				{
 					$set: {
-						assignedAgentId: new Types.ObjectId(newAgentId),
+						assignedAgentId: assignee._id,
 						chatStatus: ChatStatus.ACTIVE,
 					},
 				},
@@ -393,7 +419,7 @@ export class ChatService {
 	 * Determine if user is guest or agent, and validate access
 	 */
 	private getSenderType(currentMember: MemberJwtPayload, chat: ChatDocument): SenderType {
-		if (currentMember.memberType === MemberType.ADMIN) {
+		if (this.isChatOperatorRole(currentMember.memberType) && currentMember.memberType !== MemberType.AGENT) {
 			return SenderType.AGENT;
 		}
 
@@ -409,11 +435,11 @@ export class ChatService {
 	}
 
 	private async assertHotelChatAccess(currentMember: MemberJwtPayload, hotelId: string): Promise<void> {
-		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
+		if (!this.isChatOperatorRole(currentMember.memberType)) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
-		if (currentMember.memberType === MemberType.ADMIN) {
+		if (currentMember.memberType !== MemberType.AGENT) {
 			return;
 		}
 
@@ -424,5 +450,13 @@ export class ChatService {
 		if (String(hotel.memberId) !== String(currentMember._id)) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
+	}
+
+	private isChatOperatorRole(memberType: MemberType): boolean {
+		return (
+			memberType === MemberType.AGENT ||
+			memberType === MemberType.ADMIN ||
+			memberType === MemberType.ADMIN_OPERATOR
+		);
 	}
 }

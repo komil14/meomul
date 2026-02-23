@@ -92,7 +92,7 @@ export class BookingResolver {
 	 * Get agent's hotel bookings
 	 */
 	@Query(() => BookingsDto)
-	@Roles(MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAgentBookings(
 		@CurrentMember() currentMember: any,
 		@Args('hotelId') hotelId: string,
@@ -111,7 +111,7 @@ export class BookingResolver {
 	 * Update booking status (AGENT/ADMIN only)
 	 */
 	@Mutation(() => BookingDto)
-	@Roles(MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updateBookingStatus(
 		@CurrentMember() currentMember: any,
 		@Args('bookingId') bookingId: string,
@@ -130,7 +130,7 @@ export class BookingResolver {
 	 * Cancel booking with refund
 	 */
 	@Mutation(() => BookingDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async cancelBooking(
 		@CurrentMember() currentMember: any,
 		@Args('bookingId') bookingId: string,
@@ -146,10 +146,29 @@ export class BookingResolver {
 	}
 
 	/**
+	 * Cancel booking by operator flow (agent/admin/admin-operator)
+	 */
+	@Mutation(() => BookingDto)
+	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
+	public async cancelBookingByOperator(
+		@CurrentMember() currentMember: any,
+		@Args('bookingId') bookingId: string,
+		@Args('reason') reason: string,
+	): Promise<BookingDto> {
+		try {
+			this.logger.log('Mutation cancelBookingByOperator', currentMember?._id ?? 'unknown', bookingId);
+			return this.bookingService.cancelBookingByOperator(currentMember, bookingId, reason);
+		} catch (error) {
+			this.logger.error('Mutation cancelBookingByOperator failed', currentMember?._id ?? 'unknown', bookingId, error);
+			throw error;
+		}
+	}
+
+	/**
 	 * Update payment status (AGENT/ADMIN only)
 	 */
 	@Mutation(() => BookingDto)
-	@Roles(MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updatePaymentStatus(
 		@CurrentMember() currentMember: any,
 		@Args('bookingId') bookingId: string,

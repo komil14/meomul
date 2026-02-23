@@ -159,6 +159,17 @@ export class BookingService {
 				}
 
 				for (const inputRoom of input.rooms) {
+					const txRoom = txRooms.find((room) => String(room._id) === inputRoom.roomId);
+					if (!txRoom) {
+						throw new NotFoundException('One or more rooms not found');
+					}
+					const expectedPrice = await this.resolveEffectiveRoomPrice(currentMember, txRoom);
+					if (inputRoom.pricePerNight !== expectedPrice) {
+						throw new BadRequestException(
+							`Price changed for ${txRoom.roomName}. Expected: ${expectedPrice}, Provided: ${inputRoom.pricePerNight}`,
+						);
+					}
+
 					const availabilityUpdate = await this.roomModel
 						.updateOne(
 							{
@@ -269,7 +280,7 @@ export class BookingService {
 
 		const isGuest = String(booking.guestId) === String(currentMember._id);
 		const isHotelOwner = String(hotel.memberId) === String(currentMember._id);
-		const isAdmin = currentMember.memberType === MemberType.ADMIN;
+		const isAdmin = this.isBackofficeOperator(currentMember.memberType);
 
 		if (!isGuest && !isHotelOwner && !isAdmin) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
@@ -313,7 +324,8 @@ export class BookingService {
 		hotelId: string,
 		input: PaginationInput,
 	): Promise<BookingsDto> {
-		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
+		const canManageAllHotels = this.isBackofficeOperator(currentMember.memberType);
+		if (currentMember.memberType !== MemberType.AGENT && !canManageAllHotels) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
@@ -323,10 +335,7 @@ export class BookingService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		if (
-			String(hotel.memberId) !== String(currentMember._id) &&
-			currentMember.memberType !== MemberType.ADMIN
-		) {
+		if (!canManageAllHotels && String(hotel.memberId) !== String(currentMember._id)) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
@@ -361,22 +370,19 @@ export class BookingService {
 		bookingId: string,
 		newStatus: BookingStatus,
 	): Promise<BookingDto> {
+		if (newStatus === BookingStatus.CANCELLED) {
+			throw new BadRequestException('Use cancellation mutations to cancel bookings safely');
+		}
+
 		const booking = await this.bookingModel.findById(bookingId).exec();
 		if (!booking) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Verify hotel ownership (only hotel owner can update status)
-		const hotel = await this.hotelModel.findById(booking.hotelId).exec();
-		if (!hotel) {
-			throw new NotFoundException(Messages.NO_DATA_FOUND);
-		}
+		await this.assertHotelBookingManagementAccess(currentMember, String(booking.hotelId));
 
-		if (
-			String(hotel.memberId) !== String(currentMember._id) &&
-			currentMember.memberType !== MemberType.ADMIN
-		) {
-			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		if (newStatus === BookingStatus.NO_SHOW && new Date(booking.checkInDate).getTime() > Date.now()) {
+			throw new BadRequestException('NO_SHOW can only be set after check-in date');
 		}
 
 		// Validate state transitions
@@ -412,57 +418,29 @@ export class BookingService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Only guest can cancel their booking
 		if (String(booking.guestId) !== String(currentMember._id)) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
-		// Can only cancel PENDING or CONFIRMED bookings
-		if (booking.bookingStatus !== BookingStatus.PENDING && booking.bookingStatus !== BookingStatus.CONFIRMED) {
-			throw new BadRequestException('Only pending or confirmed bookings can be cancelled');
-		}
+		return this.executeBookingCancellation(booking, reason, this.calculateGuestRefundAmount(booking), false);
+	}
 
-		// Calculate refund amount based on cancellation policy
-		const refundAmount = this.calculateRefundAmount(booking);
-
-		// Restore room availability
-		for (const room of booking.rooms) {
-			await this.roomModel
-				.findByIdAndUpdate(room.roomId, {
-					$inc: { availableRooms: room.quantity },
-				})
-				.exec();
-		}
-
-		const updatedBooking = await this.bookingModel
-			.findByIdAndUpdate(
-				bookingId,
-				{
-					bookingStatus: BookingStatus.CANCELLED,
-					cancellationDate: new Date(),
-					cancellationReason: reason,
-					refundAmount,
-					paymentStatus: refundAmount > 0 ? PaymentStatus.REFUNDED : booking.paymentStatus,
-				},
-				{ returnDocument: 'after' },
-			)
-			.exec();
-
-		if (!updatedBooking) {
+	/**
+	 * Cancel booking by hotel operators (agent/admin/admin-operator).
+	 * This uses a dedicated policy: full refund of paid amount for operational cancellations.
+	 */
+	public async cancelBookingByOperator(
+		currentMember: MemberJwtPayload,
+		bookingId: string,
+		reason: string,
+	): Promise<BookingDto> {
+		const booking = await this.bookingModel.findById(bookingId).exec();
+		if (!booking) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Notify admins (fire-and-forget)
-		this.notificationService
-			.notifyAdmins(
-				NotificationType.BOOKING_CANCELLED,
-				'Booking Cancelled',
-				`Booking ${booking.bookingCode} was cancelled`,
-				`/admin/bookings/${booking._id}`,
-			)
-			.catch(() => {});
-
-		return toBookingDto(updatedBooking);
+		await this.assertHotelBookingManagementAccess(currentMember, String(booking.hotelId));
+		return this.executeBookingCancellation(booking, reason, this.calculateOperatorRefundAmount(booking), true);
 	}
 
 	/**
@@ -479,17 +457,14 @@ export class BookingService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Verify hotel ownership (only hotel owner can update payment)
-		const hotel = await this.hotelModel.findById(booking.hotelId).exec();
-		if (!hotel) {
-			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		await this.assertHotelBookingManagementAccess(currentMember, String(booking.hotelId));
+
+		if (booking.bookingStatus === BookingStatus.CANCELLED || booking.bookingStatus === BookingStatus.NO_SHOW) {
+			throw new BadRequestException(`Cannot update payment for ${booking.bookingStatus} bookings`);
 		}
 
-		if (
-			String(hotel.memberId) !== String(currentMember._id) &&
-			currentMember.memberType !== MemberType.ADMIN
-		) {
-			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		if (paymentStatus === PaymentStatus.REFUNDED) {
+			throw new BadRequestException('Use cancellation flow to process refunds');
 		}
 
 		// Validate payment amount
@@ -526,6 +501,10 @@ export class BookingService {
 			}
 		}
 
+		if (paymentStatus === PaymentStatus.FAILED && paidAmount !== 0) {
+			throw new BadRequestException('For FAILED status, payment amount must be 0');
+		}
+
 		const updateData: Record<string, unknown> = {
 			paymentStatus,
 			paidAmount,
@@ -533,6 +512,8 @@ export class BookingService {
 
 		if (paymentStatus === PaymentStatus.PAID) {
 			updateData.paidAt = new Date();
+		} else {
+			updateData.paidAt = null;
 		}
 
 		const updatedBooking = await this.bookingModel
@@ -588,8 +569,8 @@ export class BookingService {
 	 */
 	private validateStatusTransition(currentStatus: BookingStatus, newStatus: BookingStatus): void {
 		const validTransitions: Record<BookingStatus, BookingStatus[]> = {
-			[BookingStatus.PENDING]: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED],
-			[BookingStatus.CONFIRMED]: [BookingStatus.CHECKED_IN, BookingStatus.CANCELLED, BookingStatus.NO_SHOW],
+			[BookingStatus.PENDING]: [BookingStatus.CONFIRMED],
+			[BookingStatus.CONFIRMED]: [BookingStatus.CHECKED_IN, BookingStatus.NO_SHOW],
 			[BookingStatus.CHECKED_IN]: [BookingStatus.CHECKED_OUT],
 			[BookingStatus.CHECKED_OUT]: [],
 			[BookingStatus.CANCELLED]: [],
@@ -605,24 +586,152 @@ export class BookingService {
 	}
 
 	/**
-	 * Calculate refund amount based on cancellation policy
+	 * Validate operational access for booking management.
 	 */
-	private calculateRefundAmount(booking: BookingDocument): number {
+	private async assertHotelBookingManagementAccess(
+		currentMember: MemberJwtPayload,
+		hotelId: string,
+	): Promise<void> {
+		if (this.isBackofficeOperator(currentMember.memberType)) {
+			return;
+		}
+
+		if (currentMember.memberType !== MemberType.AGENT) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		const hotel = await this.hotelModel.findById(hotelId).select('memberId').exec();
+		if (!hotel) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+		if (String(hotel.memberId) !== String(currentMember._id)) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+	}
+
+	private isBackofficeOperator(memberType: MemberType): boolean {
+		return memberType === MemberType.ADMIN || memberType === MemberType.ADMIN_OPERATOR;
+	}
+
+	private async resolveEffectiveRoomPrice(currentMember: MemberJwtPayload, room: RoomDocument): Promise<number> {
+		const lock = await this.priceLockService.getMyPriceLock(currentMember, String(room._id));
+		if (lock) {
+			return lock.lockedPrice;
+		}
+
+		const now = new Date();
+		if (room.lastMinuteDeal && room.lastMinuteDeal.isActive && room.lastMinuteDeal.validUntil > now) {
+			return room.lastMinuteDeal.dealPrice;
+		}
+
+		return room.basePrice;
+	}
+
+	private async executeBookingCancellation(
+		booking: BookingDocument,
+		reason: string,
+		refundAmount: number,
+		initiatedByOperator: boolean,
+	): Promise<BookingDto> {
+		const cancellationReason = reason.trim();
+		if (!cancellationReason) {
+			throw new BadRequestException('Cancellation reason is required');
+		}
+		this.ensureBookingIsCancellable(booking.bookingStatus);
+
+		const session = await this.bookingModel.db.startSession();
+		let updatedBooking: BookingDocument | null = null;
+
+		try {
+			await session.withTransaction(async () => {
+				const txBooking = await this.bookingModel.findById(booking._id).session(session).exec();
+				if (!txBooking) {
+					throw new NotFoundException(Messages.NO_DATA_FOUND);
+				}
+
+				this.ensureBookingIsCancellable(txBooking.bookingStatus);
+
+				for (const room of txBooking.rooms) {
+					const restoreResult = await this.roomModel
+						.updateOne({ _id: room.roomId }, { $inc: { availableRooms: room.quantity } }, { session })
+						.exec();
+					if (restoreResult.matchedCount === 0) {
+						throw new NotFoundException(`Room ${room.roomId} not found while restoring inventory`);
+					}
+				}
+
+				const cancellationDate = new Date();
+				const paymentStatusAfterCancel = refundAmount > 0 ? PaymentStatus.REFUNDED : txBooking.paymentStatus;
+				const updateData: Record<string, unknown> = {
+					bookingStatus: BookingStatus.CANCELLED,
+					cancellationDate,
+					cancellationReason,
+					refundAmount,
+					paymentStatus: paymentStatusAfterCancel,
+					refundDate: refundAmount > 0 ? cancellationDate : null,
+					refundReason: refundAmount > 0 ? cancellationReason : null,
+				};
+
+				updatedBooking = await this.bookingModel
+					.findByIdAndUpdate(txBooking._id, updateData, { returnDocument: 'after', session })
+					.exec();
+			});
+		} finally {
+			await session.endSession();
+		}
+
+		if (!updatedBooking) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		this.notificationService
+			.notifyAdmins(
+				NotificationType.BOOKING_CANCELLED,
+				'Booking Cancelled',
+				`Booking ${booking.bookingCode} was cancelled by ${initiatedByOperator ? 'operator' : 'guest'}`,
+				`/admin/bookings/${booking._id}`,
+			)
+			.catch(() => {});
+
+		return toBookingDto(updatedBooking);
+	}
+
+	private ensureBookingIsCancellable(status: BookingStatus): void {
+		if (status !== BookingStatus.PENDING && status !== BookingStatus.CONFIRMED) {
+			throw new BadRequestException('Only pending or confirmed bookings can be cancelled');
+		}
+	}
+
+	/**
+	 * Guest cancellation policy:
+	 * - More than 7 days before check-in: 100% refund
+	 * - 3 to 7 days before check-in: 50% refund
+	 * - Less than 3 days before check-in: 0% refund
+	 */
+	private calculateGuestRefundAmount(booking: BookingDocument): number {
 		const now = new Date();
 		const checkInDate = new Date(booking.checkInDate);
 		const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-		// Cancellation policy:
-		// - More than 7 days before check-in: 100% refund
-		// - 3-7 days before check-in: 50% refund
-		// - Less than 3 days before check-in: No refund
-
 		if (daysUntilCheckIn > 7) {
 			return booking.paidAmount;
-		} else if (daysUntilCheckIn >= 3) {
-			return Math.round(booking.paidAmount * 0.5);
-		} else {
-			return 0;
 		}
+
+		if (daysUntilCheckIn >= 3) {
+			return Math.round(booking.paidAmount * 0.5);
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Operator cancellation policy:
+	 * - Refund all paid money for service-level operational cancellations.
+	 */
+	private calculateOperatorRefundAmount(booking: BookingDocument): number {
+		if (booking.paymentStatus === PaymentStatus.PAID || booking.paymentStatus === PaymentStatus.PARTIAL) {
+			return booking.paidAmount;
+		}
+		return 0;
 	}
 }

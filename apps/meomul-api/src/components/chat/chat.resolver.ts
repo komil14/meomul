@@ -35,7 +35,7 @@ export class ChatResolver {
 	 * Send a message in an existing chat
 	 */
 	@Mutation(() => ChatDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async sendMessage(
 		@CurrentMember() currentMember: any,
 		@Args('input') input: SendMessageInput,
@@ -48,7 +48,7 @@ export class ChatResolver {
 	 * Agent claims an unassigned chat
 	 */
 	@Mutation(() => ChatDto)
-	@Roles(MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async claimChat(
 		@CurrentMember() currentMember: any,
 		@Args('input') input: ClaimChatInput,
@@ -61,7 +61,7 @@ export class ChatResolver {
 	 * Close a chat
 	 */
 	@Mutation(() => ChatDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async closeChat(
 		@CurrentMember() currentMember: any,
 		@Args('chatId') chatId: string,
@@ -74,7 +74,7 @@ export class ChatResolver {
 	 * Mark messages as read
 	 */
 	@Mutation(() => ChatDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async markChatMessagesAsRead(
 		@CurrentMember() currentMember: any,
 		@Args('chatId') chatId: string,
@@ -87,7 +87,7 @@ export class ChatResolver {
 	 * Get a single chat by ID
 	 */
 	@Query(() => ChatDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getChat(
 		@CurrentMember() currentMember: any,
 		@Args('chatId') chatId: string,
@@ -128,7 +128,7 @@ export class ChatResolver {
 	 * Get total unread message count for current user
 	 */
 	@Query(() => Int)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getMyUnreadChatCount(@CurrentMember() currentMember: any): Promise<number> {
 		this.logger.log('Query getMyUnreadChatCount', currentMember?._id);
 		return this.chatService.getMyUnreadCount(currentMember);
@@ -138,7 +138,7 @@ export class ChatResolver {
 	 * Get all chats (admin only)
 	 */
 	@Query(() => ChatsDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAllChatsAdmin(
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => ChatStatus, nullable: true }) statusFilter?: ChatStatus,
@@ -151,7 +151,7 @@ export class ChatResolver {
 	 * Admin reassigns a chat to a different agent
 	 */
 	@Mutation(() => ChatDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async reassignChat(
 		@Args('chatId') chatId: string,
 		@Args('newAgentId') newAgentId: string,

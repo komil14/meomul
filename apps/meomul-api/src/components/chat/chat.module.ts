@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import ChatSchema from '../../schemas/Chat.model';
 import HotelSchema from '../../schemas/Hotel.model';
+import MemberSchema from '../../schemas/Member.model';
 import { ChatService } from './chat.service';
 import { ChatResolver } from './chat.resolver';
 import { AuthModule } from '../auth/auth.module';
@@ -10,10 +11,11 @@ import { NotificationModule } from '../notification/notification.module';
 
 @Module({
 	imports: [
-		MongooseModule.forFeature([
-			{ name: 'Chat', schema: ChatSchema },
-			{ name: 'Hotel', schema: HotelSchema },
-		]),
+			MongooseModule.forFeature([
+				{ name: 'Chat', schema: ChatSchema },
+				{ name: 'Hotel', schema: HotelSchema },
+				{ name: 'Member', schema: MemberSchema },
+			]),
 		AuthModule,
 		SocketModule,
 		NotificationModule,
