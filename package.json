@@ -15,6 +15,8 @@
     "start:prod": "NODE_ENV=production node dist/apps/meomul-api/main",
     "start:prod:batch": "NODE_ENV=production node dist/apps/meomul-batch/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "graphql:schema:sync": "npm run test:e2e -- --runInBand",
+    "graphql:schema:check": "npm run graphql:schema:sync && git diff --exit-code -- apps/meomul-api/src/schema.gql",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
