@@ -1,0 +1,1117 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type AmenitiesDto {
+  accessibleBathroom: Boolean!
+  airportShuttle: Boolean!
+  breakfast: Boolean!
+  breakfastIncluded: Boolean!
+  coupleRoom: Boolean!
+  elevator: Boolean!
+  evCharging: Boolean!
+  familyRoom: Boolean!
+  gym: Boolean!
+  kidsFriendly: Boolean!
+  meetingRoom: Boolean!
+  parking: Boolean!
+  parkingFee: Int!
+  playground: Boolean!
+  pool: Boolean!
+  privateBath: Boolean!
+  restaurant: Boolean!
+  romanticView: Boolean!
+  roomService: Boolean!
+  serviceAnimalsAllowed: Boolean!
+  spa: Boolean!
+  visualAlarms: Boolean!
+  wheelchairAccessible: Boolean!
+  wifi: Boolean!
+  wifiSpeed: Int
+  workspace: Boolean!
+}
+
+input AmenitiesInput {
+  accessibleBathroom: Boolean! = false
+  airportShuttle: Boolean! = false
+  breakfast: Boolean! = false
+  breakfastIncluded: Boolean! = false
+  coupleRoom: Boolean! = false
+  elevator: Boolean! = false
+  evCharging: Boolean! = false
+  familyRoom: Boolean! = false
+  gym: Boolean! = false
+  kidsFriendly: Boolean! = false
+  meetingRoom: Boolean! = false
+  parking: Boolean! = false
+  parkingFee: Int! = 0
+  playground: Boolean! = false
+  pool: Boolean! = false
+  privateBath: Boolean! = false
+  restaurant: Boolean! = false
+  romanticView: Boolean! = false
+  roomService: Boolean! = false
+  serviceAnimalsAllowed: Boolean! = false
+  spa: Boolean! = false
+  visualAlarms: Boolean! = false
+  wheelchairAccessible: Boolean! = false
+  wifi: Boolean! = true
+  wifiSpeed: Int
+  workspace: Boolean! = false
+}
+
+type AuthMemberDto {
+  _id: String!
+  accessToken: String!
+  createdAt: DateTime!
+  deletedAt: DateTime
+  memberAddress: String
+  memberArticles: Int!
+  memberAuthType: MemberAuthType!
+  memberBadges: [String!]!
+  memberComments: Int!
+  memberDesc: String
+  memberFollowers: Int!
+  memberFollowings: Int!
+  memberFullName: String
+  memberImage: String
+  memberLikes: Int!
+  memberNick: String!
+  memberPhone: String!
+  memberPoints: Int!
+  memberProperties: Int!
+  memberRank: Float!
+  memberStatus: MemberStatus!
+  memberType: MemberType!
+  memberViews: Int!
+  subscriptionExpiry: DateTime
+  subscriptionTier: SubscriptionTier!
+  updatedAt: DateTime!
+}
+
+enum BadgeLevel {
+  INSPECTED
+  NONE
+  SUPERHOST
+  VERIFIED
+}
+
+enum BedType {
+  DOUBLE
+  KING
+  QUEEN
+  SINGLE
+  TWIN
+}
+
+type BookedRoomDto {
+  guestName: String
+  pricePerNight: Int!
+  quantity: Int!
+  roomId: String!
+  roomType: String!
+}
+
+input BookedRoomInput {
+  guestName: String
+  pricePerNight: Int!
+  quantity: Int!
+  roomId: String!
+  roomType: String!
+}
+
+type BookingDto {
+  _id: String!
+  adultCount: Int!
+  ageVerified: Boolean!
+  bookingCode: String!
+  bookingStatus: BookingStatus!
+  cancellationDate: DateTime
+  cancellationReason: String
+  checkInDate: DateTime!
+  checkOutDate: DateTime!
+  childCount: Int!
+  createdAt: DateTime!
+  discount: Int!
+  earlyCheckIn: Boolean!
+  earlyCheckInFee: Int!
+  guestId: String!
+  hotelId: String!
+  lateCheckOut: Boolean!
+  lateCheckOutFee: Int!
+  nights: Int!
+  paidAmount: Int!
+  paidAt: DateTime
+  paymentMethod: PaymentMethod!
+  paymentStatus: PaymentStatus!
+  qrCode: String
+  refundAmount: Int
+  refundDate: DateTime
+  refundEvidence: [String!]
+  refundReason: String
+  rooms: [BookedRoomDto!]!
+  serviceFee: Int!
+  specialRequests: String
+  subtotal: Int!
+  taxes: Int!
+  totalPrice: Int!
+  updatedAt: DateTime!
+  verificationMethod: String
+  weekendSurcharge: Int!
+}
+
+input BookingInput {
+  adultCount: Int!
+  checkInDate: DateTime!
+  checkOutDate: DateTime!
+  childCount: Int! = 0
+  earlyCheckIn: Boolean! = false
+  hotelId: String!
+  lateCheckOut: Boolean! = false
+  paymentMethod: PaymentMethod!
+  rooms: [BookedRoomInput!]!
+  specialRequests: String
+}
+
+enum BookingStatus {
+  CANCELLED
+  CHECKED_IN
+  CHECKED_OUT
+  CONFIRMED
+  NO_SHOW
+  PENDING
+}
+
+type BookingsDto {
+  list: [BookingDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+enum BudgetLevel {
+  BUDGET
+  LUXURY
+  MID
+  PREMIUM
+}
+
+enum CancellationPolicy {
+  FLEXIBLE
+  MODERATE
+  STRICT
+}
+
+type ChatDto {
+  _id: String!
+  assignedAgentId: String
+  bookingId: String
+  chatStatus: ChatStatus!
+  createdAt: DateTime!
+  guestId: String!
+  hotelId: String!
+  lastMessageAt: DateTime!
+  messages: [MessageDto!]!
+  unreadAgentMessages: Int!
+  unreadGuestMessages: Int!
+  updatedAt: DateTime!
+}
+
+enum ChatStatus {
+  ACTIVE
+  CLOSED
+  WAITING
+}
+
+type ChatsDto {
+  list: [ChatDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+type CheapestDateDto {
+  date: String!
+  price: Int!
+}
+
+input ClaimChatInput {
+  chatId: String!
+}
+
+type CoordinatesDto {
+  lat: Float!
+  lng: Float!
+}
+
+input CoordinatesInput {
+  lat: Float!
+  lng: Float!
+}
+
+input CreatePriceLockInput {
+  currentPrice: Int!
+  roomId: String!
+}
+
+type DashboardStatsDto {
+  activeChats: Int!
+  activeHotels: Int!
+  availableRooms: Int!
+  checkInsToday: Int!
+  checkOutsToday: Int!
+  confirmedBookings: Int!
+  maintenanceRooms: Int!
+  newBookingsToday: Int!
+  newMembersToday: Int!
+  newReviewsToday: Int!
+  pendingBookings: Int!
+  pendingHotels: Int!
+  todayRevenue: Int!
+  totalBookings: Int!
+  totalChats: Int!
+  totalHotels: Int!
+  totalMembers: Int!
+  totalNotifications: Int!
+  totalRevenue: Int!
+  totalReviews: Int!
+  totalRooms: Int!
+  unreadNotifications: Int!
+  waitingChats: Int!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type DayPriceDto {
+  availableRooms: Int
+  date: String!
+  demandLevel: DemandLevel!
+  isWeekend: Boolean!
+  localEvent: String
+  price: Int!
+}
+
+enum DemandLevel {
+  HIGH
+  LOW
+  MEDIUM
+}
+
+type DetailedLocationDto {
+  address: String!
+  city: HotelLocation!
+  coordinates: CoordinatesDto!
+  district: String
+  dong: String
+  nearestSubway: String
+  subwayExit: String
+  subwayLines: [Int!]
+  walkingDistance: Int
+}
+
+input DetailedLocationInput {
+  address: String!
+  city: HotelLocation!
+  coordinates: CoordinatesInput!
+  district: String
+  dong: String
+  nearestSubway: String
+  subwayExit: String
+  subwayLines: [Int!]
+  walkingDistance: Int
+}
+
+type FlexibleTimingDto {
+  enabled: Boolean!
+  fee: Int!
+  times: [String!]!
+}
+
+input FlexibleTimingInput {
+  enabled: Boolean!
+  fee: Int! = 0
+  times: [String!]! = []
+}
+
+type FollowDto {
+  _id: String!
+  createdAt: DateTime!
+  followerData: MemberBasicDto
+  followerId: String!
+  followingData: MemberBasicDto
+  followingId: String!
+  meFollowed: Boolean
+  meLiked: Boolean
+}
+
+input FollowInput {
+  followingId: String!
+}
+
+input FollowInquiry {
+  limit: Int! = 20
+  page: Int! = 1
+}
+
+type Followers {
+  list: [FollowDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+type Followings {
+  list: [FollowDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+type HotelDto {
+  _id: String!
+  ageRestriction: Int!
+  amenities: AmenitiesDto!
+  badgeLevel: BadgeLevel!
+  cancellationPolicy: CancellationPolicy!
+  checkInTime: String!
+  checkOutTime: String!
+  createdAt: DateTime!
+  deletedAt: DateTime
+  detailedLocation: DetailedLocationDto!
+  flexibleCheckIn: FlexibleTimingDto!
+  flexibleCheckOut: FlexibleTimingDto!
+  hotelDesc: String!
+  hotelImages: [String!]!
+  hotelLikes: Int!
+  hotelLocation: HotelLocation!
+  hotelRank: Float!
+  hotelRating: Float!
+  hotelReviews: Int!
+  hotelStatus: HotelStatus!
+  hotelTitle: String!
+  hotelType: HotelType!
+  hotelVideos: [String!]!
+  hotelViews: Int!
+  lastInspectionDate: DateTime
+  maxPetWeight: Int
+  memberId: String!
+  petsAllowed: Boolean!
+  safeStayCertified: Boolean!
+  safetyFeatures: SafetyFeaturesDto!
+  smokingAllowed: Boolean!
+  starRating: Int!
+  strikeHistory: [StrikeHistoryDto!]!
+  suitableFor: [String!]!
+  updatedAt: DateTime!
+  verificationDocs: VerificationDocsDto!
+  verificationStatus: VerificationStatus!
+  warningStrikes: Int!
+}
+
+input HotelInput {
+  ageRestriction: Int! = 19
+  amenities: AmenitiesInput
+  cancellationPolicy: CancellationPolicy! = MODERATE
+  checkInTime: String! = "15:00"
+  checkOutTime: String! = "11:00"
+  detailedLocation: DetailedLocationInput!
+  flexibleCheckIn: FlexibleTimingInput
+  flexibleCheckOut: FlexibleTimingInput
+  hotelDesc: String! = ""
+  hotelImages: [String!]! = []
+  hotelLocation: HotelLocation!
+  hotelTitle: String!
+  hotelType: HotelType!
+  hotelVideos: [String!]! = []
+  maxPetWeight: Int
+  petsAllowed: Boolean! = false
+  safetyFeatures: SafetyFeaturesInput
+  smokingAllowed: Boolean! = false
+  starRating: Int! = 3
+  suitableFor: [String!]! = []
+}
+
+enum HotelLocation {
+  BUSAN
+  DAEGU
+  DAEJON
+  GANGNEUNG
+  GWANGJU
+  GYEONGJU
+  INCHEON
+  JEJU
+  SEOUL
+}
+
+type HotelResponseDto {
+  respondedAt: DateTime!
+  respondedBy: String!
+  responseText: String!
+}
+
+input HotelSearchInput {
+  amenities: [String!]
+  checkInDate: DateTime
+  checkOutDate: DateTime
+  dong: String
+  guestCount: Int
+  hotelTypes: [HotelType!]
+  location: HotelLocation
+  maxWalkingDistance: Int
+  minRating: Float
+  nearestSubway: String
+  petsAllowed: Boolean
+  priceRange: PriceRangeInput
+  purpose: StayPurpose
+  roomTypes: [RoomType!]
+  starRatings: [Int!]
+  subwayLines: [Int!]
+  text: String
+  verifiedOnly: Boolean
+  wheelchairAccessible: Boolean
+}
+
+enum HotelStatus {
+  ACTIVE
+  DELETE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum HotelType {
+  GUESTHOUSE
+  HANOK
+  HOTEL
+  MOTEL
+  PENSION
+  RESORT
+}
+
+input HotelUpdate {
+  _id: String!
+  amenities: AmenitiesInput
+  badgeLevel: BadgeLevel
+  cancellationPolicy: CancellationPolicy
+  checkInTime: String
+  checkOutTime: String
+  flexibleCheckIn: FlexibleTimingInput
+  flexibleCheckOut: FlexibleTimingInput
+  hotelDesc: String
+  hotelImages: [String!]
+  hotelStatus: HotelStatus
+  hotelTitle: String
+  hotelVideos: [String!]
+  maxPetWeight: Int
+  petsAllowed: Boolean
+  safetyFeatures: SafetyFeaturesInput
+  smokingAllowed: Boolean
+  starRating: Int
+  suitableFor: [String!]
+}
+
+type HotelsDto {
+  list: [HotelDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+type LastMinuteDealDto {
+  dealPrice: Int!
+  discountPercent: Int!
+  isActive: Boolean!
+  originalPrice: Int!
+  validUntil: DateTime!
+}
+
+type LikeDto {
+  _id: String!
+  createdAt: DateTime!
+  likeGroup: LikeGroup!
+  likeRefId: String!
+  memberId: String!
+}
+
+enum LikeGroup {
+  ARTICLE
+  HOTEL
+  MEMBER
+  REVIEW
+}
+
+input LikeInput {
+  likeGroup: LikeGroup!
+  likeRefId: String!
+}
+
+input LoginInput {
+  memberNick: String!
+  memberPassword: String!
+}
+
+enum MemberAuthType {
+  EMAIL
+  GOOGLE
+  KAKAO
+  NAVER
+  PHONE
+}
+
+type MemberBasicDto {
+  _id: String!
+  memberFollowers: Int!
+  memberFollowings: Int!
+  memberFullName: String
+  memberImage: String
+  memberNick: String!
+  memberStatus: MemberStatus!
+}
+
+type MemberDto {
+  _id: String!
+  createdAt: DateTime!
+  deletedAt: DateTime
+  memberAddress: String
+  memberArticles: Int!
+  memberAuthType: MemberAuthType!
+  memberBadges: [String!]!
+  memberComments: Int!
+  memberDesc: String
+  memberFollowers: Int!
+  memberFollowings: Int!
+  memberFullName: String
+  memberImage: String
+  memberLikes: Int!
+  memberNick: String!
+  memberPhone: String!
+  memberPoints: Int!
+  memberProperties: Int!
+  memberRank: Float!
+  memberStatus: MemberStatus!
+  memberType: MemberType!
+  memberViews: Int!
+  subscriptionExpiry: DateTime
+  subscriptionTier: SubscriptionTier!
+  updatedAt: DateTime!
+}
+
+input MemberInput {
+  memberAddress: String
+  memberAuthType: MemberAuthType!
+  memberFullName: String
+  memberImage: String
+  memberNick: String!
+  memberPassword: String!
+  memberPhone: String!
+  memberType: MemberType!
+}
+
+enum MemberStatus {
+  ACTIVE
+  BLOCK
+  DELETE
+}
+
+enum MemberType {
+  ADMIN
+  ADMIN_OPERATOR
+  AGENT
+  USER
+}
+
+input MemberUpdate {
+  _id: String
+  memberAddress: String
+  memberDesc: String
+  memberFullName: String
+  memberImage: String
+  memberNick: String
+  memberStatus: MemberStatus
+  subscriptionTier: SubscriptionTier
+}
+
+type MembersDto {
+  list: [MemberDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+type MessageDto {
+  content: String
+  fileUrl: String
+  imageUrl: String
+  messageType: MessageType!
+  read: Boolean!
+  senderId: String!
+  senderType: SenderType!
+  timestamp: DateTime!
+}
+
+enum MessageType {
+  FILE
+  IMAGE
+  TEXT
+}
+
+type MetaCounterDto {
+  total: Int!
+}
+
+type Mutation {
+  approveSubscription(durationDays: Int!, memberId: String!, tier: SubscriptionTier!): MemberDto!
+  cancelBooking(bookingId: String!, reason: String!): BookingDto!
+  cancelBookingByOperator(bookingId: String!, reason: String!): BookingDto!
+  cancelPriceLock(priceLockId: String!): Boolean!
+  cancelSubscription(memberId: String!): MemberDto!
+  claimChat(input: ClaimChatInput!): ChatDto!
+  clearMySearchHistory: Int!
+  closeChat(chatId: String!): ChatDto!
+  createBooking(input: BookingInput!): BookingDto!
+  createHotel(input: HotelInput!): HotelDto!
+  createNotification(input: NotificationInput!): NotificationDto!
+  createReview(input: ReviewInput!): ReviewDto!
+  createRoom(input: RoomInput!): RoomDto!
+  deleteMemberByAdmin(memberId: String!): MemberDto!
+  deleteNotification(notificationId: String!): Boolean!
+  deleteReview(reviewId: String!): ReviewDto!
+  deleteSearchHistoryItem(historyId: String!): Boolean!
+  denySubscription(memberId: String!, reason: String): ResponseDto!
+  lockPrice(input: CreatePriceLockInput!): PriceLockDto!
+  loginMember(input: LoginInput!): AuthMemberDto!
+  markAllAsRead: Int!
+  markAsRead(notificationId: String!): NotificationDto!
+  markChatMessagesAsRead(chatId: String!): ChatDto!
+  markHelpful(reviewId: String!): ReviewDto!
+  reassignChat(chatId: String!, newAgentId: String!): ChatDto!
+  requestSubscription(requestedTier: SubscriptionTier!): ResponseDto!
+  respondToReview(responseText: String!, reviewId: String!): ReviewDto!
+  saveOnboardingPreferences(input: OnboardingPreferenceInput!): ResponseDto!
+  sendMessage(input: SendMessageInput!): ChatDto!
+  signupMember(input: MemberInput!): AuthMemberDto!
+  startChat(input: StartChatInput!): ChatDto!
+  toggleFollow(input: FollowInput!): ToggleFollowDto!
+  toggleLike(input: LikeInput!): ToggleLikeDto!
+  updateBookingStatus(bookingId: String!, status: BookingStatus!): BookingDto!
+  updateHotel(input: HotelUpdate!): HotelDto!
+  updateHotelByAdmin(input: HotelUpdate!): HotelDto!
+  updateMember(input: MemberUpdate!): MemberDto!
+  updateMemberByAdmin(input: MemberUpdate!): MemberDto!
+  updatePaymentStatus(bookingId: String!, paidAmount: Float!, paymentStatus: PaymentStatus!): BookingDto!
+  updateReview(input: ReviewUpdate!): ReviewDto!
+  updateReviewStatus(reviewId: String!, status: ReviewStatus!): ReviewDto!
+  updateRoom(input: RoomUpdate!): RoomDto!
+  updateRoomByAdmin(input: RoomUpdate!): RoomDto!
+}
+
+type NotificationDto {
+  _id: String!
+  createdAt: DateTime!
+  link: String
+  message: String!
+  read: Boolean!
+  title: String!
+  type: NotificationType!
+  userId: String!
+}
+
+input NotificationInput {
+  link: String
+  message: String!
+  title: String!
+  type: NotificationType!
+  userId: String!
+}
+
+enum NotificationType {
+  BOOKING_CANCELLED
+  BOOKING_REMINDER
+  CHAT_MESSAGE
+  HOTEL_REPLY
+  LOW_AVAILABILITY
+  NEW_BOOKING
+  NEW_HOTEL
+  NEW_MEMBER
+  NEW_REVIEW
+  POINTS_EARNED
+  PRICE_DROP
+  REVIEW_REQUEST
+  SUBSCRIPTION_APPROVED
+  SUBSCRIPTION_CANCELLED
+  SUBSCRIPTION_DENIED
+  SUBSCRIPTION_REQUEST
+}
+
+type NotificationsDto {
+  list: [NotificationDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+input OnboardingPreferenceInput {
+  budgetLevel: BudgetLevel
+  preferredAmenities: [String!]!
+  preferredDestinations: [HotelLocation!]!
+  travelStyles: [TravelStyle!]!
+}
+
+input PaginationInput {
+  direction: Int = -1
+  limit: Int!
+  page: Int!
+  sort: String = "createdAt"
+}
+
+enum PaymentMethod {
+  AT_HOTEL
+  CREDIT_CARD
+  DEBIT_CARD
+  KAKAOPAY
+  NAVERPAY
+  TOSS
+}
+
+enum PaymentStatus {
+  FAILED
+  PAID
+  PARTIAL
+  PENDING
+  REFUNDED
+}
+
+type PriceCalendarDto {
+  averagePrice: Int!
+  calendar: [DayPriceDto!]!
+  cheapestDate: CheapestDateDto!
+  mostExpensiveDate: CheapestDateDto!
+  savings: Int!
+}
+
+input PriceCalendarInput {
+  month: String
+  roomId: String!
+}
+
+type PriceLockDto {
+  _id: String!
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  lockedPrice: Int!
+  roomId: String!
+  userId: String!
+}
+
+input PriceRangeInput {
+  end: Int
+  start: Int
+}
+
+type Query {
+  checkAuth: String!
+  checkAuthRoles: ResponseDto!
+  getAgentBookings(hotelId: String!, input: PaginationInput!): BookingsDto!
+  getAgentHotels(input: PaginationInput!): HotelsDto!
+  getAgentRooms(hotelId: String!, input: PaginationInput!): RoomsDto!
+  getAllBookingsAdmin(input: PaginationInput!, statusFilter: BookingStatus): BookingsDto!
+  getAllChatsAdmin(input: PaginationInput!, statusFilter: ChatStatus): ChatsDto!
+  getAllHotelsAdmin(input: PaginationInput!, statusFilter: HotelStatus): HotelsDto!
+  getAllMembersByAdmin(input: PaginationInput!): MembersDto!
+  getAllNotificationsAdmin(input: PaginationInput!): NotificationsDto!
+  getAllReviewsAdmin(input: PaginationInput!, statusFilter: ReviewStatus): ReviewsDto!
+  getAllRoomsAdmin(input: PaginationInput!, statusFilter: RoomStatus): RoomsDto!
+  getBooking(bookingId: String!): BookingDto!
+  getChat(chatId: String!): ChatDto!
+  getDashboardStats: DashboardStatsDto!
+  getFollowerCount(memberId: String!): Int!
+  getFollowers(memberId: String!): [FollowDto!]!
+  getFollowingCount(memberId: String!): Int!
+  getHotel(hotelId: String!): HotelDto!
+  getHotelChats(hotelId: String!, input: PaginationInput!, statusFilter: ChatStatus): ChatsDto!
+  getHotelReviews(hotelId: String!, input: PaginationInput!): ReviewsDto!
+  getHotels(input: PaginationInput!, search: HotelSearchInput): HotelsDto!
+  getLikeCount(likeGroup: LikeGroup!, likeRefId: String!): Int!
+  getMember: MemberDto!
+  getMemberByAdmin(memberId: String!): MemberDto!
+  getMemberFollowersPaginated(input: FollowInquiry!, memberId: String!): Followers!
+  getMemberFollowingsPaginated(input: FollowInquiry!, memberId: String!): Followings!
+  getMyBookings(input: PaginationInput!): BookingsDto!
+  getMyChats(input: PaginationInput!): ChatsDto!
+  getMyFollowers: [FollowDto!]!
+  getMyFollowing: [FollowDto!]!
+  getMyLikes(likeGroup: LikeGroup!): [LikeDto!]!
+  getMyNotifications(unreadOnly: Boolean): [NotificationDto!]!
+  getMyPriceLock(roomId: String!): PriceLockDto
+  getMyPriceLocks: [PriceLockDto!]!
+  getMyReviews(input: PaginationInput!): ReviewsDto!
+  getMySearchHistory(limit: Int): [SearchHistoryDto!]!
+  getMyUnreadChatCount: Int!
+  getNotification(notificationId: String!): NotificationDto!
+  getPriceCalendar(input: PriceCalendarInput!): PriceCalendarDto!
+  getRecommendedHotels(limit: Int = 10): [HotelDto!]!
+  getReview(reviewId: String!): ReviewDto!
+  getRoom(roomId: String!): RoomDto!
+  getRoomsByHotel(hotelId: String!, input: PaginationInput!): RoomsDto!
+  getSimilarHotels(hotelId: String!, limit: Int = 6): [HotelDto!]!
+  getSubscriptionRequests: [NotificationDto!]!
+  getSubscriptionStatus: SubscriptionStatusDto!
+  getTrendingByLocation(limit: Int = 10, location: HotelLocation!): [HotelDto!]!
+  getTrendingHotels(limit: Int = 10): [HotelDto!]!
+  getUnreadCount: Int!
+  hasLiked(likeGroup: LikeGroup!, likeRefId: String!): Boolean!
+  hello: String!
+  isFollowing(followingId: String!): Boolean!
+}
+
+type ResponseDto {
+  data: String
+  message: String!
+  success: Boolean!
+}
+
+type ReviewDto {
+  _id: String!
+  amenitiesRating: Float!
+  bookingId: String!
+  cleanlinessRating: Float!
+  createdAt: DateTime!
+  guestPhotos: [String!]!
+  helpfulCount: Int!
+  hotelId: String!
+  hotelResponse: HotelResponseDto
+  locationRating: Float!
+  overallRating: Float!
+  reviewStatus: ReviewStatus!
+  reviewText: String!
+  reviewTitle: String
+  reviewViews: Int!
+  reviewerId: String!
+  serviceRating: Float!
+  stayDate: DateTime!
+  updatedAt: DateTime!
+  valueRating: Float!
+  verifiedStay: Boolean!
+}
+
+input ReviewInput {
+  amenitiesRating: Float!
+  bookingId: String!
+  cleanlinessRating: Float!
+  guestPhotos: [String!]! = []
+  locationRating: Float!
+  overallRating: Float!
+  reviewText: String!
+  reviewTitle: String
+  serviceRating: Float!
+  valueRating: Float!
+}
+
+enum ReviewStatus {
+  APPROVED
+  FLAGGED
+  PENDING
+  REMOVED
+}
+
+input ReviewUpdate {
+  _id: String!
+  reviewStatus: String
+  reviewText: String
+  reviewTitle: String
+}
+
+type ReviewsDto {
+  list: [ReviewDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+type RoomDto {
+  _id: String!
+  availableRooms: Int!
+  basePrice: Int!
+  bedCount: Int!
+  bedType: BedType!
+  createdAt: DateTime!
+  currentViewers: Int!
+  hotelId: String!
+  lastMinuteDeal: LastMinuteDealDto
+  maxOccupancy: Int!
+  roomAmenities: [String!]!
+  roomDesc: String!
+  roomImages: [String!]!
+  roomName: String!
+  roomNumber: String
+  roomSize: Int!
+  roomStatus: RoomStatus!
+  roomType: RoomType!
+  totalRooms: Int!
+  updatedAt: DateTime!
+  viewType: ViewType!
+  weekendSurcharge: Int!
+}
+
+input RoomInput {
+  basePrice: Int!
+  bedCount: Int!
+  bedType: BedType!
+  hotelId: String!
+  maxOccupancy: Int!
+  roomAmenities: [String!]! = []
+  roomDesc: String! = ""
+  roomImages: [String!]! = []
+  roomName: String!
+  roomNumber: String
+  roomSize: Int! = 0
+  roomType: RoomType!
+  totalRooms: Int!
+  viewType: ViewType! = NONE
+  weekendSurcharge: Int! = 0
+}
+
+enum RoomStatus {
+  AVAILABLE
+  BOOKED
+  INACTIVE
+  MAINTENANCE
+}
+
+enum RoomType {
+  DELUXE
+  FAMILY
+  PENTHOUSE
+  PREMIUM
+  STANDARD
+  SUITE
+}
+
+input RoomUpdate {
+  _id: String!
+  basePrice: Int
+  roomAmenities: [String!]
+  roomDesc: String
+  roomImages: [String!]
+  roomName: String
+  roomSize: Int
+  roomStatus: RoomStatus
+  totalRooms: Int
+  viewType: ViewType
+  weekendSurcharge: Int
+}
+
+type RoomsDto {
+  list: [RoomDto!]!
+  metaCounter: MetaCounterDto!
+}
+
+type SafetyFeaturesDto {
+  femaleOnlyFloors: Boolean!
+  fireSafety: Boolean!
+  frontDesk24h: Boolean!
+  roomSafe: Boolean!
+  securityCameras: Boolean!
+  wellLitParking: Boolean!
+}
+
+input SafetyFeaturesInput {
+  femaleOnlyFloors: Boolean! = false
+  fireSafety: Boolean! = false
+  frontDesk24h: Boolean! = false
+  roomSafe: Boolean! = false
+  securityCameras: Boolean! = false
+  wellLitParking: Boolean! = false
+}
+
+type SearchHistoryDto {
+  _id: String!
+  amenities: [String!]
+  createdAt: DateTime!
+  guestCount: Int
+  hotelTypes: [HotelType!]
+  location: HotelLocation
+  memberId: String!
+  priceMax: Int
+  priceMin: Int
+  purpose: StayPurpose
+  starRatings: [Float!]
+  text: String
+}
+
+input SendMessageInput {
+  chatId: String!
+  content: String
+  fileUrl: String
+  imageUrl: String
+  messageType: MessageType!
+}
+
+enum SenderType {
+  AGENT
+  GUEST
+}
+
+input StartChatInput {
+  bookingId: String
+  hotelId: String!
+  initialMessage: String!
+}
+
+enum StayPurpose {
+  BUSINESS
+  EVENT
+  FAMILY
+  LONG_TERM
+  MEDICAL
+  ROMANTIC
+  SOLO
+  STAYCATION
+}
+
+type StrikeHistoryDto {
+  bookingId: String!
+  date: DateTime!
+  reason: String!
+}
+
+type SubscriptionStatusDto {
+  active: Boolean!
+  daysRemaining: Int
+  expiresAt: DateTime
+  tier: SubscriptionTier!
+}
+
+enum SubscriptionTier {
+  BASIC
+  ELITE
+  FREE
+  PREMIUM
+}
+
+type ToggleFollowDto {
+  follow: FollowDto
+  followerCount: Int!
+  following: Boolean!
+}
+
+type ToggleLikeDto {
+  like: LikeDto
+  likeCount: Int!
+  liked: Boolean!
+}
+
+enum TravelStyle {
+  BUSINESS
+  COUPLE
+  FAMILY
+  FRIENDS
+  SOLO
+}
+
+type VerificationDocsDto {
+  businessLicense: String
+  propertyOwnership: String
+  touristLicense: String
+}
+
+enum VerificationStatus {
+  PENDING
+  REJECTED
+  VERIFIED
+}
+
+enum ViewType {
+  CITY
+  GARDEN
+  MOUNTAIN
+  NONE
+  OCEAN
+}

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -26,8 +27,9 @@ import { RolesGuard } from './components/auth/guards/roles.guard';
 		}),
 		ConfigModule.forRoot(),
 		GraphQLModule.forRoot({
-			autoSchemaFile: true,
+			autoSchemaFile: join(process.cwd(), 'apps/meomul-api/src/schema.gql'),
 			driver: ApolloDriver,
+			sortSchema: true,
 			playground: process.env.NODE_ENV !== 'production',
 			introspection: process.env.NODE_ENV !== 'production',
 			uploads: true,
