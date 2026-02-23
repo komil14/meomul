@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { InjectConnection, MongooseModule } from '@nestjs/mongoose';
 import { Connection, ConnectionStates } from 'mongoose';
+import { attachMongoSlowQueryMonitor } from './mongo-monitor';
 
 @Module({
 	imports: [
@@ -19,21 +20,26 @@ import { Connection, ConnectionStates } from 'mongoose';
 				// Keep the connection pool small — scheduler jobs are infrequent
 				maxPoolSize: 10,
 				minPoolSize: 1,
+				monitorCommands: process.env.MONGO_SLOW_QUERY_LOG === 'true',
 			}),
 		}),
 	],
 	exports: [MongooseModule],
 })
 export class DatabaseModule {
+	private readonly logger = new Logger(DatabaseModule.name);
+
 	constructor(@InjectConnection() private readonly connection: Connection) {
+		attachMongoSlowQueryMonitor(this.connection, 'api');
+
 		if (this.connection.readyState === ConnectionStates.connected) {
-			console.log(
+			this.logger.log(
 				'Database connected successfully into ' +
 					(process.env.NODE_ENV === 'production' ? 'PRODUCTION' : 'DEVELOPMENT') +
 					' db',
 			);
 		} else {
-			console.error('Database connection failed');
+			this.logger.error('Database connection failed');
 		}
 	}
 }

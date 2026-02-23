@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleModule } from '@nestjs/schedule';
+import type { Connection } from 'mongoose';
 import { MeomulBatchController } from './meomul-batch.controller';
 import { MeomulBatchService } from './meomul-batch.service';
 import { DealModule } from './deal/deal.module';
@@ -12,6 +13,8 @@ import { ChatModule } from './chat/chat.module';
 import { PriceLockModule } from './price-lock/price-lock.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
+import { CommonModule } from './common/common.module';
+import { attachMongoSlowQueryMonitor } from '../../meomul-api/src/database/mongo-monitor';
 
 @Module({
 	imports: [
@@ -19,9 +22,21 @@ import { RecommendationModule } from './recommendation/recommendation.module';
 		MongooseModule.forRootAsync({
 			useFactory: () => ({
 				uri: process.env.NODE_ENV === 'production' ? process.env.MONGO_PROD : process.env.MONGO_DEV,
+				maxIdleTimeMS: 25000,
+				connectTimeoutMS: 30000,
+				socketTimeoutMS: 45000,
+				serverSelectionTimeoutMS: 30000,
+				maxPoolSize: 10,
+				minPoolSize: 1,
+				monitorCommands: process.env.MONGO_SLOW_QUERY_LOG === 'true',
+				connectionFactory: (connection: Connection) => {
+					attachMongoSlowQueryMonitor(connection, 'batch');
+					return connection;
+				},
 			}),
 		}),
 		ScheduleModule.forRoot(),
+		CommonModule,
 		DealModule,
 		BookingModule,
 		RankingModule,

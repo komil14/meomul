@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { join } from 'path';
+import Keyv from 'keyv';
+import KeyvRedis from '@keyv/redis';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CacheModule } from '@nestjs/cache-manager';
+import type { CacheOptions } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver } from '@nestjs/apollo';
@@ -20,10 +23,29 @@ import { RolesGuard } from './components/auth/guards/roles.guard';
 
 @Module({
 	imports: [
-		CacheModule.register({
+		CacheModule.registerAsync({
 			isGlobal: true,
-			ttl: 300000,
-			max: 200,
+			useFactory: (): CacheOptions => {
+				const ttl = 300000;
+				const max = 200;
+				const redisUrl = process.env.REDIS_URL?.trim();
+
+				if (!redisUrl) {
+					return { ttl, max };
+				}
+
+				const redisStore = new KeyvRedis(redisUrl);
+				const keyvStore = new Keyv({
+					store: redisStore,
+					namespace: 'meomul:api-cache',
+				});
+
+				return {
+					ttl,
+					max,
+					stores: [keyvStore],
+				};
+			},
 		}),
 		ConfigModule.forRoot(),
 		GraphQLModule.forRoot({

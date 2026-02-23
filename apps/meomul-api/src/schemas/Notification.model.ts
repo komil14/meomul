@@ -35,5 +35,7 @@ const NotificationSchema = new Schema(
 );
 
 NotificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+NotificationSchema.index({ read: 1, createdAt: 1 });
+NotificationSchema.index({ type: 1, link: 1 });
 
 export default NotificationSchema;

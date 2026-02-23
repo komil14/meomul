@@ -3,12 +3,16 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
 import type { Model } from 'mongoose';
 import type { PriceLockDocument } from '../../../meomul-api/src/libs/types/price-lock';
+import { CronLockService } from '../common/cron-lock.service';
 
 @Injectable()
 export class PriceLockService {
 	private readonly logger = new Logger(PriceLockService.name);
 
-	constructor(@InjectModel('PriceLock') private readonly priceLockModel: Model<PriceLockDocument>) {}
+	constructor(
+		@InjectModel('PriceLock') private readonly priceLockModel: Model<PriceLockDocument>,
+		private readonly cronLockService: CronLockService,
+	) {}
 
 	/**
 	 * Safety net: delete expired price locks that the TTL index may have missed.
@@ -17,16 +21,18 @@ export class PriceLockService {
 	 */
 	@Cron('*/30 * * * *')
 	public async cleanExpiredLocks(): Promise<void> {
-		const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+		await this.cronLockService.runLocked('priceLock.cleanExpiredLocks', 30 * 60 * 1000, async () => {
+			const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
-		const result = await this.priceLockModel
-			.deleteMany({
-				expiresAt: { $lt: twoHoursAgo },
-			})
-			.exec();
+			const result = await this.priceLockModel
+				.deleteMany({
+					expiresAt: { $lt: twoHoursAgo },
+				})
+				.exec();
 
-		if (result.deletedCount > 0) {
-			this.logger.log(`Cleaned ${result.deletedCount} orphaned price lock(s)`);
-		}
+			if (result.deletedCount > 0) {
+				this.logger.log(`Cleaned ${result.deletedCount} orphaned price lock(s)`);
+			}
+		});
 	}
 }

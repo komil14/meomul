@@ -3,12 +3,16 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { Model } from 'mongoose';
 import type { RoomDocument } from '../../../meomul-api/src/libs/types/room';
+import { CronLockService } from '../common/cron-lock.service';
 
 @Injectable()
 export class DealService {
 	private readonly logger = new Logger(DealService.name);
 
-	constructor(@InjectModel('Room') private readonly roomModel: Model<RoomDocument>) {}
+	constructor(
+		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
+		private readonly cronLockService: CronLockService,
+	) {}
 
 	/**
 	 * Expire last-minute deals whose validUntil has passed.
@@ -16,22 +20,24 @@ export class DealService {
 	 */
 	@Cron(CronExpression.EVERY_10_MINUTES)
 	public async expireDeals(): Promise<void> {
-		const now = new Date();
+		await this.cronLockService.runLocked('deal.expireDeals', 10 * 60 * 1000, async () => {
+			const now = new Date();
 
-		const result = await this.roomModel
-			.updateMany(
-				{
-					'lastMinuteDeal.isActive': true,
-					'lastMinuteDeal.validUntil': { $lt: now },
-				},
-				{
-					$unset: { lastMinuteDeal: 1 },
-				},
-			)
-			.exec();
+			const result = await this.roomModel
+				.updateMany(
+					{
+						'lastMinuteDeal.isActive': true,
+						'lastMinuteDeal.validUntil': { $lt: now },
+					},
+					{
+						$unset: { lastMinuteDeal: 1 },
+					},
+				)
+				.exec();
 
-		if (result.modifiedCount > 0) {
-			this.logger.log(`Expired ${result.modifiedCount} last-minute deal(s)`);
-		}
+			if (result.modifiedCount > 0) {
+				this.logger.log(`Expired ${result.modifiedCount} last-minute deal(s)`);
+			}
+		});
 	}
 }
