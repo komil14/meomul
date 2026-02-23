@@ -12,7 +12,7 @@ import { CancellationPolicy } from '../../libs/enums/hotel.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
 import { RoomStatus } from '../../libs/enums/room.enum';
 import { Messages } from '../../libs/messages';
-import type { MemberJwtPayload } from '../../libs/types/member';
+import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import type { BookingDocument } from '../../libs/types/booking';
 import { toBookingDto } from '../../libs/types/booking';
 import type { RoomDocument } from '../../libs/types/room';
@@ -28,6 +28,7 @@ export class BookingService {
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
+		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
 		private readonly priceLockService: PriceLockService,
 		private readonly notificationService: NotificationService,
 	) {}
@@ -40,6 +41,7 @@ export class BookingService {
 		if (currentMember.memberStatus !== MemberStatus.ACTIVE) {
 			throw new ForbiddenException(Messages.NOT_AUTHENTICATED);
 		}
+		const bookingGuestId = await this.resolveBookingGuestId(currentMember, input.guestId);
 
 		// Calculate nights
 		const checkIn = new Date(input.checkInDate);
@@ -81,10 +83,7 @@ export class BookingService {
 			}
 
 			// Verify price matches — priority: Price Lock > Last-Minute Deal > Base Price
-			const { price: expectedPrice } = await this.priceLockService.getEffectivePrice(
-				currentMember._id,
-				inputRoom.roomId,
-			);
+			const { price: expectedPrice } = await this.priceLockService.getEffectivePrice(bookingGuestId, inputRoom.roomId);
 			if (inputRoom.pricePerNight !== expectedPrice) {
 				throw new BadRequestException(
 					`Price mismatch for ${room.roomName}. Expected: ${expectedPrice}, Provided: ${inputRoom.pricePerNight}`,
@@ -167,7 +166,7 @@ export class BookingService {
 					if (!txRoom) {
 						throw new NotFoundException('One or more rooms not found');
 					}
-					const expectedPrice = await this.resolveEffectiveRoomPrice(currentMember, txRoom);
+					const expectedPrice = await this.resolveEffectiveRoomPrice(bookingGuestId, txRoom);
 					if (inputRoom.pricePerNight !== expectedPrice) {
 						throw new BadRequestException(
 							`Price changed for ${txRoom.roomName}. Expected: ${expectedPrice}, Provided: ${inputRoom.pricePerNight}`,
@@ -199,7 +198,7 @@ export class BookingService {
 				const [createdBooking] = await this.bookingModel.create(
 					[
 						{
-							guestId: currentMember._id,
+							guestId: bookingGuestId,
 							hotelId: input.hotelId,
 							rooms: input.rooms,
 							checkInDate: input.checkInDate,
@@ -239,12 +238,17 @@ export class BookingService {
 			throw new BadRequestException(Messages.CREATE_FAILED);
 		}
 		const createdBooking = booking as BookingDocument;
+		const bookingGuestContext: MemberJwtPayload = {
+			...currentMember,
+			_id: bookingGuestId,
+			sub: bookingGuestId,
+		};
 
 		// Remove any price locks the user had on these rooms (they've been used)
 		for (const inputRoom of input.rooms) {
-			const lock = await this.priceLockService.getMyPriceLock(currentMember, inputRoom.roomId);
+			const lock = await this.priceLockService.getMyPriceLock(bookingGuestContext, inputRoom.roomId);
 			if (lock) {
-				await this.priceLockService.cancelPriceLock(currentMember, lock._id);
+				await this.priceLockService.cancelPriceLock(bookingGuestContext, lock._id);
 			}
 		}
 
@@ -260,8 +264,8 @@ export class BookingService {
 
 		// Invalidate recommendation cache for this user (fire-and-forget)
 		Promise.all([
-			this.cacheManager.del(`rec:${currentMember._id}:10`),
-			this.cacheManager.del(`rec:${currentMember._id}:20`),
+			this.cacheManager.del(`rec:${bookingGuestId}:10`),
+			this.cacheManager.del(`rec:${bookingGuestId}:20`),
 		]).catch(() => {});
 
 		return toBookingDto(createdBooking);
@@ -632,18 +636,40 @@ export class BookingService {
 		return memberType === MemberType.ADMIN || memberType === MemberType.ADMIN_OPERATOR;
 	}
 
-	private async resolveEffectiveRoomPrice(currentMember: MemberJwtPayload, room: RoomDocument): Promise<number> {
-		const lock = await this.priceLockService.getMyPriceLock(currentMember, String(room._id));
-		if (lock) {
-			return lock.lockedPrice;
+	private async resolveBookingGuestId(currentMember: MemberJwtPayload, requestedGuestId?: string): Promise<string> {
+		const targetGuestId = requestedGuestId?.trim();
+		const isStaff = currentMember.memberType !== MemberType.USER;
+
+		if (!targetGuestId) {
+			if (isStaff) {
+				throw new BadRequestException('guestId is required for staff-created bookings');
+			}
+			return currentMember._id;
 		}
 
-		const now = new Date();
-		if (room.lastMinuteDeal && room.lastMinuteDeal.isActive && room.lastMinuteDeal.validUntil > now) {
-			return room.lastMinuteDeal.dealPrice;
+		if (currentMember.memberType === MemberType.USER && targetGuestId !== currentMember._id) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
-		return room.basePrice;
+		const targetGuest = await this.memberModel.findById(targetGuestId).select('memberType memberStatus').exec();
+		if (!targetGuest) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		if (targetGuest.memberStatus !== MemberStatus.ACTIVE) {
+			throw new BadRequestException('Target guest account must be ACTIVE');
+		}
+
+		if (isStaff && targetGuest.memberType !== MemberType.USER) {
+			throw new BadRequestException('Staff can only create bookings for USER accounts');
+		}
+
+		return targetGuestId;
+	}
+
+	private async resolveEffectiveRoomPrice(userId: string, room: RoomDocument): Promise<number> {
+		const { price } = await this.priceLockService.getEffectivePrice(userId, String(room._id));
+		return price;
 	}
 
 	private async executeBookingCancellation(

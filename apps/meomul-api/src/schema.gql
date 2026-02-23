@@ -169,6 +169,7 @@ input BookingInput {
   checkOutDate: DateTime!
   childCount: Int! = 0
   earlyCheckIn: Boolean! = false
+  guestId: String
   hotelId: String!
   lateCheckOut: Boolean! = false
   paymentMethod: PaymentMethod!

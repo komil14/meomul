@@ -45,6 +45,11 @@ export class BookedRoomInput {
 
 @InputType()
 export class BookingInput {
+	@IsOptional()
+	@IsString()
+	@Field(() => String, { nullable: true })
+	guestId?: string;
+
 	@IsNotEmpty()
 	@IsString()
 	@Field(() => String)

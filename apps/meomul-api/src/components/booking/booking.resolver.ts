@@ -39,7 +39,7 @@ export class BookingResolver {
 	 * Create a new booking (authenticated users)
 	 */
 	@Mutation(() => BookingDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async createBooking(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: BookingInput,
