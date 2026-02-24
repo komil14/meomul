@@ -9,6 +9,7 @@ import { BookingResolver } from './booking.resolver';
 import { AuthModule } from '../auth/auth.module';
 import { PriceLockModule } from '../price-lock/price-lock.module';
 import { NotificationModule } from '../notification/notification.module';
+import { RoomInventoryModule } from '../room-inventory/room-inventory.module';
 
 @Module({
 	imports: [
@@ -21,6 +22,7 @@ import { NotificationModule } from '../notification/notification.module';
 		AuthModule,
 		PriceLockModule,
 		NotificationModule,
+		RoomInventoryModule,
 	],
 	providers: [BookingService, BookingResolver],
 	exports: [BookingService],

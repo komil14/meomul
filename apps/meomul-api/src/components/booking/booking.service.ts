@@ -20,6 +20,7 @@ import type { HotelDocument } from '../../libs/types/hotel';
 import { PriceLockService } from '../price-lock/price-lock.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../../libs/enums/common.enum';
+import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 
 @Injectable()
 export class BookingService {
@@ -31,6 +32,7 @@ export class BookingService {
 		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
 		private readonly priceLockService: PriceLockService,
 		private readonly notificationService: NotificationService,
+		private readonly roomInventoryService: RoomInventoryService,
 	) {}
 
 	/**
@@ -74,12 +76,6 @@ export class BookingService {
 
 			if (room.roomStatus !== RoomStatus.AVAILABLE) {
 				throw new BadRequestException(`Room ${room.roomName} is not available`);
-			}
-
-			if (room.availableRooms < inputRoom.quantity) {
-				throw new BadRequestException(
-					`Not enough rooms available for ${room.roomName}. Available: ${room.availableRooms}, Requested: ${inputRoom.quantity}`,
-				);
 			}
 
 			// Verify price matches — priority: Price Lock > Last-Minute Deal > Base Price
@@ -173,26 +169,22 @@ export class BookingService {
 						);
 					}
 
-					const availabilityUpdate = await this.roomModel
-						.updateOne(
-							{
-								_id: inputRoom.roomId,
-								hotelId: input.hotelId,
-								roomStatus: RoomStatus.AVAILABLE,
-								availableRooms: { $gte: inputRoom.quantity },
-							},
-							{
-								$inc: { availableRooms: -inputRoom.quantity },
-							},
-							{ session },
-						)
-						.exec();
+					await this.roomInventoryService.seedRoomInventory({
+						roomId: inputRoom.roomId,
+						totalRooms: txRoom.totalRooms,
+						basePrice: txRoom.basePrice,
+						startDate: checkIn,
+						days: nights,
+						session,
+					});
 
-					if (availabilityUpdate.modifiedCount === 0) {
-						throw new BadRequestException(
-							'One or more rooms became unavailable while processing booking. Please refresh and try again.',
-						);
-					}
+					await this.roomInventoryService.reserveInventory({
+						roomId: inputRoom.roomId,
+						checkInDate: checkIn,
+						checkOutDate: checkOut,
+						quantity: inputRoom.quantity,
+						session,
+					});
 				}
 
 				const [createdBooking] = await this.bookingModel.create(
@@ -703,28 +695,13 @@ export class BookingService {
 				this.ensureBookingIsCancellable(txBooking.bookingStatus);
 
 				for (const room of txBooking.rooms) {
-					const roomToRestore = await this.roomModel
-						.findById(room.roomId)
-						.select('availableRooms totalRooms')
-						.session(session)
-						.exec();
-					if (!roomToRestore) {
-						throw new NotFoundException(`Room ${room.roomId.toString()} not found while restoring inventory`);
-					}
-
-					const restoredAvailableRooms = Math.min(
-						roomToRestore.totalRooms,
-						roomToRestore.availableRooms + room.quantity,
-					);
-					await this.roomModel
-						.updateOne(
-							{ _id: room.roomId },
-							{
-								$set: { availableRooms: restoredAvailableRooms },
-							},
-							{ session },
-						)
-						.exec();
+					await this.roomInventoryService.releaseInventory({
+						roomId: room.roomId.toString(),
+						checkInDate: txBooking.checkInDate,
+						checkOutDate: txBooking.checkOutDate,
+						quantity: room.quantity,
+						session,
+					});
 				}
 
 				const cancellationDate = new Date();

@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import BookingSchema from '../../../meomul-api/src/schemas/Booking.model';
 import RoomSchema from '../../../meomul-api/src/schemas/Room.model';
 import NotificationSchema from '../../../meomul-api/src/schemas/Notification.model';
+import RoomInventorySchema from '../../../meomul-api/src/schemas/RoomInventory.model';
 import { BookingService } from './booking.service';
 
 @Module({
@@ -10,6 +11,7 @@ import { BookingService } from './booking.service';
 		MongooseModule.forFeature([
 			{ name: 'Booking', schema: BookingSchema },
 			{ name: 'Room', schema: RoomSchema },
+			{ name: 'RoomInventory', schema: RoomInventorySchema },
 			{ name: 'Notification', schema: NotificationSchema },
 		]),
 	],
