@@ -2,6 +2,51 @@ import type { Document, Types } from 'mongoose';
 import type { RoomDto, LastMinuteDealDto } from '../dto/room/room';
 import { BedType, RoomStatus, RoomType, ViewType } from '../enums/room.enum';
 
+function asFiniteNumber(value: unknown): number | null {
+	const parsed = typeof value === 'number' ? value : Number(value);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function asDate(value: unknown): Date | null {
+	if (value instanceof Date && !Number.isNaN(value.getTime())) {
+		return value;
+	}
+
+	if (typeof value === 'string' || typeof value === 'number') {
+		const parsed = new Date(value);
+		if (!Number.isNaN(parsed.getTime())) {
+			return parsed;
+		}
+	}
+
+	return null;
+}
+
+function toLastMinuteDeal(value: unknown): LastMinuteDealDto | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+
+	const raw = value as Record<string, unknown>;
+	const isActive = typeof raw.isActive === 'boolean' ? raw.isActive : null;
+	const discountPercent = asFiniteNumber(raw.discountPercent);
+	const originalPrice = asFiniteNumber(raw.originalPrice);
+	const dealPrice = asFiniteNumber(raw.dealPrice);
+	const validUntil = asDate(raw.validUntil);
+
+	if (isActive === null || discountPercent === null || originalPrice === null || dealPrice === null || !validUntil) {
+		return undefined;
+	}
+
+	return {
+		isActive,
+		discountPercent,
+		originalPrice,
+		dealPrice,
+		validUntil,
+	};
+}
+
 /**
  * Mongoose Document type for Room
  */
@@ -61,7 +106,7 @@ export function toRoomDto(doc: RoomDocument): RoomDto {
 		totalRooms,
 		availableRooms,
 		currentViewers: doc.currentViewers ?? 0,
-		lastMinuteDeal: doc.lastMinuteDeal as LastMinuteDealDto | undefined,
+		lastMinuteDeal: toLastMinuteDeal(doc.lastMinuteDeal as unknown),
 		roomImages: doc.roomImages ?? [],
 		roomStatus: doc.roomStatus ?? RoomStatus.AVAILABLE,
 		createdAt: doc.createdAt ?? new Date(),
