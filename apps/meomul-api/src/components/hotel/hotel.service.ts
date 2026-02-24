@@ -10,7 +10,6 @@ import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { HotelSearchInput } from '../../libs/dto/common/search.input';
 import { HotelStatus, BadgeLevel } from '../../libs/enums/hotel.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
-import { BookingStatus } from '../../libs/enums/booking.enum';
 import { RoomStatus } from '../../libs/enums/room.enum';
 import { StayPurpose, ViewGroup } from '../../libs/enums/common.enum';
 import { Messages } from '../../libs/messages';
@@ -18,21 +17,23 @@ import type { MemberJwtPayload } from '../../libs/types/member';
 import type { HotelDocument } from '../../libs/types/hotel';
 import { toHotelDto } from '../../libs/types/hotel';
 import type { RoomDocument } from '../../libs/types/room';
-import type { BookingDocument } from '../../libs/types/booking';
 import type { SearchHistoryDocument } from '../../libs/types/search-history';
+import type { RoomInventoryDocument } from '../../libs/types/room-inventory';
 import { ViewService } from '../view/view.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../../libs/enums/common.enum';
+import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 
 @Injectable()
 export class HotelService {
 	constructor(
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
-		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('SearchHistory') private readonly searchHistoryModel: Model<SearchHistoryDocument>,
+		@InjectModel('RoomInventory') private readonly roomInventoryModel: Model<RoomInventoryDocument>,
 		private readonly viewService: ViewService,
 		private readonly notificationService: NotificationService,
+		private readonly roomInventoryService: RoomInventoryService,
 	) {}
 
 	/**
@@ -370,44 +371,65 @@ export class HotelService {
 		}
 
 		// Find matching rooms and get distinct hotel IDs
-		const matchingRooms = await this.roomModel.find(roomQuery).select('hotelId _id availableRooms').exec();
+		const matchingRooms = await this.roomModel.find(roomQuery).select('hotelId _id totalRooms basePrice').exec();
 
 		if (matchingRooms.length === 0) {
 			return [];
 		}
 
-		// Date availability filter — exclude hotels where all matching rooms are fully booked
+		// Date availability filter — room must have at least 1 available unit for every night in range.
 		if (searchInput.checkInDate && searchInput.checkOutDate) {
 			const checkIn = new Date(searchInput.checkInDate);
 			const checkOut = new Date(searchInput.checkOutDate);
-
-			const roomIds = matchingRooms.map((r) => r._id);
-
-			// Find bookings that overlap with the requested dates
-			const overlappingBookings = await this.bookingModel
-				.find({
-					'rooms.roomId': { $in: roomIds },
-					checkInDate: { $lt: checkOut },
-					checkOutDate: { $gt: checkIn },
-					bookingStatus: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN] },
-				})
-				.select('rooms')
-				.exec();
-
-			// Count booked quantity per room
-			const bookedCountByRoom = new Map<string, number>();
-			for (const booking of overlappingBookings) {
-				for (const bookedRoom of booking.rooms) {
-					const roomIdStr = String(bookedRoom.roomId);
-					bookedCountByRoom.set(roomIdStr, (bookedCountByRoom.get(roomIdStr) || 0) + bookedRoom.quantity);
-				}
+			const stayDates = this.buildStayDates(checkIn, checkOut);
+			if (stayDates.length === 0) {
+				return [];
 			}
 
-			// Filter to rooms that still have availability
+			// Ensure requested date rows exist before running availability query.
+			await Promise.all(
+				matchingRooms.map((room) =>
+					this.roomInventoryService.seedRoomInventory({
+						roomId: String(room._id),
+						totalRooms: room.totalRooms,
+						basePrice: room.basePrice,
+						startDate: checkIn,
+						days: stayDates.length,
+					}),
+				),
+			);
+
+			const roomIds = matchingRooms.map((r) => r._id);
+			const availableRoomRows = await this.roomInventoryModel
+				.aggregate<{ _id: Types.ObjectId; availableDays: number }>([
+					{
+						$match: {
+							roomId: { $in: roomIds },
+							date: { $in: stayDates },
+							closed: false,
+							$expr: {
+								$gt: [{ $subtract: ['$total', '$booked'] }, 0],
+							},
+						},
+					},
+					{
+						$group: {
+							_id: '$roomId',
+							availableDays: { $sum: 1 },
+						},
+					},
+					{
+						$match: {
+							availableDays: stayDates.length,
+						},
+					},
+				])
+				.exec();
+
+			const availableRoomIdSet = new Set(availableRoomRows.map((row) => String(row._id)));
 			const availableHotelIds = new Set<string>();
 			for (const room of matchingRooms) {
-				const booked = bookedCountByRoom.get(String(room._id)) || 0;
-				if (room.availableRooms - booked > 0) {
+				if (availableRoomIdSet.has(String(room._id))) {
 					availableHotelIds.add(String(room.hotelId));
 				}
 			}
@@ -555,6 +577,27 @@ export class HotelService {
 	private appendAndFilter(query: Record<string, unknown>, condition: Record<string, unknown>): void {
 		const andFilters = (query.$and as Record<string, unknown>[] | undefined) ?? [];
 		query.$and = [...andFilters, condition];
+	}
+
+	private buildStayDates(checkInDate: Date, checkOutDate: Date): Date[] {
+		const start = this.normalizeToUtcDay(checkInDate);
+		const end = this.normalizeToUtcDay(checkOutDate);
+		if (end <= start) {
+			return [];
+		}
+
+		const dates: Date[] = [];
+		const current = new Date(start);
+		while (current < end) {
+			dates.push(new Date(current));
+			current.setUTCDate(current.getUTCDate() + 1);
+		}
+
+		return dates;
+	}
+
+	private normalizeToUtcDay(date: Date): Date {
+		return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
 	}
 
 	/**

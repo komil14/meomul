@@ -1,23 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import type { Model } from 'mongoose';
 import { PriceCalendarInput } from '../../libs/dto/price-calendar/price-calendar.input';
 import { PriceCalendarDto, DayPriceDto, CheapestDateDto } from '../../libs/dto/price-calendar/price-calendar';
 import { DemandLevel } from '../../libs/enums/common.enum';
-import { BookingStatus } from '../../libs/enums/booking.enum';
 import { Messages } from '../../libs/messages';
 import type { RoomDocument } from '../../libs/types/room';
-import type { BookingDocument } from '../../libs/types/booking';
+import type { RoomInventoryDocument } from '../../libs/types/room-inventory';
+import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 
 @Injectable()
 export class PriceCalendarService {
 	constructor(
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
-		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
+		@InjectModel('RoomInventory') private readonly roomInventoryModel: Model<RoomInventoryDocument>,
+		private readonly roomInventoryService: RoomInventoryService,
 	) {}
 
 	/**
-	 * Generate a price calendar for a room showing daily prices, demand levels, and availability
+	 * Generate a price calendar for a room showing daily prices, demand levels, and availability.
+	 * Source of truth: RoomInventory (per-day rows).
 	 */
 	public async getPriceCalendar(input: PriceCalendarInput): Promise<PriceCalendarDto> {
 		const room = await this.roomModel.findById(input.roomId).exec();
@@ -25,53 +27,61 @@ export class PriceCalendarService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Determine the month to display
-		const now = new Date();
-		const targetMonth = input.month
-			? new Date(`${input.month}-01T00:00:00`)
-			: new Date(now.getFullYear(), now.getMonth(), 1);
+		const { year, month } = this.resolveTargetMonth(input.month);
+		const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+		const monthStart = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+		const monthEnd = new Date(Date.UTC(year, month, daysInMonth, 0, 0, 0, 0));
 
-		const year = targetMonth.getFullYear();
-		const month = targetMonth.getMonth();
-		const daysInMonth = new Date(year, month + 1, 0).getDate();
+		// Ensure month rows exist before calendar render.
+		await this.roomInventoryService.seedRoomInventory({
+			roomId: input.roomId,
+			totalRooms: room.totalRooms,
+			basePrice: room.basePrice,
+			startDate: monthStart,
+			days: daysInMonth,
+		});
 
-		// Get start/end of month for booking query
-		const monthStart = new Date(year, month, 1);
-		const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
+		const inventoryRows = await this.roomInventoryModel
+			.find({
+				roomId: room._id,
+				date: { $gte: monthStart, $lte: monthEnd },
+			})
+			.sort({ date: 1 })
+			.exec();
 
-		// Count bookings per day for this room during the month
-		const bookingsPerDay = await this.getBookingsPerDay(input.roomId, monthStart, monthEnd);
+		const inventoryByDate = new Map<string, RoomInventoryDocument>();
+		for (const row of inventoryRows) {
+			inventoryByDate.set(this.formatDate(row.date), row);
+		}
 
-		// Build calendar
 		const calendar: DayPriceDto[] = [];
-
 		for (let day = 1; day <= daysInMonth; day++) {
-			const date = new Date(year, month, day);
+			const date = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
 			const dateStr = this.formatDate(date);
-			const dayOfWeek = date.getDay();
+			const dayOfWeek = date.getUTCDay();
 			const isWeekend = dayOfWeek === 5 || dayOfWeek === 6; // Friday, Saturday
 
-			// Calculate booked rooms for this day
-			const bookedRooms = bookingsPerDay.get(dateStr) || 0;
-			const availableRooms = Math.max(0, room.totalRooms - bookedRooms);
+			const row = inventoryByDate.get(dateStr);
+			const totalRooms = row?.total ?? room.totalRooms;
+			const bookedRooms = row?.booked ?? 0;
+			const isClosed = row?.closed ?? false;
+			const availableRooms = isClosed ? 0 : Math.max(0, totalRooms - bookedRooms);
+			const occupancyRate = totalRooms > 0 ? (totalRooms - availableRooms) / totalRooms : 0;
+			const demandLevel = isClosed ? DemandLevel.HIGH : this.getDemandLevel(occupancyRate);
 
-			// Calculate demand level based on occupancy
-			const occupancyRate = room.totalRooms > 0 ? bookedRooms / room.totalRooms : 0;
-			const demandLevel = this.getDemandLevel(occupancyRate);
-
-			// Calculate dynamic price
-			const price = this.calculateDayPrice(room.basePrice, room.weekendSurcharge, isWeekend, demandLevel);
+			const basePriceForDay = row?.overridePrice ?? row?.basePrice ?? room.basePrice;
+			const price = this.calculateDayPrice(basePriceForDay, room.weekendSurcharge, isWeekend, demandLevel);
 
 			calendar.push({
 				date: dateStr,
 				price,
 				isWeekend,
 				demandLevel,
+				localEvent: isClosed ? 'Closed' : undefined,
 				availableRooms,
 			});
 		}
 
-		// Find cheapest and most expensive dates
 		const cheapestDate = this.findCheapestDate(calendar);
 		const mostExpensiveDate = this.findMostExpensiveDate(calendar);
 		const averagePrice = Math.round(calendar.reduce((sum, d) => sum + d.price, 0) / calendar.length);
@@ -84,40 +94,6 @@ export class PriceCalendarService {
 			averagePrice,
 			savings,
 		};
-	}
-
-	/**
-	 * Count how many rooms are booked per day for a specific room type
-	 */
-	private async getBookingsPerDay(roomId: string, monthStart: Date, monthEnd: Date): Promise<Map<string, number>> {
-		const bookings = await this.bookingModel
-			.find({
-				'rooms.roomId': new Types.ObjectId(roomId),
-				checkInDate: { $lte: monthEnd },
-				checkOutDate: { $gte: monthStart },
-				bookingStatus: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN] },
-			})
-			.exec();
-
-		const dayMap = new Map<string, number>();
-
-		for (const booking of bookings) {
-			const roomEntry = booking.rooms.find((r) => r.roomId.toString() === roomId);
-			if (!roomEntry) continue;
-
-			const checkIn = new Date(Math.max(booking.checkInDate.getTime(), monthStart.getTime()));
-			const checkOut = new Date(Math.min(booking.checkOutDate.getTime(), monthEnd.getTime()));
-
-			// Count each day the booking occupies
-			const current = new Date(checkIn);
-			while (current < checkOut) {
-				const dateStr = this.formatDate(current);
-				dayMap.set(dateStr, (dayMap.get(dateStr) || 0) + roomEntry.quantity);
-				current.setDate(current.getDate() + 1);
-			}
-		}
-
-		return dayMap;
 	}
 
 	/**
@@ -171,10 +147,24 @@ export class PriceCalendarService {
 		return { date: expensive.date, price: expensive.price };
 	}
 
+	private resolveTargetMonth(monthInput?: string): { year: number; month: number } {
+		if (monthInput) {
+			const [yearPart, monthPart] = monthInput.split('-');
+			const parsedYear = Number(yearPart);
+			const parsedMonth = Number(monthPart);
+			if (Number.isInteger(parsedYear) && Number.isInteger(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12) {
+				return { year: parsedYear, month: parsedMonth - 1 };
+			}
+		}
+
+		const now = new Date();
+		return { year: now.getUTCFullYear(), month: now.getUTCMonth() };
+	}
+
 	private formatDate(date: Date): string {
-		const y = date.getFullYear();
-		const m = String(date.getMonth() + 1).padStart(2, '0');
-		const d = String(date.getDate()).padStart(2, '0');
+		const y = date.getUTCFullYear();
+		const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+		const d = String(date.getUTCDate()).padStart(2, '0');
 		return `${y}-${m}-${d}`;
 	}
 }

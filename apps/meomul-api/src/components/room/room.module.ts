@@ -5,6 +5,7 @@ import HotelSchema from '../../schemas/Hotel.model';
 import { RoomService } from './room.service';
 import { RoomResolver } from './room.resolver';
 import { AuthModule } from '../auth/auth.module';
+import { RoomInventoryModule } from '../room-inventory/room-inventory.module';
 
 @Module({
 	imports: [
@@ -13,6 +14,7 @@ import { AuthModule } from '../auth/auth.module';
 			{ name: 'Hotel', schema: HotelSchema },
 		]),
 		AuthModule,
+		RoomInventoryModule,
 	],
 	providers: [RoomService, RoomResolver],
 	exports: [RoomService],

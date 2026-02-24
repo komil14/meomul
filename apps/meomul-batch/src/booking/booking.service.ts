@@ -2,12 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
 import type { Model } from 'mongoose';
-import { Types } from 'mongoose';
 import { BookingStatus, PaymentStatus } from '../../../meomul-api/src/libs/enums/booking.enum';
 import { NotificationType } from '../../../meomul-api/src/libs/enums/common.enum';
 import type { BookingDocument } from '../../../meomul-api/src/libs/types/booking';
-import type { RoomDocument } from '../../../meomul-api/src/libs/types/room';
 import type { NotificationDocument } from '../../../meomul-api/src/libs/types/notification';
+import type { RoomInventoryDocument } from '../../../meomul-api/src/libs/types/room-inventory';
 import { CronLockService } from '../common/cron-lock.service';
 
 @Injectable()
@@ -16,7 +15,7 @@ export class BookingService {
 
 	constructor(
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
-		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
+		@InjectModel('RoomInventory') private readonly roomInventoryModel: Model<RoomInventoryDocument>,
 		@InjectModel('Notification') private readonly notificationModel: Model<NotificationDocument>,
 		private readonly cronLockService: CronLockService,
 	) {}
@@ -81,38 +80,33 @@ export class BookingService {
 				.updateMany({ _id: { $in: bookingIds } }, { $set: { bookingStatus: BookingStatus.NO_SHOW } })
 				.exec();
 
-			const roomIncrements = new Map<string, number>();
+			let releaseFailures = 0;
 			for (const booking of bookings) {
+				const stayDates = this.buildStayDates(booking.checkInDate, booking.checkOutDate);
 				for (const room of booking.rooms) {
-					const roomId = room.roomId.toString();
-					roomIncrements.set(roomId, (roomIncrements.get(roomId) ?? 0) + room.quantity);
+					for (const date of stayDates) {
+						const releaseResult = await this.roomInventoryModel
+							.updateOne(
+								{
+									roomId: room.roomId,
+									date,
+									booked: { $gte: room.quantity },
+								},
+								{
+									$inc: { booked: -room.quantity },
+								},
+							)
+							.exec();
+
+						if (releaseResult.modifiedCount === 0) {
+							releaseFailures++;
+						}
+					}
 				}
 			}
 
-			if (roomIncrements.size > 0) {
-				const roomIds = Array.from(roomIncrements.keys()).map((id) => new Types.ObjectId(id));
-				const rooms = await this.roomModel
-					.find({ _id: { $in: roomIds } })
-					.select('_id availableRooms totalRooms')
-					.exec();
-
-				const bulkOps = rooms.map((roomDoc) => {
-					const roomId = roomDoc._id.toString();
-					const increment = roomIncrements.get(roomId) ?? 0;
-					const restoredAvailability = Math.min(roomDoc.totalRooms, roomDoc.availableRooms + increment);
-					return {
-						updateOne: {
-							filter: { _id: roomDoc._id },
-							update: {
-								$set: { availableRooms: restoredAvailability },
-							},
-						},
-					};
-				});
-
-				if (bulkOps.length > 0) {
-					await this.roomModel.bulkWrite(bulkOps);
-				}
+			if (releaseFailures > 0) {
+				this.logger.warn(`markNoShows released with ${releaseFailures} missing inventory row(s)`);
 			}
 
 			this.logger.log(`Marked ${bookings.length} booking(s) as NO_SHOW`);
@@ -193,5 +187,23 @@ export class BookingService {
 				this.logger.log(`Auto-confirmed ${result.modifiedCount} paid booking(s)`);
 			}
 		});
+	}
+
+	private buildStayDates(checkInDate: Date, checkOutDate: Date): Date[] {
+		const start = this.normalizeToUtcDay(checkInDate);
+		const end = this.normalizeToUtcDay(checkOutDate);
+		const dates: Date[] = [];
+
+		const current = new Date(start);
+		while (current < end) {
+			dates.push(new Date(current));
+			current.setUTCDate(current.getUTCDate() + 1);
+		}
+
+		return dates;
+	}
+
+	private normalizeToUtcDay(date: Date): Date {
+		return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
 	}
 }

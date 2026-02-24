@@ -14,12 +14,14 @@ import type { MemberJwtPayload } from '../../libs/types/member';
 import type { RoomDocument } from '../../libs/types/room';
 import { toRoomDto } from '../../libs/types/room';
 import type { HotelDocument } from '../../libs/types/hotel';
+import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 
 @Injectable()
 export class RoomService {
 	constructor(
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
+		private readonly roomInventoryService: RoomInventoryService,
 	) {}
 
 	/**
@@ -73,6 +75,14 @@ export class RoomService {
 			availableRooms: input.totalRooms,
 			currentViewers: 0,
 			roomStatus: RoomStatus.AVAILABLE,
+		});
+
+		await this.roomInventoryService.seedRoomInventory({
+			roomId: room._id.toString(),
+			totalRooms: room.totalRooms,
+			basePrice: room.basePrice,
+			startDate: new Date(),
+			days: 365,
 		});
 
 		return toRoomDto(room);
