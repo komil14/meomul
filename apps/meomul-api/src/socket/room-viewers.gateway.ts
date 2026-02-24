@@ -33,6 +33,8 @@ interface ViewerSession {
 	joinedAt: Date;
 }
 
+const ROOM_EXISTS_CACHE_TTL_MS = 60_000;
+
 @Injectable()
 @WebSocketGateway({
 	cors: {
@@ -46,6 +48,7 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 	server: Server;
 
 	private viewerSessions: Map<string, ViewerSession> = new Map();
+	private roomExistsCache: Map<string, number> = new Map();
 
 	constructor(@InjectModel('Room') private readonly roomModel: Model<RoomDocument>) {}
 
@@ -252,9 +255,25 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 			throw new Error('roomId is required');
 		}
 
+		const now = Date.now();
+		const cachedUntil = this.roomExistsCache.get(roomId);
+		if (cachedUntil && cachedUntil > now) {
+			return;
+		}
+
 		const roomExists = await this.roomModel.exists({ _id: roomId }).exec();
 		if (!roomExists) {
 			throw new Error('Room not found');
+		}
+
+		this.roomExistsCache.set(roomId, now + ROOM_EXISTS_CACHE_TTL_MS);
+		// Bound cache size to avoid unbounded growth in long-lived processes.
+		if (this.roomExistsCache.size > 5000) {
+			for (const [cachedRoomId, expiresAt] of this.roomExistsCache.entries()) {
+				if (expiresAt <= now) {
+					this.roomExistsCache.delete(cachedRoomId);
+				}
+			}
 		}
 	}
 
