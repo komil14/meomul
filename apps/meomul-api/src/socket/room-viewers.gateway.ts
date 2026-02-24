@@ -29,6 +29,7 @@ interface ViewerSession {
 	socketId: string;
 	roomId: string;
 	userId?: string;
+	viewerSessionId?: string;
 	joinedAt: Date;
 }
 
@@ -58,7 +59,6 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 		// Find and remove viewer session
 		const session = this.viewerSessions.get(client.id);
 		if (session) {
-			await this.decrementViewerCount(session.roomId);
 			this.viewerSessions.delete(client.id);
 
 			// Notify other viewers
@@ -73,30 +73,47 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 	 * Client joins a room page
 	 */
 	@SubscribeMessage('joinRoom')
-	async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string; userId?: string }) {
+	async handleJoinRoom(
+		@ConnectedSocket() client: Socket,
+		@MessageBody() data: { roomId: string; userId?: string; viewerSessionId?: string },
+	) {
 		try {
-			const { roomId, userId } = data;
+			const { roomId, userId, viewerSessionId } = data;
 			await this.assertRoomExists(roomId);
 
 			// Leave previous room if any
 			const previousSession = this.viewerSessions.get(client.id);
 			if (previousSession) {
-				await this.leaveViewerSession(client, previousSession.roomId);
+				// Idempotent join: do not increment again when the same socket rejoins the same room.
+				if (previousSession.roomId === roomId) {
+					const viewerCount = await this.getCurrentViewerCount(roomId);
+					return {
+						success: true,
+						roomId,
+						viewerCount,
+					};
+				}
+
+				const previousRoomId = previousSession.roomId;
+				await this.leaveViewerSession(client, previousRoomId);
+				this.server.to(`room:${previousRoomId}`).emit('viewerCountUpdated', {
+					roomId: previousRoomId,
+					count: await this.getCurrentViewerCount(previousRoomId),
+				});
 			}
 
 			// Join new room
 			await client.join(`room:${roomId}`);
-
-			// Increment viewer count
-			await this.incrementViewerCount(roomId);
 
 			// Store session
 			this.viewerSessions.set(client.id, {
 				socketId: client.id,
 				roomId,
 				userId,
+				viewerSessionId,
 				joinedAt: new Date(),
 			});
+			this.setClientViewerData(client, roomId, viewerSessionId ?? null);
 
 			// Get updated count
 			const viewerCount = await this.getCurrentViewerCount(roomId);
@@ -132,7 +149,7 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 				return {
 					success: true,
 					roomId: data.roomId,
-					viewerCount: 0,
+					viewerCount: await this.getCurrentViewerCount(data.roomId),
 				};
 			}
 
@@ -171,8 +188,8 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 
 	private async leaveViewerSession(client: Socket, roomId: string): Promise<void> {
 		await client.leave(`room:${roomId}`);
-		await this.decrementViewerCount(roomId);
 		this.viewerSessions.delete(client.id);
+		this.setClientViewerData(client, null, null);
 	}
 
 	/**
@@ -200,43 +217,34 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 	}
 
 	/**
-	 * Increment viewer count in database
-	 */
-	private async incrementViewerCount(roomId: string): Promise<void> {
-		try {
-			await this.roomModel.findByIdAndUpdate(roomId, { $inc: { currentViewers: 1 } }).exec();
-		} catch (error) {
-			console.error('Error incrementing viewer count:', error);
-		}
-	}
-
-	/**
-	 * Decrement viewer count in database
-	 */
-	private async decrementViewerCount(roomId: string): Promise<void> {
-		try {
-			await this.roomModel
-				.findByIdAndUpdate(roomId, {
-					$inc: { currentViewers: -1 },
-					$max: { currentViewers: 0 },
-				})
-				.exec();
-		} catch (error) {
-			console.error('Error decrementing viewer count:', error);
-		}
-	}
-
-	/**
-	 * Get current viewer count from database
+	 * Get current live viewer count from active gateway sessions.
+	 * Uses viewerSessionId when available so refresh/reconnect of the same browser
+	 * session does not inflate the count.
 	 */
 	private async getCurrentViewerCount(roomId: string): Promise<number> {
-		try {
-			const room = await this.roomModel.findById(roomId).exec();
-			return room?.currentViewers || 0;
-		} catch (error) {
-			console.error('Error getting current viewer count:', error);
-			return 0;
+		const sockets = await this.server.in(`room:${roomId}`).fetchSockets();
+		const uniqueViewers = new Set<string>();
+		for (const socket of sockets) {
+			const socketData = socket.data as Record<string, unknown> | undefined;
+			const rawViewerSessionId = socketData?.viewerSessionId;
+			const viewerSessionId =
+				typeof rawViewerSessionId === 'string' && rawViewerSessionId.trim().length > 0 ? rawViewerSessionId : undefined;
+
+			if (viewerSessionId) {
+				uniqueViewers.add(`viewer:${viewerSessionId}`);
+				continue;
+			}
+
+			uniqueViewers.add(`socket:${socket.id}`);
 		}
+
+		return uniqueViewers.size;
+	}
+
+	private setClientViewerData(client: Socket, roomId: string | null, viewerSessionId: string | null): void {
+		const socketData = client.data as Record<string, unknown>;
+		socketData.roomId = roomId;
+		socketData.viewerSessionId = viewerSessionId;
 	}
 
 	private async assertRoomExists(roomId: string): Promise<void> {

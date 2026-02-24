@@ -309,17 +309,21 @@ export class RoomService {
 	}
 
 	/**
-	 * Increment viewer count (WebSocket)
+	 * @deprecated Live viewer presence is handled in-memory by RoomViewersGateway.
+	 * Kept as no-op to avoid persisting ephemeral presence in MongoDB.
 	 */
-	public async incrementViewers(roomId: string): Promise<void> {
-		await this.roomModel.findByIdAndUpdate(roomId, { $inc: { currentViewers: 1 } }).exec();
+	public incrementViewers(roomId: string): Promise<void> {
+		void roomId;
+		return Promise.resolve();
 	}
 
 	/**
-	 * Decrement viewer count (WebSocket)
+	 * @deprecated Live viewer presence is handled in-memory by RoomViewersGateway.
+	 * Kept as no-op to avoid persisting ephemeral presence in MongoDB.
 	 */
-	public async decrementViewers(roomId: string): Promise<void> {
-		await this.roomModel.findByIdAndUpdate(roomId, { $inc: { currentViewers: -1 } }).exec();
+	public decrementViewers(roomId: string): Promise<void> {
+		void roomId;
+		return Promise.resolve();
 	}
 
 	/**
