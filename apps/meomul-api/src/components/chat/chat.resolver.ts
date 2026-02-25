@@ -131,7 +131,7 @@ export class ChatResolver {
 	@Query(() => Int)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getMyUnreadChatCount(@CurrentMember() currentMember: MemberJwtPayload): Promise<number> {
-		this.logger.log('Query getMyUnreadChatCount', currentMember?._id);
+		this.logger.debug('Query getMyUnreadChatCount', currentMember?._id);
 		return this.chatService.getMyUnreadCount(currentMember);
 	}
 

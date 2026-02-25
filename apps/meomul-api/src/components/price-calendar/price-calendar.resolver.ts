@@ -15,7 +15,7 @@ export class PriceCalendarResolver {
 	 */
 	@Query(() => PriceCalendarDto)
 	public async getPriceCalendar(@Args('input') input: PriceCalendarInput): Promise<PriceCalendarDto> {
-		this.logger.log('Query getPriceCalendar', input.roomId, input.month);
+		this.logger.debug('Query getPriceCalendar', input.roomId, input.month);
 		return this.priceCalendarService.getPriceCalendar(input);
 	}
 }

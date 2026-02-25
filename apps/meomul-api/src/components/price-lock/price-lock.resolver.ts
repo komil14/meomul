@@ -36,7 +36,7 @@ export class PriceLockResolver {
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('roomId') roomId: string,
 	): Promise<PriceLockDto | null> {
-		this.logger.log('Query getMyPriceLock', currentMember?._id, roomId);
+		this.logger.debug('Query getMyPriceLock', currentMember?._id, roomId);
 		return this.priceLockService.getMyPriceLock(currentMember, roomId);
 	}
 
@@ -46,7 +46,7 @@ export class PriceLockResolver {
 	@Query(() => [PriceLockDto])
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getMyPriceLocks(@CurrentMember() currentMember: MemberJwtPayload): Promise<PriceLockDto[]> {
-		this.logger.log('Query getMyPriceLocks', currentMember?._id);
+		this.logger.debug('Query getMyPriceLocks', currentMember?._id);
 		return this.priceLockService.getMyPriceLocks(currentMember);
 	}
 

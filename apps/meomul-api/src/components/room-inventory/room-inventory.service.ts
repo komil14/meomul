@@ -26,36 +26,32 @@ export class RoomInventoryService {
 			return 0;
 		}
 		const roomObjectId = this.toObjectId(input.roomId);
-		let upsertedCount = 0;
-
-		for (const date of dates) {
-			const result = await this.roomInventoryModel
-				.updateOne(
-					{
+		const operations = dates.map((date) => ({
+			updateOne: {
+				filter: {
+					roomId: roomObjectId,
+					date,
+				},
+				update: {
+					$setOnInsert: {
 						roomId: roomObjectId,
 						date,
+						total: input.totalRooms,
+						booked: 0,
+						closed: false,
+						...(input.basePrice !== undefined ? { basePrice: input.basePrice } : {}),
 					},
-					{
-						$setOnInsert: {
-							roomId: roomObjectId,
-							date,
-							total: input.totalRooms,
-							booked: 0,
-							closed: false,
-							...(input.basePrice !== undefined ? { basePrice: input.basePrice } : {}),
-						},
-					},
-					{
-						upsert: true,
-						...(input.session ? { session: input.session } : {}),
-					},
-				)
-				.exec();
+				},
+				upsert: true,
+			},
+		}));
 
-			upsertedCount += result.upsertedCount;
-		}
+		const result = await this.roomInventoryModel.bulkWrite(operations, {
+			ordered: false,
+			...(input.session ? { session: input.session } : {}),
+		});
 
-		return upsertedCount;
+		return result.upsertedCount;
 	}
 
 	public async reserveInventory(input: ReserveInventoryInput): Promise<void> {
