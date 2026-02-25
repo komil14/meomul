@@ -116,6 +116,8 @@ export class RoomService {
 		// Build update payload
 		const updateData: Record<string, unknown> = { ...input };
 		delete updateData._id;
+		const shouldSyncTotalRooms = input.totalRooms !== undefined && input.totalRooms !== room.totalRooms;
+		const shouldSyncBasePrice = input.basePrice !== undefined && input.basePrice !== room.basePrice;
 
 		// If totalRooms is being updated, adjust availableRooms proportionally
 		if (input.totalRooms && input.totalRooms !== room.totalRooms) {
@@ -131,6 +133,11 @@ export class RoomService {
 		if (!updatedRoom) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
+
+		await this.syncFutureInventoryAfterRoomUpdate(updatedRoom._id.toString(), {
+			totalRooms: shouldSyncTotalRooms ? updatedRoom.totalRooms : undefined,
+			basePrice: shouldSyncBasePrice ? updatedRoom.basePrice : undefined,
+		});
 
 		return toRoomDto(updatedRoom);
 	}
@@ -149,7 +156,13 @@ export class RoomService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		return toRoomDto(room);
+		const roomDto = toRoomDto(room);
+		const availableRoomsToday = await this.roomInventoryService.getAvailableRoomsOnDate(roomId, new Date());
+		if (availableRoomsToday !== null) {
+			roomDto.availableRooms = availableRoomsToday;
+		}
+
+		return roomDto;
 	}
 
 	/**
@@ -268,6 +281,8 @@ export class RoomService {
 
 		const updateData: Record<string, unknown> = { ...input };
 		delete updateData._id;
+		const shouldSyncTotalRooms = input.totalRooms !== undefined && input.totalRooms !== room.totalRooms;
+		const shouldSyncBasePrice = input.basePrice !== undefined && input.basePrice !== room.basePrice;
 
 		if (input.totalRooms && input.totalRooms !== room.totalRooms) {
 			const bookedRooms = room.totalRooms - room.availableRooms;
@@ -281,6 +296,11 @@ export class RoomService {
 		if (!updatedRoom) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
+
+		await this.syncFutureInventoryAfterRoomUpdate(updatedRoom._id.toString(), {
+			totalRooms: shouldSyncTotalRooms ? updatedRoom.totalRooms : undefined,
+			basePrice: shouldSyncBasePrice ? updatedRoom.basePrice : undefined,
+		});
 
 		return toRoomDto(updatedRoom);
 	}
@@ -358,6 +378,22 @@ export class RoomService {
 		}
 
 		return toRoomDto(updatedRoom);
+	}
+
+	private async syncFutureInventoryAfterRoomUpdate(
+		roomId: string,
+		input: { totalRooms?: number; basePrice?: number },
+	): Promise<void> {
+		if (input.totalRooms === undefined && input.basePrice === undefined) {
+			return;
+		}
+
+		await this.roomInventoryService.syncFutureInventoryDefaults({
+			roomId,
+			startDate: new Date(),
+			totalRooms: input.totalRooms,
+			basePrice: input.basePrice,
+		});
 	}
 
 	/**

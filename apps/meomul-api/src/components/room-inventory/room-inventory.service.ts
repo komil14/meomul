@@ -5,6 +5,7 @@ import type {
 	RoomInventoryDocument,
 	ReserveInventoryInput,
 	SeedRoomInventoryInput,
+	SyncFutureInventoryDefaultsInput,
 } from '../../libs/types/room-inventory';
 import { toRoomInventoryDto } from '../../libs/types/room-inventory';
 
@@ -148,6 +149,115 @@ export class RoomInventoryService {
 			.exec();
 
 		return list.map(toRoomInventoryDto);
+	}
+
+	/**
+	 * Sync future inventory defaults after room configuration updates.
+	 * - basePrice: updates all future rows
+	 * - totalRooms: updates future rows where booked <= totalRooms
+	 *   and safely clamps overbooked rows total to booked
+	 */
+	public async syncFutureInventoryDefaults(input: SyncFutureInventoryDefaultsInput): Promise<void> {
+		if (input.totalRooms === undefined && input.basePrice === undefined) {
+			return;
+		}
+		if (input.totalRooms !== undefined && input.totalRooms < 0) {
+			throw new BadRequestException('totalRooms must be 0 or greater');
+		}
+		if (input.basePrice !== undefined && input.basePrice < 0) {
+			throw new BadRequestException('basePrice must be 0 or greater');
+		}
+
+		const roomObjectId = this.toObjectId(input.roomId);
+		const startDate = this.normalizeToUtcDay(input.startDate ?? new Date());
+		const sessionOptions = input.session ? { session: input.session } : undefined;
+
+		if (input.totalRooms !== undefined) {
+			const setPayload: Record<string, number> = { total: input.totalRooms };
+			if (input.basePrice !== undefined) {
+				setPayload.basePrice = input.basePrice;
+			}
+
+			await this.roomInventoryModel
+				.updateMany(
+					{
+						roomId: roomObjectId,
+						date: { $gte: startDate },
+						booked: { $lte: input.totalRooms },
+					},
+					{
+						$set: setPayload,
+					},
+					sessionOptions,
+				)
+				.exec();
+
+			const overbookedRows = await this.roomInventoryModel
+				.find({
+					roomId: roomObjectId,
+					date: { $gte: startDate },
+					booked: { $gt: input.totalRooms },
+				})
+				.select('_id booked')
+				.session(input.session ?? null)
+				.exec();
+
+			if (overbookedRows.length > 0) {
+				const bulkOps = overbookedRows.map((row) => {
+					const updateSet: Record<string, number> = {
+						total: row.booked,
+					};
+					if (input.basePrice !== undefined) {
+						updateSet.basePrice = input.basePrice;
+					}
+					return {
+						updateOne: {
+							filter: { _id: row._id },
+							update: { $set: updateSet },
+						},
+					};
+				});
+
+				await this.roomInventoryModel.bulkWrite(bulkOps, sessionOptions);
+			}
+
+			return;
+		}
+
+		// basePrice-only sync
+		await this.roomInventoryModel
+			.updateMany(
+				{
+					roomId: roomObjectId,
+					date: { $gte: startDate },
+				},
+				{
+					$set: { basePrice: input.basePrice },
+				},
+				sessionOptions,
+			)
+			.exec();
+	}
+
+	public async getAvailableRoomsOnDate(roomId: string, date: Date): Promise<number | null> {
+		const roomObjectId = this.toObjectId(roomId);
+		const targetDate = this.normalizeToUtcDay(date);
+		const row = await this.roomInventoryModel
+			.findOne({
+				roomId: roomObjectId,
+				date: targetDate,
+			})
+			.select('total booked closed')
+			.exec();
+
+		if (!row) {
+			return null;
+		}
+		if (row.closed) {
+			return 0;
+		}
+
+		return Math.max(0, (row.total ?? 0) - (row.booked ?? 0));
 	}
 
 	private async ensureInventoryExists(

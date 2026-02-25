@@ -31,6 +31,14 @@ export interface SeedRoomInventoryInput {
 	session?: ClientSession;
 }
 
+export interface SyncFutureInventoryDefaultsInput {
+	roomId: string;
+	startDate?: Date;
+	totalRooms?: number;
+	basePrice?: number;
+	session?: ClientSession;
+}
+
 export function toRoomInventoryDto(doc: RoomInventoryDocument): RoomInventoryDto {
 	const total = doc.total ?? 0;
 	const booked = doc.booked ?? 0;
