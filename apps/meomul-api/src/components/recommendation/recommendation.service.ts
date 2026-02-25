@@ -5,6 +5,7 @@ import type { Cache } from 'cache-manager';
 import type { Model } from 'mongoose';
 import { Types } from 'mongoose';
 import { HotelDto } from '../../libs/dto/hotel/hotel';
+import { RecommendationProfileDto } from '../../libs/dto/preference/recommendation-profile.dto';
 import { HotelStatus, HotelLocation } from '../../libs/enums/hotel.enum';
 import { ViewGroup, LikeGroup } from '../../libs/enums/common.enum';
 import { BookingStatus } from '../../libs/enums/booking.enum';
@@ -41,6 +42,11 @@ interface RecommendationFacetResult {
 	fallback: HotelDto[];
 }
 
+const RECOMMENDATION_CACHE_TTL_MS = 10 * 60 * 1000;
+const TRENDING_CACHE_TTL_MS = 15 * 60 * 1000;
+const RECOMMENDATION_VERSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_RECOMMENDATION_CACHE_VERSION = '1';
+
 @Injectable()
 export class RecommendationService {
 	constructor(
@@ -58,7 +64,9 @@ export class RecommendationService {
 	 * Get personalized hotel recommendations for a logged-in user
 	 */
 	public async getRecommendedHotels(memberId: string, limit: number = 10): Promise<HotelDto[]> {
-		const cacheKey = `rec:${memberId}:${limit}`;
+		const safeLimit = Math.min(Math.max(limit, 1), 30);
+		const cacheVersion = await this.getRecommendationCacheVersion(memberId);
+		const cacheKey = this.buildRecommendationCacheKey(memberId, cacheVersion, safeLimit);
 		const cached = await this.cacheManager.get<HotelDto[]>(cacheKey);
 		if (cached) return cached;
 
@@ -69,11 +77,11 @@ export class RecommendationService {
 			profile.preferredLocations.length > 0 || profile.likedHotelIds.length > 0 || profile.bookedHotelIds.length > 0;
 
 		if (!hasActivity) {
-			return this.getTrendingHotels(limit);
+			return this.getTrendingHotels(safeLimit);
 		}
 
 		// Single query with $facet: scored recommendations + fallback in one DB call
-		const pipeline = this.buildRecommendationPipeline(profile, limit);
+		const pipeline = this.buildRecommendationPipeline(profile, safeLimit);
 		const [facetResult] = await this.hotelModel.aggregate<RecommendationFacetResult>(pipeline).exec();
 
 		const scored = facetResult?.recommended ?? [];
@@ -83,12 +91,44 @@ export class RecommendationService {
 		const usedIds = scored.map((r) => r._id as unknown as Types.ObjectId);
 		const padding = fallback
 			.filter((r) => !usedIds.some((id) => id.equals(r._id as unknown as Types.ObjectId)))
-			.slice(0, limit - scored.length);
+			.slice(0, safeLimit - scored.length);
 
 		const finalResults = [...scored, ...padding].map((doc) => this.aggregateDocToHotelDto(doc));
 
-		await this.cacheManager.set(cacheKey, finalResults, 600000); // 10 min
+		await this.cacheManager.set(cacheKey, finalResults, RECOMMENDATION_CACHE_TTL_MS);
 		return finalResults;
+	}
+
+	/**
+	 * Get current member's recommendation/onboarding profile.
+	 */
+	public async getMyRecommendationProfile(memberId: string): Promise<RecommendationProfileDto> {
+		const profile = await this.userProfileModel
+			.findOne({ memberId: new Types.ObjectId(memberId) })
+			.lean()
+			.exec();
+
+		if (!profile) {
+			return {
+				hasProfile: false,
+				preferredLocations: [],
+				preferredTypes: [],
+				preferredPurposes: [],
+				preferredAmenities: [],
+			};
+		}
+
+		return {
+			hasProfile: true,
+			source: profile.source,
+			preferredLocations: profile.preferredLocations || [],
+			preferredTypes: profile.preferredTypes || [],
+			preferredPurposes: profile.preferredPurposes || [],
+			preferredAmenities: profile.preferredAmenities || [],
+			avgPriceMin: profile.avgPriceMin,
+			avgPriceMax: profile.avgPriceMax,
+			computedAt: profile.computedAt,
+		};
 	}
 
 	/**
@@ -201,7 +241,7 @@ export class RecommendationService {
 			result = trendingPipeline.map((doc) => this.aggregateDocToHotelDto(doc));
 		}
 
-		if (cacheKey) await this.cacheManager.set(cacheKey, result, 900000); // 15 min
+		if (cacheKey) await this.cacheManager.set(cacheKey, result, TRENDING_CACHE_TTL_MS);
 		return result;
 	}
 
@@ -220,7 +260,7 @@ export class RecommendationService {
 
 		if (precomputedData.length > 0) {
 			const result = precomputedData.slice(0, limit);
-			await this.cacheManager.set(cacheKey, result, 900000); // 15 min
+			await this.cacheManager.set(cacheKey, result, TRENDING_CACHE_TTL_MS);
 			return result;
 		}
 
@@ -229,7 +269,7 @@ export class RecommendationService {
 		const locationFiltered = globalTrending.filter((h) => h.hotelLocation === location).slice(0, limit);
 
 		if (locationFiltered.length >= limit) {
-			await this.cacheManager.set(cacheKey, locationFiltered, 900000);
+			await this.cacheManager.set(cacheKey, locationFiltered, TRENDING_CACHE_TTL_MS);
 			return locationFiltered;
 		}
 
@@ -246,7 +286,7 @@ export class RecommendationService {
 			.exec();
 
 		const result = [...locationFiltered, ...additional.map(toHotelDto)];
-		await this.cacheManager.set(cacheKey, result, 900000);
+		await this.cacheManager.set(cacheKey, result, TRENDING_CACHE_TTL_MS);
 		return result;
 	}
 
@@ -316,8 +356,13 @@ export class RecommendationService {
 	 * Invalidate a user's recommendation cache (called after like/book actions)
 	 */
 	public async invalidateUserCache(memberId: string): Promise<void> {
-		await this.cacheManager.del(`rec:${memberId}:10`);
-		await this.cacheManager.del(`rec:${memberId}:20`);
+		const versionKey = this.getRecommendationVersionKey(memberId);
+		const nextVersion = Date.now().toString();
+		await Promise.all([
+			this.cacheManager.set(versionKey, nextVersion, RECOMMENDATION_VERSION_TTL_MS),
+			this.cacheManager.del(`rec:${memberId}:10`), // legacy keys
+			this.cacheManager.del(`rec:${memberId}:20`), // legacy keys
+		]);
 	}
 
 	private async buildUserProfile(memberId: string): Promise<UserPreferenceProfile> {
@@ -659,6 +704,25 @@ export class RecommendationService {
 			.sort((a, b) => b[1] - a[1])
 			.slice(0, topN)
 			.map(([item]) => item);
+	}
+
+	private getRecommendationVersionKey(memberId: string): string {
+		return `rec:v:${memberId}`;
+	}
+
+	private buildRecommendationCacheKey(memberId: string, cacheVersion: string, limit: number): string {
+		return `rec:${memberId}:${cacheVersion}:${limit}`;
+	}
+
+	private async getRecommendationCacheVersion(memberId: string): Promise<string> {
+		const key = this.getRecommendationVersionKey(memberId);
+		const cached = await this.cacheManager.get<string>(key);
+		if (cached) {
+			return cached;
+		}
+
+		await this.cacheManager.set(key, DEFAULT_RECOMMENDATION_CACHE_VERSION, RECOMMENDATION_VERSION_TTL_MS);
+		return DEFAULT_RECOMMENDATION_CACHE_VERSION;
 	}
 
 	/**

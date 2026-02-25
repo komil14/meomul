@@ -21,6 +21,33 @@ import type { UserProfileDocument } from '../../libs/types/user-profile';
 import { AuthService } from '../auth/auth.service';
 import { NotificationService } from '../notification/notification.service';
 
+const ONBOARDING_AMENITY_KEYS = [
+	'workspace',
+	'wifi',
+	'meetingRoom',
+	'coupleRoom',
+	'romanticView',
+	'privateBath',
+	'familyRoom',
+	'kidsFriendly',
+	'playground',
+	'pool',
+	'spa',
+	'roomService',
+	'restaurant',
+	'parking',
+	'breakfast',
+	'breakfastIncluded',
+	'gym',
+	'airportShuttle',
+	'evCharging',
+	'wheelchairAccessible',
+	'elevator',
+	'accessibleBathroom',
+	'visualAlarms',
+	'serviceAnimalsAllowed',
+] as const;
+
 @Injectable()
 export class MemberService {
 	constructor(
@@ -395,23 +422,13 @@ export class MemberService {
 			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
 		}
 
-		const validAmenities = [
-			'pool',
-			'spa',
-			'wifi',
-			'parking',
-			'breakfast',
-			'gym',
-			'familyRoom',
-			'kidsFriendly',
-			'petFriendly',
-			'oceanView',
-			'mountainView',
-			'cityView',
-			'airportShuttle',
-			'roomService',
-		];
-		const invalidAmenities = input.preferredAmenities.filter((a) => !validAmenities.includes(a));
+		const preferredAmenities = Array.from(new Set(input.preferredAmenities));
+		if (preferredAmenities.length > 5) {
+			throw new BadRequestException('You can select up to 5 amenities');
+		}
+
+		const validAmenities = new Set<string>(ONBOARDING_AMENITY_KEYS);
+		const invalidAmenities = preferredAmenities.filter((a) => !validAmenities.has(a));
 		if (invalidAmenities.length > 0) {
 			throw new BadRequestException(`Invalid amenities: ${invalidAmenities.join(', ')}`);
 		}
@@ -442,7 +459,7 @@ export class MemberService {
 					preferredLocations: input.preferredDestinations,
 					preferredTypes: [],
 					preferredPurposes: preferredPurposes,
-					preferredAmenities: input.preferredAmenities,
+					preferredAmenities: preferredAmenities,
 					avgPriceMin: priceRange?.min,
 					avgPriceMax: priceRange?.max,
 					viewedHotelIds: [],

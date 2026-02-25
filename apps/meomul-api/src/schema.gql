@@ -849,6 +849,7 @@ type Query {
   getMyNotifications(unreadOnly: Boolean): [NotificationDto!]!
   getMyPriceLock(roomId: String!): PriceLockDto
   getMyPriceLocks: [PriceLockDto!]!
+  getMyRecommendationProfile: RecommendationProfileDto!
   getMyReviews(input: PaginationInput!): ReviewsDto!
   getMySearchHistory(limit: Int): [SearchHistoryDto!]!
   getMyUnreadChatCount: Int!
@@ -868,6 +869,18 @@ type Query {
   hello: String!
   isFollowing(followingId: String!): Boolean!
   searchMembersForBooking(keyword: String!, limit: Int = 10): [BookingGuestCandidateDto!]!
+}
+
+type RecommendationProfileDto {
+  avgPriceMax: Float
+  avgPriceMin: Float
+  computedAt: DateTime
+  hasProfile: Boolean!
+  preferredAmenities: [String!]!
+  preferredLocations: [String!]!
+  preferredPurposes: [String!]!
+  preferredTypes: [String!]!
+  source: String
 }
 
 type ResponseDto {

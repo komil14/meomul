@@ -122,9 +122,13 @@ export class LikeService {
 	 * Remove all likes for a specific item (cleanup when item is deleted)
 	 */
 	private invalidateRecCache(memberId: string): void {
-		Promise.all([this.cacheManager.del(`rec:${memberId}:10`), this.cacheManager.del(`rec:${memberId}:20`)]).catch(
-			() => {},
-		);
+		const versionKey = `rec:v:${memberId}`;
+		const nextVersion = Date.now().toString();
+		Promise.all([
+			this.cacheManager.set(versionKey, nextVersion, 7 * 24 * 60 * 60 * 1000),
+			this.cacheManager.del(`rec:${memberId}:10`), // legacy keys
+			this.cacheManager.del(`rec:${memberId}:20`), // legacy keys
+		]).catch(() => {});
 	}
 
 	public async removeLikesForItem(likeRefId: string, likeGroup: LikeGroup): Promise<void> {

@@ -7,6 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import { HotelLocation } from '../../libs/enums/hotel.enum';
+import { RecommendationProfileDto } from '../../libs/dto/preference/recommendation-profile.dto';
 import { RecommendationService } from './recommendation.service';
 
 @Resolver()
@@ -14,6 +15,23 @@ export class RecommendationResolver {
 	private readonly logger = new Logger(RecommendationResolver.name);
 
 	constructor(private readonly recommendationService: RecommendationService) {}
+
+	/**
+	 * Get current member recommendation profile/onboarding snapshot.
+	 */
+	@Query(() => RecommendationProfileDto)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	public async getMyRecommendationProfile(
+		@CurrentMember() currentMember: MemberJwtPayload,
+	): Promise<RecommendationProfileDto> {
+		try {
+			this.logger.log('Query getMyRecommendationProfile', currentMember?._id ?? 'unknown');
+			return this.recommendationService.getMyRecommendationProfile(currentMember._id);
+		} catch (error) {
+			this.logger.error('Query getMyRecommendationProfile failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
 
 	/**
 	 * Get personalized hotel recommendations (requires auth)

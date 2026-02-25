@@ -256,6 +256,7 @@ export class BookingService {
 
 		// Invalidate recommendation cache for this user (fire-and-forget)
 		Promise.all([
+			this.cacheManager.set(`rec:v:${bookingGuestId}`, Date.now().toString(), 7 * 24 * 60 * 60 * 1000),
 			this.cacheManager.del(`rec:${bookingGuestId}:10`),
 			this.cacheManager.del(`rec:${bookingGuestId}:20`),
 		]).catch(() => {});
