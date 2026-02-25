@@ -27,9 +27,10 @@ export class PriceLockService {
 		if (!room) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
+		const currentEffectivePrice = this.resolveCurrentPublicPrice(room);
 
 		// Verify the submitted price matches the actual room price
-		if (input.currentPrice !== room.basePrice) {
+		if (input.currentPrice !== currentEffectivePrice) {
 			throw new BadRequestException('Price has already changed. Please refresh and try again.');
 		}
 
@@ -51,7 +52,7 @@ export class PriceLockService {
 		const priceLock = await this.priceLockModel.create({
 			userId: currentMember._id,
 			roomId: input.roomId,
-			lockedPrice: room.basePrice,
+			lockedPrice: currentEffectivePrice,
 			expiresAt,
 		});
 
@@ -131,16 +132,19 @@ export class PriceLockService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
-		// Check for active last-minute deal
-		if (room.lastMinuteDeal && room.lastMinuteDeal.isActive && room.lastMinuteDeal.validUntil > new Date()) {
-			return {
-				price: room.lastMinuteDeal.dealPrice,
-				isLocked: false,
-				isDeal: true,
-				discountPercent: room.lastMinuteDeal.discountPercent,
-			};
-		}
+		const currentPublicPrice = this.resolveCurrentPublicPrice(room);
+		const isActiveDeal = Boolean(
+			room.lastMinuteDeal && room.lastMinuteDeal.isActive && room.lastMinuteDeal.validUntil > new Date(),
+		);
+		const discountPercent = isActiveDeal ? room.lastMinuteDeal!.discountPercent : 0;
 
-		return { price: room.basePrice, isLocked: false, isDeal: false, discountPercent: 0 };
+		return { price: currentPublicPrice, isLocked: false, isDeal: isActiveDeal, discountPercent };
+	}
+
+	private resolveCurrentPublicPrice(room: RoomDocument): number {
+		if (room.lastMinuteDeal && room.lastMinuteDeal.isActive && room.lastMinuteDeal.validUntil > new Date()) {
+			return room.lastMinuteDeal.dealPrice;
+		}
+		return room.basePrice;
 	}
 }
