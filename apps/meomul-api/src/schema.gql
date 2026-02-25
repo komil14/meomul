@@ -60,6 +60,32 @@ input AmenitiesInput {
   workspace: Boolean! = false
 }
 
+type AnalyticsEventDto {
+  _id: String!
+  createdAt: DateTime!
+  eventName: String!
+  eventPath: String
+  memberId: String!
+  memberType: MemberType!
+  payload: String
+  source: String
+  userAgent: String
+}
+
+input AnalyticsEventSearchInput {
+  eventName: String
+  fromDate: String
+  memberId: String
+  memberType: MemberType
+  source: String
+  toDate: String
+}
+
+type AnalyticsEventsDto {
+  list: [AnalyticsEventDto!]!
+  metaCounter: MetaCounterDto!
+}
+
 type AuthMemberDto {
   _id: String!
   accessToken: String!
@@ -827,6 +853,7 @@ type Query {
   getAllNotificationsAdmin(input: PaginationInput!): NotificationsDto!
   getAllReviewsAdmin(input: PaginationInput!, statusFilter: ReviewStatus): ReviewsDto!
   getAllRoomsAdmin(input: PaginationInput!, statusFilter: RoomStatus): RoomsDto!
+  getAnalyticsEventsAdmin(input: PaginationInput!, search: AnalyticsEventSearchInput): AnalyticsEventsDto!
   getBooking(bookingId: String!): BookingDto!
   getChat(chatId: String!): ChatDto!
   getDashboardStats: DashboardStatsDto!
