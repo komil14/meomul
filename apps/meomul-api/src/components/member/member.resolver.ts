@@ -234,7 +234,7 @@ export class MemberResolver {
 	}
 
 	@Mutation(() => ResponseDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER)
 	public async saveOnboardingPreferences(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: OnboardingPreferenceInput,

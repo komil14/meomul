@@ -1,11 +1,12 @@
 import { Field, InputType } from '@nestjs/graphql';
-import { IsArray, IsEnum, IsOptional, ArrayMaxSize } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, ArrayMaxSize, ArrayMinSize } from 'class-validator';
 import { TravelStyle, BudgetLevel } from '../../enums/preference.enum';
 import { HotelLocation } from '../../enums/hotel.enum';
 
 @InputType()
 export class OnboardingPreferenceInput {
 	@IsArray()
+	@ArrayMinSize(1)
 	@IsEnum(TravelStyle, { each: true })
 	@ArrayMaxSize(3)
 	@Field(() => [TravelStyle])
@@ -22,6 +23,7 @@ export class OnboardingPreferenceInput {
 	budgetLevel?: BudgetLevel;
 
 	@IsArray()
+	@ArrayMinSize(1)
 	@IsEnum(HotelLocation, { each: true })
 	@ArrayMaxSize(4)
 	@Field(() => [HotelLocation])

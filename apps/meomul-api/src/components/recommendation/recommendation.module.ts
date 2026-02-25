@@ -23,5 +23,6 @@ import { RecommendationResolver } from './recommendation.resolver';
 		]),
 	],
 	providers: [RecommendationService, RecommendationResolver],
+	exports: [RecommendationService],
 })
 export class RecommendationModule {}

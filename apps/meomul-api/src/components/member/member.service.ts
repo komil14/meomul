@@ -20,6 +20,7 @@ import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import type { UserProfileDocument } from '../../libs/types/user-profile';
 import { AuthService } from '../auth/auth.service';
 import { NotificationService } from '../notification/notification.service';
+import { RecommendationService } from '../recommendation/recommendation.service';
 
 const ONBOARDING_AMENITY_KEYS = [
 	'workspace',
@@ -55,6 +56,7 @@ export class MemberService {
 		@InjectModel('UserProfile') private readonly userProfileModel: Model<UserProfileDocument>,
 		private readonly authService: AuthService,
 		private readonly notificationService: NotificationService,
+		private readonly recommendationService: RecommendationService,
 	) {}
 
 	public async signup(input: MemberInput): Promise<AuthMemberDto> {
@@ -421,6 +423,19 @@ export class MemberService {
 		if (!currentMember?._id) {
 			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
 		}
+		if (currentMember.memberType !== MemberType.USER) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		const travelStyles = Array.from(new Set(input.travelStyles));
+		if (travelStyles.length === 0) {
+			throw new BadRequestException('Select at least 1 travel style');
+		}
+
+		const preferredDestinations = Array.from(new Set(input.preferredDestinations));
+		if (preferredDestinations.length === 0) {
+			throw new BadRequestException('Select at least 1 preferred destination');
+		}
 
 		const preferredAmenities = Array.from(new Set(input.preferredAmenities));
 		if (preferredAmenities.length > 5) {
@@ -441,7 +456,7 @@ export class MemberService {
 			[TravelStyle.FRIENDS]: StayPurpose.STAYCATION,
 			[TravelStyle.BUSINESS]: StayPurpose.BUSINESS,
 		};
-		const preferredPurposes = input.travelStyles.map((style) => purposeMap[style]).filter(Boolean);
+		const preferredPurposes = travelStyles.map((style) => purposeMap[style]).filter(Boolean);
 
 		// Map BudgetLevel → price range
 		const budgetRanges: Record<string, { min: number; max: number }> = {
@@ -456,21 +471,19 @@ export class MemberService {
 			{ memberId: new Types.ObjectId(currentMember._id) },
 			{
 				$set: {
-					preferredLocations: input.preferredDestinations,
+					preferredLocations: preferredDestinations,
 					preferredTypes: [],
 					preferredPurposes: preferredPurposes,
 					preferredAmenities: preferredAmenities,
 					avgPriceMin: priceRange?.min,
 					avgPriceMax: priceRange?.max,
-					viewedHotelIds: [],
-					likedHotelIds: [],
-					bookedHotelIds: [],
 					source: 'onboarding',
 					computedAt: new Date(),
 				},
 			},
 			{ upsert: true },
 		);
+		await this.recommendationService.invalidateUserCache(currentMember._id);
 
 		return {
 			success: true,

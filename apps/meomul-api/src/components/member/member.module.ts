@@ -4,6 +4,7 @@ import MemberSchema from '../../schemas/Member.model';
 import UserProfileSchema from '../../schemas/UserProfile.model';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationModule } from '../notification/notification.module';
+import { RecommendationModule } from '../recommendation/recommendation.module';
 import { MemberResolver } from './member.resolver';
 import { MemberService } from './member.service';
 
@@ -15,6 +16,7 @@ import { MemberService } from './member.service';
 		]),
 		AuthModule,
 		NotificationModule,
+		RecommendationModule,
 	],
 	providers: [MemberResolver, MemberService],
 	exports: [MemberService],

@@ -118,13 +118,18 @@ export class RecommendationService {
 			};
 		}
 
+		const preferredLocations = profile.preferredLocations || [];
+		const preferredTypes = profile.preferredTypes || [];
+		const preferredPurposes = profile.preferredPurposes || [];
+		const preferredAmenities = profile.preferredAmenities || [];
+
 		return {
-			hasProfile: true,
+			hasProfile: this.isProfileComplete(profile),
 			source: profile.source,
-			preferredLocations: profile.preferredLocations || [],
-			preferredTypes: profile.preferredTypes || [],
-			preferredPurposes: profile.preferredPurposes || [],
-			preferredAmenities: profile.preferredAmenities || [],
+			preferredLocations,
+			preferredTypes,
+			preferredPurposes,
+			preferredAmenities,
 			avgPriceMin: profile.avgPriceMin,
 			avgPriceMax: profile.avgPriceMax,
 			computedAt: profile.computedAt,
@@ -366,31 +371,37 @@ export class RecommendationService {
 	}
 
 	private async buildUserProfile(memberId: string): Promise<UserPreferenceProfile> {
-		// Check for precomputed profile: fresh computed (< 2h) OR onboarding (any age)
-		const precomputed = await this.userProfileModel
-			.findOne({
-				memberId: new Types.ObjectId(memberId),
-				$or: [{ source: 'onboarding' }, { computedAt: { $gte: new Date(Date.now() - 2 * 3600000) } }],
-			})
-			.lean()
-			.exec();
+		const memberObjectId = new Types.ObjectId(memberId);
+		const existingProfile = await this.userProfileModel.findOne({ memberId: memberObjectId }).lean().exec();
 
-		if (precomputed) {
+		const freshComputedThreshold = Date.now() - 2 * 3600000;
+		const hasFreshComputedAt = Boolean(
+			existingProfile?.computedAt && new Date(existingProfile.computedAt).getTime() >= freshComputedThreshold,
+		);
+		const isFreshComputedProfile = Boolean(
+			existingProfile?.source === 'computed' && hasFreshComputedAt && this.isProfileComplete(existingProfile),
+		);
+
+		if (existingProfile && isFreshComputedProfile) {
 			return {
-				preferredLocations: precomputed.preferredLocations || [],
-				preferredTypes: precomputed.preferredTypes || [],
-				preferredPurposes: precomputed.preferredPurposes || [],
-				preferredAmenities: precomputed.preferredAmenities || [],
-				avgPriceMin: precomputed.avgPriceMin,
-				avgPriceMax: precomputed.avgPriceMax,
-				viewedHotelIds: precomputed.viewedHotelIds || [],
-				likedHotelIds: precomputed.likedHotelIds || [],
-				bookedHotelIds: precomputed.bookedHotelIds || [],
+				preferredLocations: existingProfile.preferredLocations || [],
+				preferredTypes: existingProfile.preferredTypes || [],
+				preferredPurposes: existingProfile.preferredPurposes || [],
+				preferredAmenities: existingProfile.preferredAmenities || [],
+				avgPriceMin: existingProfile.avgPriceMin,
+				avgPriceMax: existingProfile.avgPriceMax,
+				viewedHotelIds: existingProfile.viewedHotelIds || [],
+				likedHotelIds: existingProfile.likedHotelIds || [],
+				bookedHotelIds: existingProfile.bookedHotelIds || [],
 			};
 		}
 
+		const onboardingSeed =
+			existingProfile && existingProfile.source === 'onboarding' && this.isProfileComplete(existingProfile)
+				? existingProfile
+				: null;
+
 		// Fallback: compute on the fly
-		const memberObjectId = new Types.ObjectId(memberId);
 		const now = Date.now();
 
 		const [searchHistory, viewedHotels, likedHotels, bookedHotels] = await Promise.all([
@@ -433,6 +444,21 @@ export class RecommendationService {
 		let totalPriceWeight = 0;
 		let weightedPriceMin = 0;
 		let weightedPriceMax = 0;
+
+		if (onboardingSeed) {
+			for (const location of onboardingSeed.preferredLocations || []) {
+				for (let i = 0; i < 5; i += 1) weightedLocations.push(location);
+			}
+			for (const hotelType of onboardingSeed.preferredTypes || []) {
+				for (let i = 0; i < 4; i += 1) weightedTypes.push(hotelType);
+			}
+			for (const purpose of onboardingSeed.preferredPurposes || []) {
+				for (let i = 0; i < 5; i += 1) weightedPurposes.push(purpose);
+			}
+			for (const amenity of onboardingSeed.preferredAmenities || []) {
+				for (let i = 0; i < 3; i += 1) weightedAmenities.push(amenity);
+			}
+		}
 
 		for (const search of searchHistory) {
 			const ageMs = now - new Date(search.createdAt).getTime();
@@ -490,8 +516,8 @@ export class RecommendationService {
 			preferredTypes: preferredTypes.slice(0, 4),
 			preferredPurposes: preferredPurposes.slice(0, 4),
 			preferredAmenities: preferredAmenities.slice(0, 8),
-			avgPriceMin: totalPriceWeight > 0 ? weightedPriceMin / totalPriceWeight : undefined,
-			avgPriceMax: totalPriceWeight > 0 ? weightedPriceMax / totalPriceWeight : undefined,
+			avgPriceMin: totalPriceWeight > 0 ? weightedPriceMin / totalPriceWeight : onboardingSeed?.avgPriceMin,
+			avgPriceMax: totalPriceWeight > 0 ? weightedPriceMax / totalPriceWeight : onboardingSeed?.avgPriceMax,
 			viewedHotelIds: viewedHotels.map((v) => v.viewRefId),
 			likedHotelIds: likedHotels.map((l) => l.likeRefId),
 			bookedHotelIds: bookedHotels.map((b) => b.hotelId),
@@ -773,5 +799,21 @@ export class RecommendationService {
 			updatedAt: doc.updatedAt,
 			deletedAt: doc.deletedAt,
 		};
+	}
+
+	private isProfileComplete(
+		profile:
+			| {
+					preferredLocations?: string[];
+					preferredPurposes?: string[];
+			  }
+			| null
+			| undefined,
+	): boolean {
+		if (!profile) {
+			return false;
+		}
+
+		return (profile.preferredLocations?.length ?? 0) > 0 && (profile.preferredPurposes?.length ?? 0) > 0;
 	}
 }
