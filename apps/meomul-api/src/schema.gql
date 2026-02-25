@@ -700,6 +700,7 @@ type Mutation {
   startChat(input: StartChatInput!): ChatDto!
   toggleFollow(input: FollowInput!): ToggleFollowDto!
   toggleLike(input: LikeInput!): ToggleLikeDto!
+  trackAnalyticsEvent(input: TrackAnalyticsEventInput!): Boolean!
   updateBookingStatus(bookingId: String!, status: BookingStatus!): BookingDto!
   updateHotel(input: HotelUpdate!): HotelDto!
   updateHotelByAdmin(input: HotelUpdate!): HotelDto!
@@ -1116,6 +1117,14 @@ type ToggleLikeDto {
   like: LikeDto
   likeCount: Int!
   liked: Boolean!
+}
+
+input TrackAnalyticsEventInput {
+  eventName: String!
+  eventPath: String
+  payload: String
+  source: String
+  userAgent: String
 }
 
 enum TravelStyle {

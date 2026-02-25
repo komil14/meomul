@@ -17,6 +17,7 @@ import { RecommendationModule } from './recommendation/recommendation.module';
 import { SearchHistoryModule } from './search-history/search-history.module';
 import { UploadModule } from './upload/upload.module';
 import { RoomInventoryModule } from './room-inventory/room-inventory.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
 	imports: [
@@ -38,6 +39,7 @@ import { RoomInventoryModule } from './room-inventory/room-inventory.module';
 		SearchHistoryModule,
 		UploadModule,
 		RoomInventoryModule,
+		AnalyticsModule,
 	],
 })
 export class ComponentsModule {}
