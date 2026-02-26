@@ -4,13 +4,13 @@ import type { Model } from 'mongoose';
 import { ReviewInput } from '../../libs/dto/review/review.input';
 import { ReviewUpdate } from '../../libs/dto/review/review.update';
 import { ReviewDto } from '../../libs/dto/review/review';
-import { ReviewsDto } from '../../libs/dto/common/reviews';
+import { ReviewsDto, ReviewRatingsSummaryDto } from '../../libs/dto/common/reviews';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { ReviewStatus, LikeGroup, ViewGroup } from '../../libs/enums/common.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
 import { BookingStatus } from '../../libs/enums/booking.enum';
 import { Messages } from '../../libs/messages';
-import type { MemberJwtPayload } from '../../libs/types/member';
+import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import type { ReviewDocument } from '../../libs/types/review';
 import { toReviewDto } from '../../libs/types/review';
 import type { BookingDocument } from '../../libs/types/booking';
@@ -28,6 +28,7 @@ export class ReviewService {
 		@InjectModel('Review') private readonly reviewModel: Model<ReviewDocument>,
 		@InjectModel('Booking') private readonly bookingModel: Model<BookingDocument>,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
+		@InjectModel('Member') private readonly memberModel: Model<MemberDocument>,
 		private readonly likeService: LikeService,
 		private readonly viewService: ViewService,
 		private readonly notificationService: NotificationService,
@@ -220,7 +221,7 @@ export class ReviewService {
 			reviewStatus: ReviewStatus.APPROVED,
 		};
 
-		const [list, total] = await Promise.all([
+		const [list, total, ratingsSummaryRaw] = await Promise.all([
 			this.reviewModel
 				.find(query)
 				.sort({ [sort]: direction })
@@ -228,11 +229,41 @@ export class ReviewService {
 				.limit(limit)
 				.exec(),
 			this.reviewModel.countDocuments(query).exec(),
+			this.reviewModel
+				.aggregate<{
+					totalReviews: number;
+					overallRating: number;
+					cleanlinessRating: number;
+					locationRating: number;
+					serviceRating: number;
+					amenitiesRating: number;
+					valueRating: number;
+				}>([
+					{ $match: query },
+					{
+						$group: {
+							_id: null,
+							totalReviews: { $sum: 1 },
+							overallRating: { $avg: '$overallRating' },
+							cleanlinessRating: { $avg: '$cleanlinessRating' },
+							locationRating: { $avg: '$locationRating' },
+							serviceRating: { $avg: '$serviceRating' },
+							amenitiesRating: { $avg: '$amenitiesRating' },
+							valueRating: { $avg: '$valueRating' },
+						},
+					},
+					{ $project: { _id: 0 } },
+				])
+				.exec(),
 		]);
 
+		const ratingsSummary = this.toRatingsSummary(ratingsSummaryRaw[0]);
+		const listWithProfiles = await this.attachReviewerProfiles(list);
+
 		return {
-			list: list.map(toReviewDto),
+			list: listWithProfiles,
 			metaCounter: { total },
+			ratingsSummary,
 		};
 	}
 
@@ -288,6 +319,60 @@ export class ReviewService {
 		return {
 			list: list.map(toReviewDto),
 			metaCounter: { total },
+		};
+	}
+
+	private async attachReviewerProfiles(list: ReviewDocument[]): Promise<ReviewDto[]> {
+		if (list.length === 0) {
+			return [];
+		}
+
+		const reviewerIds = Array.from(new Set(list.map((review) => String(review.reviewerId))));
+		const reviewers = await this.memberModel
+			.find({ _id: { $in: reviewerIds } })
+			.select({ _id: 1, memberNick: 1, memberImage: 1 })
+			.lean<{ _id: string; memberNick?: string; memberImage?: string }[]>()
+			.exec();
+
+		const reviewerById = new Map(
+			reviewers.map((member) => [String(member._id), { memberNick: member.memberNick, memberImage: member.memberImage }]),
+		);
+
+		return list.map((review) => {
+			const dto = toReviewDto(review);
+			const profile = reviewerById.get(String(review.reviewerId));
+
+			return {
+				...dto,
+				reviewerNick: profile?.memberNick ?? dto.reviewerNick,
+				reviewerImage: profile?.memberImage ?? dto.reviewerImage,
+			};
+		});
+	}
+
+	private toRatingsSummary(raw?: {
+		totalReviews: number;
+		overallRating: number;
+		cleanlinessRating: number;
+		locationRating: number;
+		serviceRating: number;
+		amenitiesRating: number;
+		valueRating: number;
+	}): ReviewRatingsSummaryDto | undefined {
+		if (!raw || raw.totalReviews <= 0) {
+			return undefined;
+		}
+
+		const clamp = (value: number): number => Number((Number.isFinite(value) ? value : 0).toFixed(2));
+
+		return {
+			totalReviews: raw.totalReviews,
+			overallRating: clamp(raw.overallRating),
+			cleanlinessRating: clamp(raw.cleanlinessRating),
+			locationRating: clamp(raw.locationRating),
+			serviceRating: clamp(raw.serviceRating),
+			amenitiesRating: clamp(raw.amenitiesRating),
+			valueRating: clamp(raw.valueRating),
 		};
 	}
 

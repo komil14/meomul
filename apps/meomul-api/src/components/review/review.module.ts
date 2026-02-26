@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import ReviewSchema from '../../schemas/Review.model';
 import BookingSchema from '../../schemas/Booking.model';
 import HotelSchema from '../../schemas/Hotel.model';
+import MemberSchema from '../../schemas/Member.model';
 import { ReviewService } from './review.service';
 import { ReviewResolver } from './review.resolver';
 import { AuthModule } from '../auth/auth.module';
@@ -16,6 +17,7 @@ import { NotificationModule } from '../notification/notification.module';
 			{ name: 'Review', schema: ReviewSchema },
 			{ name: 'Booking', schema: BookingSchema },
 			{ name: 'Hotel', schema: HotelSchema },
+			{ name: 'Member', schema: MemberSchema },
 		]),
 		AuthModule,
 		LikeModule,

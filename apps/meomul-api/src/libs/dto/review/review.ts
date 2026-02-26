@@ -22,6 +22,12 @@ export class ReviewDto {
 	@Field(() => String)
 	reviewerId: ObjectId;
 
+	@Field(() => String, { nullable: true })
+	reviewerNick?: string;
+
+	@Field(() => String, { nullable: true })
+	reviewerImage?: string;
+
 	@Field(() => String)
 	hotelId: ObjectId;
 

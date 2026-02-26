@@ -11,6 +11,8 @@ export interface HotelResponseDocument {
 export interface ReviewDocument extends Document {
 	_id: Types.ObjectId;
 	reviewerId: Types.ObjectId;
+	reviewerNick?: string;
+	reviewerImage?: string;
 	hotelId: Types.ObjectId;
 	bookingId: Types.ObjectId;
 	verifiedStay: boolean;
@@ -44,6 +46,8 @@ export function toReviewDto(doc: ReviewDocument): ReviewDto {
 	return {
 		_id: doc._id as unknown as ReviewDto['_id'],
 		reviewerId: doc.reviewerId as unknown as ReviewDto['reviewerId'],
+		reviewerNick: doc.reviewerNick,
+		reviewerImage: doc.reviewerImage,
 		hotelId: doc.hotelId as unknown as ReviewDto['hotelId'],
 		bookingId: doc.bookingId as unknown as ReviewDto['bookingId'],
 		verifiedStay: doc.verifiedStay,
