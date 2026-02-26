@@ -1,5 +1,7 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectModel } from '@nestjs/mongoose';
+import type { Cache } from 'cache-manager';
 import type { Model } from 'mongoose';
 import { Types } from 'mongoose';
 import { HotelInput } from '../../libs/dto/hotel/hotel.input';
@@ -27,6 +29,7 @@ import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 @Injectable()
 export class HotelService {
 	constructor(
+		@Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
 		@InjectModel('SearchHistory') private readonly searchHistoryModel: Model<SearchHistoryDocument>,
@@ -201,6 +204,7 @@ export class HotelService {
 			if (result.isNewView) {
 				await this.hotelModel.findByIdAndUpdate(hotelId, { $inc: { hotelViews: 1 } }).exec();
 				hotel.hotelViews = (hotel.hotelViews ?? 0) + 1;
+				this.invalidateRecCache(currentMember._id);
 			}
 		}
 
@@ -232,6 +236,9 @@ export class HotelService {
 					starRatings: searchInput.starRatings,
 					guestCount: searchInput.guestCount,
 					text: searchInput.text,
+				})
+				.then(() => {
+					this.invalidateRecCache(currentMember._id);
 				})
 				.catch(() => {});
 		}
@@ -274,6 +281,16 @@ export class HotelService {
 			list: list.map(toHotelDto),
 			metaCounter: { total },
 		};
+	}
+
+	private invalidateRecCache(memberId: string): void {
+		const versionKey = `rec:v:${memberId}`;
+		const nextVersion = Date.now().toString();
+		Promise.all([
+			this.cacheManager.set(versionKey, nextVersion, 7 * 24 * 60 * 60 * 1000),
+			this.cacheManager.del(`rec:${memberId}:10`), // legacy keys
+			this.cacheManager.del(`rec:${memberId}:20`), // legacy keys
+		]).catch(() => {});
 	}
 
 	/**

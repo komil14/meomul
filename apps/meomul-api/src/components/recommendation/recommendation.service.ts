@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Cache } from 'cache-manager';
@@ -64,6 +64,8 @@ const RECOMMENDATION_ALGO_VERSION = '2';
 
 @Injectable()
 export class RecommendationService {
+	private readonly logger = new Logger(RecommendationService.name);
+
 	constructor(
 		@Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
@@ -96,6 +98,7 @@ export class RecommendationService {
 		const cacheKey = this.buildRecommendationCacheKey(memberId, cacheVersion, safeLimit);
 		const cached = await this.cacheManager.get<RecommendationResultPayload>(cacheKey);
 		if (cached) {
+			this.logger.debug(`cache hit member=${memberId} limit=${safeLimit} version=${cacheVersion}`);
 			return cached;
 		}
 
@@ -120,6 +123,7 @@ export class RecommendationService {
 				},
 			};
 			await this.cacheManager.set(cacheKey, noProfileResult, RECOMMENDATION_CACHE_TTL_MS);
+			this.logger.debug(`fallback to trending member=${memberId} limit=${safeLimit}`);
 			return noProfileResult;
 		}
 
@@ -179,6 +183,9 @@ export class RecommendationService {
 		};
 
 		await this.cacheManager.set(cacheKey, result, RECOMMENDATION_CACHE_TTL_MS);
+		this.logger.log(
+			`generated member=${memberId} limit=${safeLimit} source=${result.meta.profileSource} strict=${result.meta.strictStageCount} relaxed=${result.meta.relaxedStageCount} general=${result.meta.generalStageCount} fallback=${result.meta.fallbackCount} matchedLoc=${result.meta.matchedLocationCount} blend=${result.meta.onboardingWeight}/${result.meta.behaviorWeight}`,
+		);
 		return result;
 	}
 
@@ -451,6 +458,7 @@ export class RecommendationService {
 			this.cacheManager.del(`rec:${memberId}:10`), // legacy keys
 			this.cacheManager.del(`rec:${memberId}:20`), // legacy keys
 		]);
+		this.logger.debug(`cache invalidated member=${memberId} version=${nextVersion}`);
 	}
 
 	private async buildUserProfile(memberId: string): Promise<UserPreferenceProfile> {
