@@ -5,6 +5,7 @@ import type { Cache } from 'cache-manager';
 import type { Model } from 'mongoose';
 import { Types } from 'mongoose';
 import { HotelDto } from '../../libs/dto/hotel/hotel';
+import { RecommendationMetaDto, RecommendedHotelsV2Dto } from '../../libs/dto/preference/recommended-hotels.dto';
 import { RecommendationProfileDto } from '../../libs/dto/preference/recommendation-profile.dto';
 import { HotelStatus, HotelLocation } from '../../libs/enums/hotel.enum';
 import { ViewGroup, LikeGroup } from '../../libs/enums/common.enum';
@@ -35,6 +36,7 @@ interface UserPreferenceProfile {
 	viewedHotelIds: Types.ObjectId[];
 	likedHotelIds: Types.ObjectId[];
 	bookedHotelIds: Types.ObjectId[];
+	profileSource: 'onboarding' | 'computed';
 }
 
 interface RecommendationFacetResult {
@@ -42,10 +44,22 @@ interface RecommendationFacetResult {
 	fallback: HotelDto[];
 }
 
+interface RecommendationStageResult {
+	hotels: HotelDto[];
+	fallbackCount: number;
+	matchedLocationCount: number;
+}
+
+interface RecommendationResultPayload {
+	list: HotelDto[];
+	meta: RecommendationMetaDto;
+}
+
 const RECOMMENDATION_CACHE_TTL_MS = 10 * 60 * 1000;
 const TRENDING_CACHE_TTL_MS = 15 * 60 * 1000;
 const RECOMMENDATION_VERSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_RECOMMENDATION_CACHE_VERSION = '1';
+const RECOMMENDATION_ALGO_VERSION = '2';
 
 @Injectable()
 export class RecommendationService {
@@ -64,39 +78,100 @@ export class RecommendationService {
 	 * Get personalized hotel recommendations for a logged-in user
 	 */
 	public async getRecommendedHotels(memberId: string, limit: number = 10): Promise<HotelDto[]> {
+		const result = await this.generateRecommendations(memberId, limit);
+		return result.list;
+	}
+
+	/**
+	 * Get personalized hotel recommendations with metadata for frontend transparency.
+	 */
+	public async getRecommendedHotelsV2(memberId: string, limit: number = 10): Promise<RecommendedHotelsV2Dto> {
+		return this.generateRecommendations(memberId, limit);
+	}
+
+	private async generateRecommendations(memberId: string, limit: number): Promise<RecommendationResultPayload> {
 		const safeLimit = Math.min(Math.max(limit, 1), 30);
 		const cacheVersion = await this.getRecommendationCacheVersion(memberId);
 		const cacheKey = this.buildRecommendationCacheKey(memberId, cacheVersion, safeLimit);
-		const cached = await this.cacheManager.get<HotelDto[]>(cacheKey);
-		if (cached) return cached;
+		const cached = await this.cacheManager.get<RecommendationResultPayload>(cacheKey);
+		if (cached) {
+			return cached;
+		}
 
 		const profile = await this.buildUserProfile(memberId);
-
-		// If user has no activity, fall back to trending
 		const hasActivity =
 			profile.preferredLocations.length > 0 || profile.likedHotelIds.length > 0 || profile.bookedHotelIds.length > 0;
 
 		if (!hasActivity) {
-			return this.getTrendingHotels(safeLimit);
+			const trending = await this.getTrendingHotels(safeLimit);
+			const noProfileResult: RecommendationResultPayload = {
+				list: trending,
+				meta: {
+					profileSource: profile.profileSource,
+					onboardingWeight: 0,
+					behaviorWeight: 1,
+					matchedLocationCount: 0,
+					fallbackCount: trending.length,
+					strictStageCount: 0,
+					relaxedStageCount: 0,
+					generalStageCount: trending.length,
+				},
+			};
+			await this.cacheManager.set(cacheKey, noProfileResult, RECOMMENDATION_CACHE_TTL_MS);
+			return noProfileResult;
 		}
 
-		// Single query with $facet: scored recommendations + fallback in one DB call
-		const pipeline = this.buildRecommendationPipeline(profile, safeLimit);
-		const [facetResult] = await this.hotelModel.aggregate<RecommendationFacetResult>(pipeline).exec();
+		const strictTarget = Math.ceil(safeLimit * 0.6);
+		const relaxedTarget = Math.ceil(safeLimit * 0.25);
 
-		const scored = facetResult?.recommended ?? [];
-		const fallback = facetResult?.fallback ?? [];
+		const strictStageEnabled = profile.profileSource === 'onboarding' && profile.preferredLocations.length > 0;
+		const strictStage = strictStageEnabled
+			? await this.runRecommendationStage(profile, strictTarget, {
+					onlyPreferredLocations: true,
+					enforcePreferredPurposes: true,
+					enforcePriceRange: true,
+				})
+			: this.emptyStageResult();
 
-		// Use scored results, pad with fallback if not enough
-		const usedIds = scored.map((r) => r._id as unknown as Types.ObjectId);
-		const padding = fallback
-			.filter((r) => !usedIds.some((id) => id.equals(r._id as unknown as Types.ObjectId)))
-			.slice(0, safeLimit - scored.length);
+		const selectedIdsAfterStrict = strictStage.hotels.map((hotel) => new Types.ObjectId(String(hotel._id)));
+		const relaxedStageRoom = Math.max(0, Math.min(relaxedTarget, safeLimit - strictStage.hotels.length));
+		const relaxedStage = strictStageEnabled
+			? await this.runRecommendationStage(profile, relaxedStageRoom, {
+					onlyPreferredLocations: true,
+					enforcePreferredPurposes: false,
+					enforcePriceRange: false,
+					excludeHotelIds: selectedIdsAfterStrict,
+				})
+			: this.emptyStageResult();
 
-		const finalResults = [...scored, ...padding].map((doc) => this.aggregateDocToHotelDto(doc));
+		const selectedIdsForGeneral = [...selectedIdsAfterStrict, ...relaxedStage.hotels.map((h) => new Types.ObjectId(String(h._id)))];
+		const generalStageRoom = Math.max(0, safeLimit - strictStage.hotels.length - relaxedStage.hotels.length);
+		const generalStage = await this.runRecommendationStage(profile, generalStageRoom, {
+			excludeHotelIds: selectedIdsForGeneral,
+		});
 
-		await this.cacheManager.set(cacheKey, finalResults, RECOMMENDATION_CACHE_TTL_MS);
-		return finalResults;
+		const finalList = [...strictStage.hotels, ...relaxedStage.hotels, ...generalStage.hotels].slice(0, safeLimit);
+		const matchedLocationCount = finalList.filter((hotel) => profile.preferredLocations.includes(hotel.hotelLocation)).length;
+		const fallbackCount = strictStage.fallbackCount + relaxedStage.fallbackCount + generalStage.fallbackCount;
+		const onboardingWeight = strictStageEnabled ? 0.7 : 0.3;
+		const behaviorWeight = strictStageEnabled ? 0.3 : 0.7;
+
+		const result: RecommendationResultPayload = {
+			list: finalList,
+			meta: {
+				profileSource: profile.profileSource,
+				onboardingWeight,
+				behaviorWeight,
+				matchedLocationCount,
+				fallbackCount,
+				strictStageCount: strictStage.hotels.length,
+				relaxedStageCount: relaxedStage.hotels.length,
+				generalStageCount: generalStage.hotels.length,
+			},
+		};
+
+		await this.cacheManager.set(cacheKey, result, RECOMMENDATION_CACHE_TTL_MS);
+		return result;
 	}
 
 	/**
@@ -393,6 +468,7 @@ export class RecommendationService {
 				viewedHotelIds: existingProfile.viewedHotelIds || [],
 				likedHotelIds: existingProfile.likedHotelIds || [],
 				bookedHotelIds: existingProfile.bookedHotelIds || [],
+				profileSource: 'computed',
 			};
 		}
 
@@ -488,6 +564,8 @@ export class RecommendationService {
 		const preferredTypes = this.getTopFrequent(weightedTypes.filter(Boolean), 3);
 		const preferredPurposes = this.getTopFrequent(weightedPurposes.filter(Boolean), 3);
 		const preferredAmenities = this.getTopFrequent(weightedAmenities.filter(Boolean), 5);
+		const hasBehaviorSignals =
+			searchHistory.length > 0 || viewedHotels.length > 0 || likedHotels.length > 0 || bookedHotels.length > 0;
 
 		// Enrich from booked hotels (strongest signal)
 		if (bookedHotels.length > 0) {
@@ -521,6 +599,7 @@ export class RecommendationService {
 			viewedHotelIds: viewedHotels.map((v) => v.viewRefId),
 			likedHotelIds: likedHotels.map((l) => l.likeRefId),
 			bookedHotelIds: bookedHotels.map((b) => b.hotelId),
+			profileSource: onboardingSeed && !hasBehaviorSignals ? 'onboarding' : 'computed',
 		};
 	}
 
@@ -574,7 +653,16 @@ export class RecommendationService {
 	/**
 	 * Build the MongoDB aggregation pipeline for personalized recommendations
 	 */
-	private buildRecommendationPipeline(profile: UserPreferenceProfile, limit: number): any[] {
+	private buildRecommendationPipeline(
+		profile: UserPreferenceProfile,
+		limit: number,
+		options?: {
+			onlyPreferredLocations?: boolean;
+			enforcePreferredPurposes?: boolean;
+			enforcePriceRange?: boolean;
+			excludeHotelIds?: Types.ObjectId[];
+		},
+	): any[] {
 		const pipeline: any[] = [];
 
 		// Stage 1: Only ACTIVE hotels
@@ -584,11 +672,29 @@ export class RecommendationService {
 			},
 		});
 
-		// Stage 2: Exclude already-booked hotels
-		if (profile.bookedHotelIds.length > 0) {
+		// Stage 2: Exclude already-booked hotels and stage-specific exclusions
+		const excludedIdsByStage = options?.excludeHotelIds || [];
+		const excludedHotelIds = [...profile.bookedHotelIds, ...excludedIdsByStage];
+		if (excludedHotelIds.length > 0) {
 			pipeline.push({
 				$match: {
-					_id: { $nin: profile.bookedHotelIds },
+					_id: { $nin: excludedHotelIds },
+				},
+			});
+		}
+
+		if (options?.onlyPreferredLocations && profile.preferredLocations.length > 0) {
+			pipeline.push({
+				$match: {
+					hotelLocation: { $in: profile.preferredLocations },
+				},
+			});
+		}
+
+		if (options?.enforcePreferredPurposes && profile.preferredPurposes.length > 0) {
+			pipeline.push({
+				$match: {
+					suitableFor: { $in: profile.preferredPurposes },
 				},
 			});
 		}
@@ -612,6 +718,17 @@ export class RecommendationService {
 				},
 			},
 		);
+
+		if (options?.enforcePriceRange && profile.avgPriceMax) {
+			pipeline.push({
+				$match: {
+					startingPrice: {
+						$gte: profile.avgPriceMin || 0,
+						$lte: profile.avgPriceMax,
+					},
+				},
+			});
+		}
 
 		// Stage 4: Calculate scores (including seasonal awareness)
 		const amenityScoreFields: any[] = profile.preferredAmenities.map((amenity) => ({
@@ -718,6 +835,50 @@ export class RecommendationService {
 		return pipeline;
 	}
 
+	private emptyStageResult(): RecommendationStageResult {
+		return {
+			hotels: [],
+			fallbackCount: 0,
+			matchedLocationCount: 0,
+		};
+	}
+
+	private async runRecommendationStage(
+		profile: UserPreferenceProfile,
+		limit: number,
+		options?: {
+			onlyPreferredLocations?: boolean;
+			enforcePreferredPurposes?: boolean;
+			enforcePriceRange?: boolean;
+			excludeHotelIds?: Types.ObjectId[];
+		},
+	): Promise<RecommendationStageResult> {
+		if (limit <= 0) {
+			return this.emptyStageResult();
+		}
+
+		const pipeline = this.buildRecommendationPipeline(profile, limit, options);
+		const [facetResult] = await this.hotelModel.aggregate<RecommendationFacetResult>(pipeline).exec();
+		const scored = facetResult?.recommended ?? [];
+		const fallback = facetResult?.fallback ?? [];
+		const combined = this.combineFacetResults(scored, fallback, limit);
+		const fallbackCount = Math.max(0, combined.length - scored.length);
+		const hotels = combined.map((doc) => this.aggregateDocToHotelDto(doc));
+		const matchedLocationCount = hotels.filter((hotel) => profile.preferredLocations.includes(hotel.hotelLocation)).length;
+
+		return {
+			hotels,
+			fallbackCount,
+			matchedLocationCount,
+		};
+	}
+
+	private combineFacetResults(scored: HotelDto[], fallback: HotelDto[], limit: number): HotelDto[] {
+		const usedIds = new Set(scored.map((hotel) => String(hotel._id)));
+		const padding = fallback.filter((hotel) => !usedIds.has(String(hotel._id))).slice(0, Math.max(0, limit - scored.length));
+		return [...scored, ...padding];
+	}
+
 	/**
 	 * Get top N most frequent items from an array
 	 */
@@ -737,7 +898,7 @@ export class RecommendationService {
 	}
 
 	private buildRecommendationCacheKey(memberId: string, cacheVersion: string, limit: number): string {
-		return `rec:${memberId}:${cacheVersion}:${limit}`;
+		return `rec:${memberId}:${cacheVersion}:algo-${RECOMMENDATION_ALGO_VERSION}:${limit}`;
 	}
 
 	private async getRecommendationCacheVersion(memberId: string): Promise<string> {

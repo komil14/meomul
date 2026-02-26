@@ -8,6 +8,7 @@ import { MemberType } from '../../libs/enums/member.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import { HotelLocation } from '../../libs/enums/hotel.enum';
 import { RecommendationProfileDto } from '../../libs/dto/preference/recommendation-profile.dto';
+import { RecommendedHotelsV2Dto } from '../../libs/dto/preference/recommended-hotels.dto';
 import { RecommendationService } from './recommendation.service';
 
 @Resolver()
@@ -20,7 +21,7 @@ export class RecommendationResolver {
 	 * Get current member recommendation profile/onboarding snapshot.
 	 */
 	@Query(() => RecommendationProfileDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getMyRecommendationProfile(
 		@CurrentMember() currentMember: MemberJwtPayload,
 	): Promise<RecommendationProfileDto> {
@@ -37,7 +38,7 @@ export class RecommendationResolver {
 	 * Get personalized hotel recommendations (requires auth)
 	 */
 	@Query(() => [HotelDto])
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getRecommendedHotels(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
@@ -47,6 +48,24 @@ export class RecommendationResolver {
 			return this.recommendationService.getRecommendedHotels(currentMember._id, limit);
 		} catch (error) {
 			this.logger.error('Query getRecommendedHotels failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get personalized recommendations with stage metadata for transparency/debugging.
+	 */
+	@Query(() => RecommendedHotelsV2Dto)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
+	public async getRecommendedHotelsV2(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
+	): Promise<RecommendedHotelsV2Dto> {
+		try {
+			this.logger.log('Query getRecommendedHotelsV2', currentMember?._id ?? 'unknown');
+			return this.recommendationService.getRecommendedHotelsV2(currentMember._id, limit);
+		} catch (error) {
+			this.logger.error('Query getRecommendedHotelsV2 failed', currentMember?._id ?? 'unknown', error);
 			throw error;
 		}
 	}

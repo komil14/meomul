@@ -884,6 +884,7 @@ type Query {
   getNotification(notificationId: String!): NotificationDto!
   getPriceCalendar(input: PriceCalendarInput!): PriceCalendarDto!
   getRecommendedHotels(limit: Int = 10): [HotelDto!]!
+  getRecommendedHotelsV2(limit: Int = 10): RecommendedHotelsV2Dto!
   getReview(reviewId: String!): ReviewDto!
   getRoom(roomId: String!): RoomDto!
   getRoomsByHotel(hotelId: String!, input: PaginationInput!): RoomsDto!
@@ -899,6 +900,17 @@ type Query {
   searchMembersForBooking(keyword: String!, limit: Int = 10): [BookingGuestCandidateDto!]!
 }
 
+type RecommendationMetaDto {
+  behaviorWeight: Float!
+  fallbackCount: Int!
+  generalStageCount: Int!
+  matchedLocationCount: Int!
+  onboardingWeight: Float!
+  profileSource: String!
+  relaxedStageCount: Int!
+  strictStageCount: Int!
+}
+
 type RecommendationProfileDto {
   avgPriceMax: Float
   avgPriceMin: Float
@@ -909,6 +921,11 @@ type RecommendationProfileDto {
   preferredPurposes: [String!]!
   preferredTypes: [String!]!
   source: String
+}
+
+type RecommendedHotelsV2Dto {
+  list: [HotelDto!]!
+  meta: RecommendationMetaDto!
 }
 
 type ResponseDto {
