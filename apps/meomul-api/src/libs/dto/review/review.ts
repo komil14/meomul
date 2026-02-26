@@ -7,11 +7,11 @@ export class HotelResponseDto {
 	@Field(() => String)
 	responseText: string;
 
-	@Field(() => String)
-	respondedBy: ObjectId;
+	@Field(() => String, { nullable: true })
+	respondedBy?: ObjectId | null;
 
-	@Field(() => Date)
-	respondedAt: Date;
+	@Field(() => Date, { nullable: true })
+	respondedAt?: Date | null;
 }
 
 @ObjectType()

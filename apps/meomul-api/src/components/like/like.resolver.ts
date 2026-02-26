@@ -21,7 +21,7 @@ export class LikeResolver {
 	 * Toggle like (like/unlike)
 	 */
 	@Mutation(() => ToggleLikeDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async toggleLike(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: LikeInput,
@@ -63,7 +63,7 @@ export class LikeResolver {
 	 * Check if current user has liked an item
 	 */
 	@Query(() => Boolean)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async hasLiked(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('likeRefId') likeRefId: string,
@@ -82,7 +82,7 @@ export class LikeResolver {
 	 * Get member's likes for a specific group
 	 */
 	@Query(() => [LikeDto])
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getMyLikes(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('likeGroup', { type: () => LikeGroup }) likeGroup: LikeGroup,

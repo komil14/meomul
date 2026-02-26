@@ -169,7 +169,7 @@ export class ReviewResolver {
 	 * Mark review as helpful (toggle like)
 	 */
 	@Mutation(() => ReviewDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async markHelpful(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('reviewId') reviewId: string,

@@ -4,8 +4,8 @@ import { ReviewStatus } from '../enums/common.enum';
 
 export interface HotelResponseDocument {
 	responseText: string;
-	respondedBy: Types.ObjectId;
-	respondedAt: Date;
+	respondedBy?: Types.ObjectId | null;
+	respondedAt?: Date | null;
 }
 
 export interface ReviewDocument extends Document {
@@ -35,8 +35,8 @@ export interface ReviewDocument extends Document {
 function toHotelResponseDto(response: HotelResponseDocument): HotelResponseDto {
 	return {
 		responseText: response.responseText,
-		respondedBy: response.respondedBy as unknown as HotelResponseDto['respondedBy'],
-		respondedAt: response.respondedAt,
+		respondedBy: (response.respondedBy ?? null) as unknown as HotelResponseDto['respondedBy'],
+		respondedAt: response.respondedAt ?? null,
 	};
 }
 
