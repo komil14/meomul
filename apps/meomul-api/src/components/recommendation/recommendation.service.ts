@@ -37,6 +37,7 @@ interface UserPreferenceProfile {
 	likedHotelIds: Types.ObjectId[];
 	bookedHotelIds: Types.ObjectId[];
 	profileSource: 'onboarding' | 'computed';
+	behaviorMaturity: number;
 }
 
 interface RecommendationFacetResult {
@@ -101,6 +102,7 @@ export class RecommendationService {
 		const profile = await this.buildUserProfile(memberId);
 		const hasActivity =
 			profile.preferredLocations.length > 0 || profile.likedHotelIds.length > 0 || profile.bookedHotelIds.length > 0;
+		const { onboardingWeight, behaviorWeight } = this.calculateBlendWeights(profile.behaviorMaturity);
 
 		if (!hasActivity) {
 			const trending = await this.getTrendingHotels(safeLimit);
@@ -108,8 +110,8 @@ export class RecommendationService {
 				list: trending,
 				meta: {
 					profileSource: profile.profileSource,
-					onboardingWeight: 0,
-					behaviorWeight: 1,
+					onboardingWeight,
+					behaviorWeight,
 					matchedLocationCount: 0,
 					fallbackCount: trending.length,
 					strictStageCount: 0,
@@ -121,10 +123,13 @@ export class RecommendationService {
 			return noProfileResult;
 		}
 
-		const strictTarget = Math.ceil(safeLimit * 0.6);
-		const relaxedTarget = Math.ceil(safeLimit * 0.25);
+		const strictStageEnabled = profile.preferredLocations.length > 0;
+		const strictRatio = strictStageEnabled ? this.clampNumber(onboardingWeight * 0.8, 0.2, 0.68) : 0;
+		const relaxedRatio = strictStageEnabled ? this.clampNumber(onboardingWeight * 0.3, 0.12, 0.24) : 0;
+		const strictTarget = strictStageEnabled ? Math.max(1, Math.round(safeLimit * strictRatio)) : 0;
+		const relaxedTarget =
+			strictStageEnabled && strictTarget < safeLimit ? Math.max(0, Math.round(safeLimit * relaxedRatio)) : 0;
 
-		const strictStageEnabled = profile.profileSource === 'onboarding' && profile.preferredLocations.length > 0;
 		const strictStage = strictStageEnabled
 			? await this.runRecommendationStage(profile, strictTarget, {
 					onlyPreferredLocations: true,
@@ -148,13 +153,16 @@ export class RecommendationService {
 		const generalStageRoom = Math.max(0, safeLimit - strictStage.hotels.length - relaxedStage.hotels.length);
 		const generalStage = await this.runRecommendationStage(profile, generalStageRoom, {
 			excludeHotelIds: selectedIdsForGeneral,
+			allowFacetFallback: false,
 		});
 
-		const finalList = [...strictStage.hotels, ...relaxedStage.hotels, ...generalStage.hotels].slice(0, safeLimit);
+		const preFallbackList = [...strictStage.hotels, ...relaxedStage.hotels, ...generalStage.hotels];
+		const finalExcludedIds = preFallbackList.map((hotel) => new Types.ObjectId(String(hotel._id)));
+		const globalFallbackRoom = Math.max(0, safeLimit - preFallbackList.length);
+		const globalFallbackHotels = await this.getTopRatedFallbackHotels(globalFallbackRoom, finalExcludedIds);
+		const finalList = [...preFallbackList, ...globalFallbackHotels].slice(0, safeLimit);
 		const matchedLocationCount = finalList.filter((hotel) => profile.preferredLocations.includes(hotel.hotelLocation)).length;
-		const fallbackCount = strictStage.fallbackCount + relaxedStage.fallbackCount + generalStage.fallbackCount;
-		const onboardingWeight = strictStageEnabled ? 0.7 : 0.3;
-		const behaviorWeight = strictStageEnabled ? 0.3 : 0.7;
+		const fallbackCount = globalFallbackHotels.length;
 
 		const result: RecommendationResultPayload = {
 			list: finalList,
@@ -458,6 +466,13 @@ export class RecommendationService {
 		);
 
 		if (existingProfile && isFreshComputedProfile) {
+			const behaviorMaturity = this.calculateBehaviorMaturity({
+				searchCount: 0,
+				viewCount: existingProfile.viewedHotelIds?.length || 0,
+				likeCount: existingProfile.likedHotelIds?.length || 0,
+				bookingCount: existingProfile.bookedHotelIds?.length || 0,
+			});
+
 			return {
 				preferredLocations: existingProfile.preferredLocations || [],
 				preferredTypes: existingProfile.preferredTypes || [],
@@ -469,6 +484,7 @@ export class RecommendationService {
 				likedHotelIds: existingProfile.likedHotelIds || [],
 				bookedHotelIds: existingProfile.bookedHotelIds || [],
 				profileSource: 'computed',
+				behaviorMaturity,
 			};
 		}
 
@@ -566,6 +582,12 @@ export class RecommendationService {
 		const preferredAmenities = this.getTopFrequent(weightedAmenities.filter(Boolean), 5);
 		const hasBehaviorSignals =
 			searchHistory.length > 0 || viewedHotels.length > 0 || likedHotels.length > 0 || bookedHotels.length > 0;
+		const behaviorMaturity = this.calculateBehaviorMaturity({
+			searchCount: searchHistory.length,
+			viewCount: viewedHotels.length,
+			likeCount: likedHotels.length,
+			bookingCount: bookedHotels.length,
+		});
 
 		// Enrich from booked hotels (strongest signal)
 		if (bookedHotels.length > 0) {
@@ -600,6 +622,7 @@ export class RecommendationService {
 			likedHotelIds: likedHotels.map((l) => l.likeRefId),
 			bookedHotelIds: bookedHotels.map((b) => b.hotelId),
 			profileSource: onboardingSeed && !hasBehaviorSignals ? 'onboarding' : 'computed',
+			behaviorMaturity,
 		};
 	}
 
@@ -648,6 +671,40 @@ export class RecommendationService {
 		if (hours < 168) return 0.5;
 		if (hours < 720) return 0.2;
 		return 0.05;
+	}
+
+	private calculateBehaviorMaturity(signalCounts: {
+		searchCount: number;
+		viewCount: number;
+		likeCount: number;
+		bookingCount: number;
+	}): number {
+		const searchSignal = this.clampNumber(signalCounts.searchCount / 12, 0, 1) * 0.35;
+		const viewSignal = this.clampNumber(signalCounts.viewCount / 20, 0, 1) * 0.25;
+		const likeSignal = this.clampNumber(signalCounts.likeCount / 8, 0, 1) * 0.2;
+		const bookingSignal = this.clampNumber(signalCounts.bookingCount / 4, 0, 1) * 0.2;
+		const total = searchSignal + viewSignal + likeSignal + bookingSignal;
+
+		return this.round2(this.clampNumber(total, 0, 1));
+	}
+
+	private calculateBlendWeights(behaviorMaturity: number): { onboardingWeight: number; behaviorWeight: number } {
+		const maturity = this.clampNumber(behaviorMaturity, 0, 1);
+		const onboardingWeight = this.round2(this.clampNumber(0.85 - maturity * 0.6, 0.25, 0.85));
+		const behaviorWeight = this.round2(1 - onboardingWeight);
+
+		return {
+			onboardingWeight,
+			behaviorWeight,
+		};
+	}
+
+	private clampNumber(value: number, min: number, max: number): number {
+		return Math.min(max, Math.max(min, value));
+	}
+
+	private round2(value: number): number {
+		return Number(value.toFixed(2));
 	}
 
 	/**
@@ -851,6 +908,7 @@ export class RecommendationService {
 			enforcePreferredPurposes?: boolean;
 			enforcePriceRange?: boolean;
 			excludeHotelIds?: Types.ObjectId[];
+			allowFacetFallback?: boolean;
 		},
 	): Promise<RecommendationStageResult> {
 		if (limit <= 0) {
@@ -861,7 +919,8 @@ export class RecommendationService {
 		const [facetResult] = await this.hotelModel.aggregate<RecommendationFacetResult>(pipeline).exec();
 		const scored = facetResult?.recommended ?? [];
 		const fallback = facetResult?.fallback ?? [];
-		const combined = this.combineFacetResults(scored, fallback, limit);
+		const allowFacetFallback = options?.allowFacetFallback !== false;
+		const combined = allowFacetFallback ? this.combineFacetResults(scored, fallback, limit) : scored.slice(0, limit);
 		const fallbackCount = Math.max(0, combined.length - scored.length);
 		const hotels = combined.map((doc) => this.aggregateDocToHotelDto(doc));
 		const matchedLocationCount = hotels.filter((hotel) => profile.preferredLocations.includes(hotel.hotelLocation)).length;
@@ -871,6 +930,23 @@ export class RecommendationService {
 			fallbackCount,
 			matchedLocationCount,
 		};
+	}
+
+	private async getTopRatedFallbackHotels(limit: number, excludeHotelIds: Types.ObjectId[]): Promise<HotelDto[]> {
+		if (limit <= 0) {
+			return [];
+		}
+
+		const docs = await this.hotelModel
+			.find({
+				hotelStatus: HotelStatus.ACTIVE,
+				_id: { $nin: excludeHotelIds },
+			})
+			.sort({ hotelRank: -1, hotelRating: -1 })
+			.limit(limit)
+			.exec();
+
+		return docs.map(toHotelDto);
 	}
 
 	private combineFacetResults(scored: HotelDto[], fallback: HotelDto[], limit: number): HotelDto[] {
