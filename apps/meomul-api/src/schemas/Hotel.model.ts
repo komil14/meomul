@@ -238,6 +238,19 @@ HotelSchema.index({ 'detailedLocation.dong': 1 });
 HotelSchema.index({ suitableFor: 1 });
 HotelSchema.index({ hotelRank: -1 });
 HotelSchema.index({ hotelRating: -1 });
+HotelSchema.index(
+	{
+		hotelTitle: 'text',
+		hotelDesc: 'text',
+	},
+	{
+		name: 'hotel_text_search',
+		weights: {
+			hotelTitle: 8,
+			hotelDesc: 2,
+		},
+	},
+);
 
 // Compound unique index to prevent duplicate hotels (same title + location + address)
 HotelSchema.index(

@@ -530,13 +530,11 @@ export class HotelService {
 			});
 		}
 
-		// Text search (hotel title or description)
-		if (searchInput.text) {
+		// Text search uses MongoDB text index instead of regex scans.
+		const normalizedSearchText = this.normalizeSearchText(searchInput.text);
+		if (normalizedSearchText) {
 			this.appendAndFilter(query, {
-				$or: [
-					{ hotelTitle: { $regex: searchInput.text, $options: 'i' } },
-					{ hotelDesc: { $regex: searchInput.text, $options: 'i' } },
-				],
+				$text: { $search: normalizedSearchText },
 			});
 		}
 
@@ -594,6 +592,16 @@ export class HotelService {
 	private appendAndFilter(query: Record<string, unknown>, condition: Record<string, unknown>): void {
 		const andFilters = (query.$and as Record<string, unknown>[] | undefined) ?? [];
 		query.$and = [...andFilters, condition];
+	}
+
+	private normalizeSearchText(text?: string): string | null {
+		if (!text) {
+			return null;
+		}
+
+		const normalized = text.trim().split(/\s+/).filter(Boolean).join(' ');
+
+		return normalized.length ? normalized : null;
 	}
 
 	private buildStayDates(checkInDate: Date, checkOutDate: Date): Date[] {
