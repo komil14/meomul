@@ -8,7 +8,7 @@ import { HotelInput } from '../../libs/dto/hotel/hotel.input';
 import { HotelUpdate } from '../../libs/dto/hotel/hotel.update';
 import { HotelDto } from '../../libs/dto/hotel/hotel';
 import { HotelsDto } from '../../libs/dto/common/hotels';
-import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
+import { Direction, MetaCounterDto, PaginationInput } from '../../libs/dto/common/pagination';
 import { HotelSearchInput } from '../../libs/dto/common/search.input';
 import { HotelStatus, BadgeLevel } from '../../libs/enums/hotel.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
@@ -229,27 +229,9 @@ export class HotelService {
 			this.logSearchHistory(currentMember._id, searchInput).catch(() => {});
 		}
 
-		// Build query
-		const query = this.buildSearchQuery(searchInput);
-
-		// Apply purpose-based filters
-		if (searchInput?.purpose) {
-			const purposeFilter = this.getPurposeFilter(searchInput.purpose);
-			if (purposeFilter) {
-				this.appendAndFilter(query, purposeFilter);
-			}
-		}
-
-		// Apply room-based filters (price range, room types, guest count, date availability)
-		const needsRoomFilter =
-			searchInput?.priceRange || searchInput?.roomTypes?.length || searchInput?.guestCount || searchInput?.checkInDate;
-
-		if (needsRoomFilter && searchInput) {
-			const qualifyingHotelIds = await this.getHotelIdsByRoomFilters(searchInput);
-			if (qualifyingHotelIds.length === 0) {
-				return { list: [], metaCounter: { total: 0 } };
-			}
-			query._id = { $in: qualifyingHotelIds };
+		const query = await this.buildHotelsListingQuery(searchInput);
+		if (!query) {
+			return { list: [], metaCounter: { total: 0 } };
 		}
 
 		// Execute query
@@ -267,6 +249,41 @@ export class HotelService {
 			list: list.map(toHotelDto),
 			metaCounter: { total },
 		};
+	}
+
+	public async getHotelsCount(searchInput?: HotelSearchInput): Promise<MetaCounterDto> {
+		const query = await this.buildHotelsListingQuery(searchInput);
+		if (!query) {
+			return { total: 0 };
+		}
+
+		const total = await this.hotelModel.countDocuments(query).exec();
+
+		return { total };
+	}
+
+	private async buildHotelsListingQuery(searchInput?: HotelSearchInput): Promise<Record<string, unknown> | null> {
+		const query = this.buildSearchQuery(searchInput);
+
+		if (searchInput?.purpose) {
+			const purposeFilter = this.getPurposeFilter(searchInput.purpose);
+			if (purposeFilter) {
+				this.appendAndFilter(query, purposeFilter);
+			}
+		}
+
+		const needsRoomFilter =
+			searchInput?.priceRange || searchInput?.roomTypes?.length || searchInput?.guestCount || searchInput?.checkInDate;
+
+		if (needsRoomFilter && searchInput) {
+			const qualifyingHotelIds = await this.getHotelIdsByRoomFilters(searchInput);
+			if (qualifyingHotelIds.length === 0) {
+				return null;
+			}
+			query._id = { $in: qualifyingHotelIds };
+		}
+
+		return query;
 	}
 
 	private invalidateRecCache(memberId: string): void {

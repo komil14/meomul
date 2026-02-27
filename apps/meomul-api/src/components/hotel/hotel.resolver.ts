@@ -4,7 +4,7 @@ import { HotelDto } from '../../libs/dto/hotel/hotel';
 import { HotelInput } from '../../libs/dto/hotel/hotel.input';
 import { HotelUpdate } from '../../libs/dto/hotel/hotel.update';
 import { HotelsDto } from '../../libs/dto/common/hotels';
-import { PaginationInput } from '../../libs/dto/common/pagination';
+import { MetaCounterDto, PaginationInput } from '../../libs/dto/common/pagination';
 import { HotelSearchInput } from '../../libs/dto/common/search.input';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
@@ -123,6 +123,18 @@ export class HotelResolver {
 			return this.hotelService.getHotels(input, search, currentMember);
 		} catch (error) {
 			this.logger.error('Query getHotels failed', input.page, error);
+			throw error;
+		}
+	}
+
+	@Query(() => MetaCounterDto)
+	@Public()
+	public async getHotelsCount(@Args('search', { nullable: true }) search?: HotelSearchInput): Promise<MetaCounterDto> {
+		try {
+			this.logger.log('Query getHotelsCount', search?.location ?? 'all');
+			return this.hotelService.getHotelsCount(search);
+		} catch (error) {
+			this.logger.error('Query getHotelsCount failed', error);
 			throw error;
 		}
 	}
