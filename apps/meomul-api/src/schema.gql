@@ -900,6 +900,19 @@ type Query {
   searchMembersForBooking(keyword: String!, limit: Int = 10): [BookingGuestCandidateDto!]!
 }
 
+type RecommendationExplanationDto {
+  fromFallback: Boolean!
+  hotelId: String!
+  likedSimilar: Boolean!
+  matchedAmenities: [String!]!
+  matchedLocation: Boolean!
+  matchedPrice: Boolean!
+  matchedPurposes: [String!]!
+  matchedType: Boolean!
+  signals: [String!]!
+  stage: String!
+}
+
 type RecommendationMetaDto {
   behaviorWeight: Float!
   fallbackCount: Int!
@@ -924,6 +937,7 @@ type RecommendationProfileDto {
 }
 
 type RecommendedHotelsV2Dto {
+  explanations: [RecommendationExplanationDto!]!
   list: [HotelDto!]!
   meta: RecommendationMetaDto!
 }

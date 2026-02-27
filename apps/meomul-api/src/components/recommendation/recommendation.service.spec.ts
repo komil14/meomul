@@ -142,9 +142,7 @@ describe('RecommendationService', () => {
 				matchedLocationCount: 0,
 			});
 
-		jest
-			.spyOn(spyAccess, 'getTopRatedFallbackHotels')
-			.mockResolvedValue([createHotel('h-fallback', 'JEJU')]);
+		jest.spyOn(spyAccess, 'getTopRatedFallbackHotels').mockResolvedValue([createHotel('h-fallback', 'JEJU')]);
 
 		const result = await service.getRecommendedHotelsV2(memberId, 4);
 
@@ -155,8 +153,9 @@ describe('RecommendationService', () => {
 		expect(result.meta.generalStageCount).toBe(1);
 		expect(result.meta.fallbackCount).toBe(1);
 		expect(result.meta.matchedLocationCount).toBe(2);
+		expect(result.explanations).toHaveLength(4);
 		expect(cacheManager.set).toHaveBeenCalledWith(
-			expect.stringContaining(`rec:${memberId}:v-stage:algo-2:4`),
+			expect.stringContaining(`rec:${memberId}:v-stage:algo-4:4`),
 			result,
 			600000,
 		);
@@ -177,13 +176,14 @@ describe('RecommendationService', () => {
 				relaxedStageCount: 0,
 				generalStageCount: 0,
 			},
+			explanations: [],
 		};
 
-		cacheManager.get.mockImplementation(async (key: string) => {
+		cacheManager.get.mockImplementation((key: string) => {
 			if (key === `rec:v:${memberId}`) {
 				return 'v-cache';
 			}
-			if (key === `rec:${memberId}:v-cache:algo-2:3`) {
+			if (key === `rec:${memberId}:v-cache:algo-4:3`) {
 				return cachedPayload;
 			}
 			return null;

@@ -2,10 +2,14 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Cache } from 'cache-manager';
-import type { Model } from 'mongoose';
+import type { Model, ObjectId as MongooseObjectId } from 'mongoose';
 import { Types } from 'mongoose';
 import { HotelDto } from '../../libs/dto/hotel/hotel';
-import { RecommendationMetaDto, RecommendedHotelsV2Dto } from '../../libs/dto/preference/recommended-hotels.dto';
+import {
+	RecommendationExplanationDto,
+	RecommendationMetaDto,
+	RecommendedHotelsV2Dto,
+} from '../../libs/dto/preference/recommended-hotels.dto';
 import { RecommendationProfileDto } from '../../libs/dto/preference/recommendation-profile.dto';
 import { HotelStatus, HotelLocation } from '../../libs/enums/hotel.enum';
 import { ViewGroup, LikeGroup } from '../../libs/enums/common.enum';
@@ -54,13 +58,17 @@ interface RecommendationStageResult {
 interface RecommendationResultPayload {
 	list: HotelDto[];
 	meta: RecommendationMetaDto;
+	explanations: RecommendationExplanationDto[];
 }
 
 const RECOMMENDATION_CACHE_TTL_MS = 10 * 60 * 1000;
 const TRENDING_CACHE_TTL_MS = 15 * 60 * 1000;
 const RECOMMENDATION_VERSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_RECOMMENDATION_CACHE_VERSION = '1';
-const RECOMMENDATION_ALGO_VERSION = '2';
+const RECOMMENDATION_ALGO_VERSION = '4';
+
+type RecommendationReasonStage = 'strict' | 'relaxed' | 'general' | 'fallback' | 'trending';
+type RecommendationIdInput = string | Types.ObjectId | MongooseObjectId | { toHexString(): string };
 
 @Injectable()
 export class RecommendationService {
@@ -103,8 +111,7 @@ export class RecommendationService {
 		}
 
 		const profile = await this.buildUserProfile(memberId);
-		const hasActivity =
-			profile.preferredLocations.length > 0 || profile.likedHotelIds.length > 0 || profile.bookedHotelIds.length > 0;
+		const hasActivity = this.hasPreferenceSignals(profile);
 		const { onboardingWeight, behaviorWeight } = this.calculateBlendWeights(profile.behaviorMaturity);
 
 		if (!hasActivity) {
@@ -121,6 +128,7 @@ export class RecommendationService {
 					relaxedStageCount: 0,
 					generalStageCount: trending.length,
 				},
+				explanations: this.buildTrendingRecommendationExplanations(trending),
 			};
 			await this.cacheManager.set(cacheKey, noProfileResult, RECOMMENDATION_CACHE_TTL_MS);
 			this.logger.debug(`fallback to trending member=${memberId} limit=${safeLimit}`);
@@ -142,7 +150,7 @@ export class RecommendationService {
 				})
 			: this.emptyStageResult();
 
-		const selectedIdsAfterStrict = strictStage.hotels.map((hotel) => new Types.ObjectId(String(hotel._id)));
+		const selectedIdsAfterStrict = strictStage.hotels.map((hotel) => this.toObjectId(hotel._id));
 		const relaxedStageRoom = Math.max(0, Math.min(relaxedTarget, safeLimit - strictStage.hotels.length));
 		const relaxedStage = strictStageEnabled
 			? await this.runRecommendationStage(profile, relaxedStageRoom, {
@@ -153,7 +161,10 @@ export class RecommendationService {
 				})
 			: this.emptyStageResult();
 
-		const selectedIdsForGeneral = [...selectedIdsAfterStrict, ...relaxedStage.hotels.map((h) => new Types.ObjectId(String(h._id)))];
+		const selectedIdsForGeneral = [
+			...selectedIdsAfterStrict,
+			...relaxedStage.hotels.map((hotel) => this.toObjectId(hotel._id)),
+		];
 		const generalStageRoom = Math.max(0, safeLimit - strictStage.hotels.length - relaxedStage.hotels.length);
 		const generalStage = await this.runRecommendationStage(profile, generalStageRoom, {
 			excludeHotelIds: selectedIdsForGeneral,
@@ -161,11 +172,19 @@ export class RecommendationService {
 		});
 
 		const preFallbackList = [...strictStage.hotels, ...relaxedStage.hotels, ...generalStage.hotels];
-		const finalExcludedIds = preFallbackList.map((hotel) => new Types.ObjectId(String(hotel._id)));
+		const finalExcludedIds = preFallbackList.map((hotel) => this.toObjectId(hotel._id));
 		const globalFallbackRoom = Math.max(0, safeLimit - preFallbackList.length);
-		const globalFallbackHotels = await this.getTopRatedFallbackHotels(globalFallbackRoom, finalExcludedIds);
+		const globalFallbackHotels = await this.getTopRatedFallbackHotels(profile, globalFallbackRoom, finalExcludedIds);
 		const finalList = [...preFallbackList, ...globalFallbackHotels].slice(0, safeLimit);
-		const matchedLocationCount = finalList.filter((hotel) => profile.preferredLocations.includes(hotel.hotelLocation)).length;
+		const explanationStageMap = this.buildExplanationStageMap({
+			strict: strictStage.hotels,
+			relaxed: relaxedStage.hotels,
+			general: generalStage.hotels,
+			fallback: globalFallbackHotels,
+		});
+		const matchedLocationCount = finalList.filter((hotel) =>
+			profile.preferredLocations.includes(hotel.hotelLocation),
+		).length;
 		const fallbackCount = globalFallbackHotels.length;
 
 		const result: RecommendationResultPayload = {
@@ -180,6 +199,7 @@ export class RecommendationService {
 				relaxedStageCount: relaxedStage.hotels.length,
 				generalStageCount: generalStage.hotels.length,
 			},
+			explanations: this.buildRecommendationExplanations(profile, finalList, explanationStageMap),
 		};
 
 		await this.cacheManager.set(cacheKey, result, RECOMMENDATION_CACHE_TTL_MS);
@@ -536,6 +556,30 @@ export class RecommendationService {
 				.exec(),
 		]);
 
+		const signalHotelIds = Array.from(
+			new Set(
+				[
+					...viewedHotels.map((view) => this.toIdString(view.viewRefId)),
+					...likedHotels.map((like) => this.toIdString(like.likeRefId)),
+					...bookedHotels.map((booking) => this.toIdString(booking.hotelId)),
+				].filter(Boolean),
+			),
+		);
+		const signalHotelsById = new Map<string, HotelDocument>();
+		if (signalHotelIds.length > 0) {
+			const signalHotelDocs = await this.hotelModel
+				.find({
+					_id: { $in: signalHotelIds.map((id) => this.toObjectId(id)) },
+					hotelStatus: HotelStatus.ACTIVE,
+				})
+				.select('hotelLocation hotelType suitableFor')
+				.exec();
+
+			for (const hotel of signalHotelDocs) {
+				signalHotelsById.set(this.toIdString(hotel._id), hotel);
+			}
+		}
+
 		// Time-decay weighted extraction: recent searches weigh more
 		const weightedLocations: string[] = [];
 		const weightedTypes: string[] = [];
@@ -584,6 +628,36 @@ export class RecommendationService {
 			}
 		}
 
+		for (const view of viewedHotels) {
+			this.appendHotelPreferenceSignals(
+				weightedLocations,
+				weightedTypes,
+				weightedPurposes,
+				signalHotelsById.get(this.toIdString(view.viewRefId)),
+				2,
+			);
+		}
+
+		for (const like of likedHotels) {
+			this.appendHotelPreferenceSignals(
+				weightedLocations,
+				weightedTypes,
+				weightedPurposes,
+				signalHotelsById.get(this.toIdString(like.likeRefId)),
+				4,
+			);
+		}
+
+		for (const booking of bookedHotels) {
+			this.appendHotelPreferenceSignals(
+				weightedLocations,
+				weightedTypes,
+				weightedPurposes,
+				signalHotelsById.get(this.toIdString(booking.hotelId)),
+				6,
+			);
+		}
+
 		const preferredLocations = this.getTopFrequent(weightedLocations.filter(Boolean), 3);
 		const preferredTypes = this.getTopFrequent(weightedTypes.filter(Boolean), 3);
 		const preferredPurposes = this.getTopFrequent(weightedPurposes.filter(Boolean), 3);
@@ -596,28 +670,6 @@ export class RecommendationService {
 			likeCount: likedHotels.length,
 			bookingCount: bookedHotels.length,
 		});
-
-		// Enrich from booked hotels (strongest signal)
-		if (bookedHotels.length > 0) {
-			const bookedHotelDocs = await this.hotelModel
-				.find({ _id: { $in: bookedHotels.map((b) => b.hotelId) } })
-				.select('hotelLocation hotelType suitableFor')
-				.exec();
-
-			for (const hotel of bookedHotelDocs) {
-				if (hotel.hotelLocation && !preferredLocations.includes(hotel.hotelLocation)) {
-					preferredLocations.push(hotel.hotelLocation);
-				}
-				if (hotel.hotelType && !preferredTypes.includes(hotel.hotelType)) {
-					preferredTypes.push(hotel.hotelType);
-				}
-				for (const purpose of hotel.suitableFor || []) {
-					if (!preferredPurposes.includes(purpose)) {
-						preferredPurposes.push(purpose);
-					}
-				}
-			}
-		}
 
 		return {
 			preferredLocations: preferredLocations.slice(0, 5),
@@ -705,6 +757,226 @@ export class RecommendationService {
 			onboardingWeight,
 			behaviorWeight,
 		};
+	}
+
+	private hasPreferenceSignals(profile: UserPreferenceProfile): boolean {
+		return (
+			profile.preferredLocations.length > 0 ||
+			profile.preferredTypes.length > 0 ||
+			profile.preferredPurposes.length > 0 ||
+			profile.preferredAmenities.length > 0 ||
+			profile.avgPriceMin !== undefined ||
+			profile.avgPriceMax !== undefined ||
+			profile.likedHotelIds.length > 0 ||
+			profile.bookedHotelIds.length > 0 ||
+			profile.viewedHotelIds.length > 0
+		);
+	}
+
+	private buildTrendingRecommendationExplanations(hotels: HotelDto[]): RecommendationExplanationDto[] {
+		return hotels.map((hotel) => ({
+			hotelId: this.toIdString(hotel._id),
+			stage: 'trending',
+			fromFallback: true,
+			matchedLocation: false,
+			matchedType: false,
+			matchedPrice: false,
+			likedSimilar: false,
+			matchedPurposes: [],
+			matchedAmenities: [],
+			signals: ['Popular with guests right now', 'Strong overall activity and engagement'],
+		}));
+	}
+
+	private buildExplanationStageMap(stageGroups: {
+		strict: HotelDto[];
+		relaxed: HotelDto[];
+		general: HotelDto[];
+		fallback: HotelDto[];
+	}): Map<string, RecommendationReasonStage> {
+		const stageMap = new Map<string, RecommendationReasonStage>();
+		for (const hotel of stageGroups.strict) {
+			stageMap.set(this.toIdString(hotel._id), 'strict');
+		}
+		for (const hotel of stageGroups.relaxed) {
+			stageMap.set(this.toIdString(hotel._id), 'relaxed');
+		}
+		for (const hotel of stageGroups.general) {
+			stageMap.set(this.toIdString(hotel._id), 'general');
+		}
+		for (const hotel of stageGroups.fallback) {
+			stageMap.set(this.toIdString(hotel._id), 'fallback');
+		}
+
+		return stageMap;
+	}
+
+	private buildRecommendationExplanations(
+		profile: UserPreferenceProfile,
+		hotels: HotelDto[],
+		stageMap: Map<string, RecommendationReasonStage>,
+	): RecommendationExplanationDto[] {
+		return hotels.map((hotel) => this.buildRecommendationExplanation(profile, hotel, stageMap));
+	}
+
+	private buildRecommendationExplanation(
+		profile: UserPreferenceProfile,
+		hotel: HotelDto,
+		stageMap: Map<string, RecommendationReasonStage>,
+	): RecommendationExplanationDto {
+		const hotelId = this.toIdString(hotel._id);
+		const stage = stageMap.get(hotelId) ?? 'general';
+		const matchedLocation = profile.preferredLocations.includes(hotel.hotelLocation);
+		const matchedType = profile.preferredTypes.includes(hotel.hotelType);
+		const matchedPurposes = (hotel.suitableFor || []).filter((purpose) => profile.preferredPurposes.includes(purpose));
+		const matchedAmenities = profile.preferredAmenities.filter((amenity) => this.hasHotelAmenity(hotel, amenity));
+		const matchedPrice = stage === 'strict' && profile.avgPriceMax !== undefined;
+		const likedSimilar =
+			profile.likedHotelIds.length > 0 &&
+			(matchedLocation || matchedType || matchedPurposes.length > 0 || matchedAmenities.length > 0);
+		const signals = this.buildRecommendationSignals({
+			stage,
+			matchedLocation,
+			matchedType,
+			matchedPurposes,
+			matchedAmenities,
+			matchedPrice,
+			likedSimilar,
+		});
+
+		return {
+			hotelId,
+			stage,
+			fromFallback: stage === 'fallback',
+			matchedLocation,
+			matchedType,
+			matchedPrice,
+			likedSimilar,
+			matchedPurposes,
+			matchedAmenities,
+			signals,
+		};
+	}
+
+	private buildRecommendationSignals(input: {
+		stage: RecommendationReasonStage;
+		matchedLocation: boolean;
+		matchedType: boolean;
+		matchedPurposes: string[];
+		matchedAmenities: string[];
+		matchedPrice: boolean;
+		likedSimilar: boolean;
+	}): string[] {
+		const signals: string[] = [];
+
+		switch (input.stage) {
+			case 'strict':
+				signals.push('Strong match for your saved travel preferences');
+				break;
+			case 'relaxed':
+				signals.push('Good match based on your core preferences');
+				break;
+			case 'general':
+				signals.push('Balanced pick based on your recent browsing behavior');
+				break;
+			case 'fallback':
+				signals.push('High-quality fallback aligned with your general taste');
+				break;
+			default:
+				break;
+		}
+
+		if (input.matchedLocation) {
+			signals.push('Matches your preferred location');
+		}
+		if (input.matchedType) {
+			signals.push('Matches your preferred hotel type');
+		}
+		if (input.matchedPurposes.length > 0) {
+			signals.push(`Fits your trip purpose: ${input.matchedPurposes.slice(0, 2).join(', ')}`);
+		}
+		if (input.matchedAmenities.length > 0) {
+			signals.push(`Includes amenities you often choose: ${input.matchedAmenities.slice(0, 2).join(', ')}`);
+		}
+		if (input.matchedPrice) {
+			signals.push('Stays within your usual budget range');
+		}
+		if (input.likedSimilar) {
+			signals.push('Similar to hotels you previously liked');
+		}
+
+		if (signals.length === 0) {
+			signals.push('Recommended from your overall profile and platform quality signals');
+		}
+
+		return signals.slice(0, 4);
+	}
+
+	private hasHexStringMethod(value: unknown): value is { toHexString(): string } {
+		return (
+			typeof value === 'object' &&
+			value !== null &&
+			typeof (value as { toHexString?: unknown }).toHexString === 'function'
+		);
+	}
+
+	private toIdString(value: RecommendationIdInput): string {
+		if (typeof value === 'string') {
+			return value;
+		}
+
+		if (this.hasHexStringMethod(value)) {
+			return value.toHexString();
+		}
+
+		throw new TypeError('Unsupported recommendation id value');
+	}
+
+	private toObjectId(value: RecommendationIdInput): Types.ObjectId {
+		if (value instanceof Types.ObjectId) {
+			return value;
+		}
+
+		if (typeof value === 'string') {
+			return new Types.ObjectId(value);
+		}
+
+		if (this.hasHexStringMethod(value)) {
+			return new Types.ObjectId(value.toHexString());
+		}
+
+		throw new TypeError('Unsupported recommendation id value');
+	}
+
+	private appendHotelPreferenceSignals(
+		weightedLocations: string[],
+		weightedTypes: string[],
+		weightedPurposes: string[],
+		hotel: HotelDocument | undefined,
+		repeatCount: number,
+	): void {
+		if (!hotel || repeatCount <= 0) {
+			return;
+		}
+
+		if (hotel.hotelLocation) {
+			for (let i = 0; i < repeatCount; i += 1) weightedLocations.push(hotel.hotelLocation);
+		}
+		if (hotel.hotelType) {
+			for (let i = 0; i < repeatCount; i += 1) weightedTypes.push(hotel.hotelType);
+		}
+		for (const purpose of hotel.suitableFor || []) {
+			for (let i = 0; i < repeatCount; i += 1) weightedPurposes.push(purpose);
+		}
+	}
+
+	private hasHotelAmenity(hotel: HotelDto, amenity: string): boolean {
+		const amenityMap = hotel.amenities as unknown as Record<string, unknown> | undefined;
+		if (!amenityMap) {
+			return false;
+		}
+
+		return amenityMap[amenity] === true;
 	}
 
 	private clampNumber(value: number, min: number, max: number): number {
@@ -892,8 +1164,24 @@ export class RecommendationService {
 			$facet: {
 				// Primary: personalized scored results
 				recommended: [{ $sort: { recommendationScore: -1, hotelRating: -1 } }, { $limit: limit }],
-				// Fallback: top-rated hotels (used when scored results < limit)
-				fallback: [{ $sort: { hotelRank: -1, hotelRating: -1 } }, { $limit: limit }],
+				// Fallback: still profile-aware, then rank/rating/popularity.
+				fallback: [
+					{
+						$sort: {
+							locationScore: -1,
+							typeScore: -1,
+							purposeScore: -1,
+							amenityScore: -1,
+							priceScore: -1,
+							hotelRank: -1,
+							hotelRating: -1,
+							hotelLikes: -1,
+							hotelReviews: -1,
+							updatedAt: -1,
+						},
+					},
+					{ $limit: limit },
+				],
 			},
 		});
 
@@ -931,7 +1219,9 @@ export class RecommendationService {
 		const combined = allowFacetFallback ? this.combineFacetResults(scored, fallback, limit) : scored.slice(0, limit);
 		const fallbackCount = Math.max(0, combined.length - scored.length);
 		const hotels = combined.map((doc) => this.aggregateDocToHotelDto(doc));
-		const matchedLocationCount = hotels.filter((hotel) => profile.preferredLocations.includes(hotel.hotelLocation)).length;
+		const matchedLocationCount = hotels.filter((hotel) =>
+			profile.preferredLocations.includes(hotel.hotelLocation),
+		).length;
 
 		return {
 			hotels,
@@ -940,26 +1230,61 @@ export class RecommendationService {
 		};
 	}
 
-	private async getTopRatedFallbackHotels(limit: number, excludeHotelIds: Types.ObjectId[]): Promise<HotelDto[]> {
+	private async getTopRatedFallbackHotels(
+		profile: UserPreferenceProfile,
+		limit: number,
+		excludeHotelIds: Types.ObjectId[],
+	): Promise<HotelDto[]> {
 		if (limit <= 0) {
 			return [];
 		}
 
-		const docs = await this.hotelModel
-			.find({
-				hotelStatus: HotelStatus.ACTIVE,
-				_id: { $nin: excludeHotelIds },
-			})
-			.sort({ hotelRank: -1, hotelRating: -1 })
-			.limit(limit)
-			.exec();
+		const pipeline: any[] = [
+			{
+				$match: {
+					hotelStatus: HotelStatus.ACTIVE,
+					_id: { $nin: excludeHotelIds },
+				},
+			},
+			{
+				$addFields: {
+					fallbackLocationScore: {
+						$cond: [{ $in: ['$hotelLocation', profile.preferredLocations] }, 1, 0],
+					},
+					fallbackTypeScore: {
+						$cond: [{ $in: ['$hotelType', profile.preferredTypes] }, 1, 0],
+					},
+					fallbackPurposeScore: {
+						$size: {
+							$setIntersection: [{ $ifNull: ['$suitableFor', []] }, profile.preferredPurposes],
+						},
+					},
+				},
+			},
+			{
+				$sort: {
+					fallbackLocationScore: -1,
+					fallbackTypeScore: -1,
+					fallbackPurposeScore: -1,
+					hotelRank: -1,
+					hotelRating: -1,
+					hotelLikes: -1,
+					hotelReviews: -1,
+					updatedAt: -1,
+				},
+			},
+			{ $limit: limit },
+		];
 
-		return docs.map(toHotelDto);
+		const docs = await this.hotelModel.aggregate<HotelDto>(pipeline).exec();
+		return docs.map((doc) => this.aggregateDocToHotelDto(doc));
 	}
 
 	private combineFacetResults(scored: HotelDto[], fallback: HotelDto[], limit: number): HotelDto[] {
-		const usedIds = new Set(scored.map((hotel) => String(hotel._id)));
-		const padding = fallback.filter((hotel) => !usedIds.has(String(hotel._id))).slice(0, Math.max(0, limit - scored.length));
+		const usedIds = new Set(scored.map((hotel) => this.toIdString(hotel._id)));
+		const padding = fallback
+			.filter((hotel) => !usedIds.has(this.toIdString(hotel._id)))
+			.slice(0, Math.max(0, limit - scored.length));
 		return [...scored, ...padding];
 	}
 

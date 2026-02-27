@@ -29,10 +29,46 @@ export class RecommendationMetaDto {
 }
 
 @ObjectType()
+export class RecommendationExplanationDto {
+	@Field(() => String)
+	hotelId: string;
+
+	@Field(() => String)
+	stage: string;
+
+	@Field(() => Boolean)
+	fromFallback: boolean;
+
+	@Field(() => Boolean)
+	matchedLocation: boolean;
+
+	@Field(() => Boolean)
+	matchedType: boolean;
+
+	@Field(() => Boolean)
+	matchedPrice: boolean;
+
+	@Field(() => Boolean)
+	likedSimilar: boolean;
+
+	@Field(() => [String])
+	matchedPurposes: string[];
+
+	@Field(() => [String])
+	matchedAmenities: string[];
+
+	@Field(() => [String])
+	signals: string[];
+}
+
+@ObjectType()
 export class RecommendedHotelsV2Dto {
 	@Field(() => [HotelDto])
 	list: HotelDto[];
 
 	@Field(() => RecommendationMetaDto)
 	meta: RecommendationMetaDto;
+
+	@Field(() => [RecommendationExplanationDto])
+	explanations: RecommendationExplanationDto[];
 }
