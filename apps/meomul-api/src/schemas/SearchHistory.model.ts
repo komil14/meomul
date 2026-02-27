@@ -34,6 +34,7 @@ const SearchHistorySchema = new Schema(
 		},
 		guestCount: Number,
 		text: String,
+		fingerprint: String,
 	},
 	{
 		timestamps: true,
@@ -43,6 +44,7 @@ const SearchHistorySchema = new Schema(
 
 // Fast per-user queries
 SearchHistorySchema.index({ memberId: 1, createdAt: -1 });
+SearchHistorySchema.index({ memberId: 1, fingerprint: 1, createdAt: -1 });
 
 // Auto-cleanup: delete search history older than 90 days
 SearchHistorySchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 86400 });

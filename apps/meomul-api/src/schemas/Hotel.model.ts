@@ -233,11 +233,14 @@ const HotelSchema = new Schema(
 );
 
 // Indexes
-HotelSchema.index({ hotelLocation: 1, hotelStatus: 1 });
+HotelSchema.index({ hotelStatus: 1, hotelLocation: 1, hotelRank: -1 });
 HotelSchema.index({ 'detailedLocation.dong': 1 });
 HotelSchema.index({ suitableFor: 1 });
-HotelSchema.index({ hotelRank: -1 });
-HotelSchema.index({ hotelRating: -1 });
+HotelSchema.index({ hotelStatus: 1, hotelRank: -1 });
+HotelSchema.index({ hotelStatus: 1, hotelRating: -1 });
+HotelSchema.index({ hotelStatus: 1, hotelLikes: -1 });
+HotelSchema.index({ hotelStatus: 1, createdAt: -1 });
+HotelSchema.index({ memberId: 1, createdAt: -1 });
 HotelSchema.index(
 	{
 		hotelTitle: 'text',

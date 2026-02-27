@@ -108,6 +108,8 @@ const RoomSchema = new Schema(
 // Indexes
 RoomSchema.index({ hotelId: 1, roomType: 1 });
 RoomSchema.index({ roomStatus: 1 });
+RoomSchema.index({ roomStatus: 1, roomType: 1, basePrice: 1, hotelId: 1 });
+RoomSchema.index({ roomStatus: 1, maxOccupancy: 1, hotelId: 1 });
 RoomSchema.index({ 'lastMinuteDeal.isActive': 1, 'lastMinuteDeal.validUntil': 1 });
 
 // Compound unique index for room number per hotel (only when roomNumber exists)

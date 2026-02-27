@@ -15,6 +15,7 @@ export interface SearchHistoryDocument extends Document {
 	starRatings: number[];
 	guestCount?: number;
 	text?: string;
+	fingerprint?: string;
 	createdAt: Date;
 }
 

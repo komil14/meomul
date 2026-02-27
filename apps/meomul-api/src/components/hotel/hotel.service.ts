@@ -28,6 +28,8 @@ import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 
 @Injectable()
 export class HotelService {
+	private readonly searchHistoryDedupeWindowMs = 5 * 60 * 1000;
+
 	constructor(
 		@Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
 		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
@@ -222,25 +224,9 @@ export class HotelService {
 		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
 		const skip = (page - 1) * limit;
 
-		// Fire-and-forget: log search for recommendations
+		// Fire-and-forget: log meaningful searches for recommendations, with duplicate suppression.
 		if (currentMember?._id && searchInput) {
-			this.searchHistoryModel
-				.create({
-					memberId: currentMember._id,
-					location: searchInput.location,
-					hotelTypes: searchInput.hotelTypes,
-					priceMin: searchInput.priceRange?.start,
-					priceMax: searchInput.priceRange?.end,
-					purpose: searchInput.purpose,
-					amenities: searchInput.amenities,
-					starRatings: searchInput.starRatings,
-					guestCount: searchInput.guestCount,
-					text: searchInput.text,
-				})
-				.then(() => {
-					this.invalidateRecCache(currentMember._id);
-				})
-				.catch(() => {});
+			this.logSearchHistory(currentMember._id, searchInput).catch(() => {});
 		}
 
 		// Build query
@@ -291,6 +277,90 @@ export class HotelService {
 			this.cacheManager.del(`rec:${memberId}:10`), // legacy keys
 			this.cacheManager.del(`rec:${memberId}:20`), // legacy keys
 		]).catch(() => {});
+	}
+
+	private async logSearchHistory(memberId: string, searchInput: HotelSearchInput): Promise<void> {
+		const payload = this.buildSearchHistoryPayload(searchInput);
+		if (!payload) {
+			return;
+		}
+
+		const fingerprint = this.buildSearchFingerprint(searchInput);
+		const cutoffDate = new Date(Date.now() - this.searchHistoryDedupeWindowMs);
+
+		const duplicateEntry = await this.searchHistoryModel
+			.findOne({
+				memberId,
+				fingerprint,
+				createdAt: { $gte: cutoffDate },
+			})
+			.select('_id')
+			.lean()
+			.exec();
+
+		if (duplicateEntry) {
+			return;
+		}
+
+		await this.searchHistoryModel.create({
+			memberId,
+			fingerprint,
+			...payload,
+		});
+
+		this.invalidateRecCache(memberId);
+	}
+
+	private buildSearchHistoryPayload(searchInput: HotelSearchInput): Record<string, unknown> | null {
+		const payload = {
+			location: searchInput.location,
+			hotelTypes: this.normalizeStringArray(searchInput.hotelTypes),
+			priceMin: searchInput.priceRange?.start,
+			priceMax: searchInput.priceRange?.end,
+			purpose: searchInput.purpose,
+			amenities: this.normalizeStringArray(searchInput.amenities),
+			starRatings: this.normalizeNumberArray(searchInput.starRatings),
+			guestCount: searchInput.guestCount,
+			text: this.normalizeSearchText(searchInput.text) ?? undefined,
+		};
+
+		const hasMeaningfulSignal =
+			Boolean(payload.location) ||
+			payload.hotelTypes.length > 0 ||
+			payload.priceMin !== undefined ||
+			payload.priceMax !== undefined ||
+			Boolean(payload.purpose) ||
+			payload.amenities.length > 0 ||
+			payload.starRatings.length > 0 ||
+			payload.guestCount !== undefined ||
+			Boolean(payload.text);
+
+		return hasMeaningfulSignal ? payload : null;
+	}
+
+	private buildSearchFingerprint(searchInput: HotelSearchInput): string {
+		return JSON.stringify({
+			location: searchInput.location ?? null,
+			dong: this.normalizeQueryText(searchInput.dong),
+			nearestSubway: this.normalizeQueryText(searchInput.nearestSubway),
+			subwayLines: this.normalizeNumberArray(searchInput.subwayLines),
+			maxWalkingDistance: searchInput.maxWalkingDistance ?? null,
+			hotelTypes: this.normalizeStringArray(searchInput.hotelTypes),
+			roomTypes: this.normalizeStringArray(searchInput.roomTypes),
+			priceStart: searchInput.priceRange?.start ?? null,
+			priceEnd: searchInput.priceRange?.end ?? null,
+			starRatings: this.normalizeNumberArray(searchInput.starRatings),
+			minRating: searchInput.minRating ?? null,
+			amenities: this.normalizeStringArray(searchInput.amenities),
+			verifiedOnly: Boolean(searchInput.verifiedOnly),
+			purpose: searchInput.purpose ?? null,
+			checkInDate: this.normalizeDateValue(searchInput.checkInDate),
+			checkOutDate: this.normalizeDateValue(searchInput.checkOutDate),
+			guestCount: searchInput.guestCount ?? null,
+			petsAllowed: Boolean(searchInput.petsAllowed),
+			wheelchairAccessible: Boolean(searchInput.wheelchairAccessible),
+			text: this.normalizeSearchText(searchInput.text),
+		});
 	}
 
 	/**
@@ -594,7 +664,7 @@ export class HotelService {
 		query.$and = [...andFilters, condition];
 	}
 
-	private normalizeSearchText(text?: string): string | null {
+	private normalizeQueryText(text?: string): string | null {
 		if (!text) {
 			return null;
 		}
@@ -602,6 +672,37 @@ export class HotelService {
 		const normalized = text.trim().split(/\s+/).filter(Boolean).join(' ');
 
 		return normalized.length ? normalized : null;
+	}
+
+	private normalizeSearchText(text?: string): string | null {
+		return this.normalizeQueryText(text);
+	}
+
+	private normalizeStringArray(values?: Array<string | number>): string[] {
+		if (!values?.length) {
+			return [];
+		}
+
+		return Array.from(new Set(values.map((value) => String(value).trim()).filter(Boolean))).sort((left, right) =>
+			left.localeCompare(right),
+		);
+	}
+
+	private normalizeNumberArray(values?: number[]): number[] {
+		if (!values?.length) {
+			return [];
+		}
+
+		return Array.from(new Set(values)).sort((left, right) => left - right);
+	}
+
+	private normalizeDateValue(date?: Date): string | null {
+		if (!date) {
+			return null;
+		}
+
+		const normalizedDate = new Date(date);
+		return Number.isNaN(normalizedDate.getTime()) ? null : normalizedDate.toISOString().slice(0, 10);
 	}
 
 	private buildStayDates(checkInDate: Date, checkOutDate: Date): Date[] {
