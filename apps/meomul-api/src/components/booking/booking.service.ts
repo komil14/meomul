@@ -254,6 +254,37 @@ export class BookingService {
 			)
 			.catch(() => {});
 
+		// Notify the guest (fire-and-forget)
+		this.notificationService
+			.createAndPush(
+				{
+					userId: bookingGuestId,
+					type: NotificationType.NEW_BOOKING,
+					title: 'Booking Created',
+					message: `Your booking ${bookingCode} has been created. We'll notify you once it's confirmed.`,
+					link: `/bookings`,
+				},
+				'BOOKING',
+			)
+			.catch(() => {});
+
+		// Notify the hotel agent (fire-and-forget)
+		const agentHotel = await this.hotelModel.findById(input.hotelId).select('memberId hotelTitle').exec();
+		if (agentHotel?.memberId) {
+			this.notificationService
+				.createAndPush(
+					{
+						userId: String(agentHotel.memberId),
+						type: NotificationType.NEW_BOOKING,
+						title: 'New Booking Received',
+						message: `New booking ${bookingCode} for ${agentHotel.hotelTitle ?? 'your hotel'}.`,
+						link: `/bookings`,
+					},
+					'BOOKING',
+				)
+				.catch(() => {});
+		}
+
 		// Invalidate recommendation cache for this user (fire-and-forget)
 		Promise.all([
 			this.cacheManager.set(`rec:v:${bookingGuestId}`, Date.now().toString(), 7 * 24 * 60 * 60 * 1000),
@@ -403,6 +434,20 @@ export class BookingService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
+		// Notify guest about status change (fire-and-forget)
+		this.notificationService
+			.createAndPush(
+				{
+					userId: String(updatedBooking.guestId),
+					type: NotificationType.BOOKING_REMINDER,
+					title: `Booking ${newStatus}`,
+					message: this.bookingStatusMessage(newStatus, updatedBooking.bookingCode),
+					link: `/bookings`,
+				},
+				'BOOKING',
+			)
+			.catch(() => {});
+
 		return toBookingDto(updatedBooking);
 	}
 
@@ -543,6 +588,22 @@ export class BookingService {
 
 		if (!updatedBooking) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		// Notify guest about payment status change (fire-and-forget)
+		if (paymentStatus === PaymentStatus.PAID) {
+			this.notificationService
+				.createAndPush(
+					{
+						userId: String(updatedBooking.guestId),
+						type: NotificationType.POINTS_EARNED,
+						title: 'Payment Confirmed',
+						message: `Payment of ₩${paidAmount.toLocaleString()} for booking ${updatedBooking.bookingCode} has been confirmed.`,
+						link: `/bookings`,
+					},
+					'PAYMENT',
+				)
+				.catch(() => {});
 		}
 
 		return toBookingDto(updatedBooking);
@@ -752,7 +813,51 @@ export class BookingService {
 			)
 			.catch(() => {});
 
+		// Notify the guest about cancellation (fire-and-forget)
+		this.notificationService
+			.createAndPush(
+				{
+					userId: String(booking.guestId),
+					type: NotificationType.BOOKING_CANCELLED,
+					title: 'Booking Cancelled',
+					message:
+						refundAmount > 0
+							? `Booking ${booking.bookingCode} was cancelled. Refund: ₩${refundAmount.toLocaleString()}.`
+							: `Booking ${booking.bookingCode} was cancelled.`,
+					link: `/bookings`,
+				},
+				'BOOKING',
+			)
+			.catch(() => {});
+
+		// Notify hotel agent about cancellation (fire-and-forget)
+		const cancelHotel = await this.hotelModel.findById(booking.hotelId).select('memberId hotelTitle').exec();
+		if (cancelHotel?.memberId && String(cancelHotel.memberId) !== currentMember._id) {
+			this.notificationService
+				.createAndPush(
+					{
+						userId: String(cancelHotel.memberId),
+						type: NotificationType.BOOKING_CANCELLED,
+						title: 'Booking Cancelled',
+						message: `Booking ${booking.bookingCode} for ${cancelHotel.hotelTitle ?? 'your hotel'} was cancelled.`,
+						link: `/bookings`,
+					},
+					'BOOKING',
+				)
+				.catch(() => {});
+		}
+
 		return toBookingDto(updatedBooking);
+	}
+
+	private bookingStatusMessage(status: BookingStatus, bookingCode: string): string {
+		const messages: Partial<Record<BookingStatus, string>> = {
+			[BookingStatus.CONFIRMED]: `Your booking ${bookingCode} has been confirmed!`,
+			[BookingStatus.CHECKED_IN]: `Check-in for booking ${bookingCode} successful. Enjoy your stay!`,
+			[BookingStatus.CHECKED_OUT]: `Thank you for staying with us! Booking ${bookingCode} is now checked out.`,
+			[BookingStatus.NO_SHOW]: `Booking ${bookingCode} was marked as no-show.`,
+		};
+		return messages[status] ?? `Booking ${bookingCode} status updated to ${status}.`;
 	}
 
 	private ensureBookingIsCancellable(status: BookingStatus): void {

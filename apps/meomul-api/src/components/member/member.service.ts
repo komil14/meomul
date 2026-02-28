@@ -293,15 +293,18 @@ export class MemberService {
 			throw new BadRequestException(Messages.NO_MEMBER_NICK);
 		}
 
-		// Notify user (fire-and-forget)
+		// Notify user (fire-and-forget — DB + real-time push)
 		this.notificationService
-			.createNotification({
-				userId: memberId,
-				type: NotificationType.SUBSCRIPTION_APPROVED,
-				title: 'Subscription Activated',
-				message: `Your ${tier} subscription has been activated for ${durationDays} days!`,
-				link: '/profile',
-			})
+			.createAndPush(
+				{
+					userId: memberId,
+					type: NotificationType.SUBSCRIPTION_APPROVED,
+					title: 'Subscription Activated',
+					message: `Your ${tier} subscription has been activated for ${durationDays} days!`,
+					link: '/profile',
+				},
+				'SYSTEM',
+			)
 			.catch(() => {});
 
 		return updatedMember;
@@ -313,15 +316,18 @@ export class MemberService {
 			throw new BadRequestException(Messages.NO_MEMBER_NICK);
 		}
 
-		// Notify user (fire-and-forget)
+		// Notify user (fire-and-forget — DB + real-time push)
 		this.notificationService
-			.createNotification({
-				userId: memberId,
-				type: NotificationType.SUBSCRIPTION_DENIED,
-				title: 'Subscription Request Denied',
-				message: reason || 'Your subscription request has been denied by admin.',
-				link: '/profile',
-			})
+			.createAndPush(
+				{
+					userId: memberId,
+					type: NotificationType.SUBSCRIPTION_DENIED,
+					title: 'Subscription Request Denied',
+					message: reason || 'Your subscription request has been denied by admin.',
+					link: '/profile',
+				},
+				'SYSTEM',
+			)
 			.catch(() => {});
 
 		return {
@@ -353,15 +359,18 @@ export class MemberService {
 			throw new BadRequestException(Messages.NO_MEMBER_NICK);
 		}
 
-		// Notify user (fire-and-forget)
+		// Notify user (fire-and-forget — DB + real-time push)
 		this.notificationService
-			.createNotification({
-				userId: memberId,
-				type: NotificationType.SUBSCRIPTION_CANCELLED,
-				title: 'Subscription Cancelled',
-				message: 'Your subscription has been cancelled. You are now on the FREE tier.',
-				link: '/profile',
-			})
+			.createAndPush(
+				{
+					userId: memberId,
+					type: NotificationType.SUBSCRIPTION_CANCELLED,
+					title: 'Subscription Cancelled',
+					message: 'Your subscription has been cancelled. You are now on the FREE tier.',
+					link: '/profile',
+				},
+				'SYSTEM',
+			)
 			.catch(() => {});
 
 		return updatedMember;

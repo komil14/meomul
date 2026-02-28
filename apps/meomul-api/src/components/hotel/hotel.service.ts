@@ -175,6 +175,28 @@ export class HotelService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
+		// Notify hotel agent if status changed (fire-and-forget)
+		if (input.hotelStatus && input.hotelStatus !== hotel.hotelStatus && hotel.memberId) {
+			const statusLabels: Record<string, string> = {
+				ACTIVE: 'Your hotel is now live and visible to guests!',
+				SUSPENDED: 'Your hotel has been suspended. Contact support for details.',
+				CLOSED: 'Your hotel listing has been closed by an administrator.',
+				PENDING: 'Your hotel listing is now under review.',
+			};
+			this.notificationService
+				.createAndPush(
+					{
+						userId: String(hotel.memberId),
+						type: NotificationType.NEW_HOTEL,
+						title: `Hotel ${input.hotelStatus}`,
+						message: statusLabels[input.hotelStatus] ?? `Hotel status updated to ${input.hotelStatus}.`,
+						link: `/hotels/${String(hotel._id)}`,
+					},
+					'HOTEL',
+				)
+				.catch(() => {});
+		}
+
 		return toHotelDto(updatedHotel);
 	}
 

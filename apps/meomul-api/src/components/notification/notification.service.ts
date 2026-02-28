@@ -24,7 +24,7 @@ export class NotificationService {
 	) {}
 
 	/**
-	 * Create a notification
+	 * Create a notification (DB only, no real-time push)
 	 */
 	public async createNotification(input: NotificationInput): Promise<NotificationDto> {
 		const notification = await this.notificationModel.create({
@@ -37,6 +37,32 @@ export class NotificationService {
 		});
 
 		return toNotificationDto(notification);
+	}
+
+	/**
+	 * Create a notification AND push it in real-time via WebSocket.
+	 * Use this for user-facing notifications that should appear instantly.
+	 */
+	public async createAndPush(
+		input: NotificationInput,
+		wsType: 'BOOKING' | 'PAYMENT' | 'REVIEW' | 'HOTEL' | 'SYSTEM' = 'SYSTEM',
+	): Promise<NotificationDto> {
+		const dto = await this.createNotification(input);
+
+		// Real-time push (fire-and-forget)
+		try {
+			this.notificationGateway.sendToUser(input.userId, {
+				type: wsType,
+				title: input.title,
+				message: input.message,
+				data: { notificationType: input.type, link: input.link },
+				timestamp: new Date(),
+			});
+		} catch (err) {
+			this.logger.warn(`WS push failed for user ${input.userId}: ${err}`);
+		}
+
+		return dto;
 	}
 
 	/**

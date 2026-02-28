@@ -105,6 +105,22 @@ export class ReviewService {
 			)
 			.catch(() => {});
 
+		// Notify hotel agent about new review (fire-and-forget)
+		if (hotel.memberId) {
+			this.notificationService
+				.createAndPush(
+					{
+						userId: String(hotel.memberId),
+						type: NotificationType.NEW_REVIEW,
+						title: 'New Review',
+						message: `A guest left a ${input.overallRating}-star review for "${hotel.hotelTitle}".`,
+						link: `/hotels/${String(booking.hotelId)}`,
+					},
+					'REVIEW',
+				)
+				.catch(() => {});
+		}
+
 		return toReviewDto(review);
 	}
 
@@ -299,9 +315,7 @@ export class ReviewService {
 			.select('_id memberNick memberImage')
 			.exec();
 
-		const hotelTitleById = new Map<string, string>(
-			hotels.map((hotel) => [String(hotel._id), hotel.hotelTitle]),
-		);
+		const hotelTitleById = new Map<string, string>(hotels.map((hotel) => [String(hotel._id), hotel.hotelTitle]));
 		const reviewerById = new Map<string, { memberNick?: string; memberImage?: string }>(
 			reviewers.map((member) => [
 				String(member._id),
@@ -409,7 +423,10 @@ export class ReviewService {
 			.exec();
 
 		const reviewerById = new Map(
-			reviewers.map((member) => [String(member._id), { memberNick: member.memberNick, memberImage: member.memberImage }]),
+			reviewers.map((member) => [
+				String(member._id),
+				{ memberNick: member.memberNick, memberImage: member.memberImage },
+			]),
 		);
 
 		return list.map((review) => {
@@ -499,6 +516,22 @@ export class ReviewService {
 
 		if (!updatedReview) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		// Notify the reviewer that the hotel responded (fire-and-forget)
+		if (review.reviewerId) {
+			this.notificationService
+				.createAndPush(
+					{
+						userId: String(review.reviewerId),
+						type: NotificationType.HOTEL_REPLY,
+						title: 'Hotel Responded to Your Review',
+						message: `${hotel.hotelTitle ?? 'The hotel'} responded to your review.`,
+						link: `/hotels/${String(review.hotelId)}`,
+					},
+					'REVIEW',
+				)
+				.catch(() => {});
 		}
 
 		return toReviewDto(updatedReview);
