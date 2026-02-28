@@ -404,6 +404,26 @@ type Followings {
   metaCounter: MetaCounterDto!
 }
 
+type HomeLastMinuteDealDto {
+  basePrice: Int!
+  dealPrice: Int!
+  discountPercent: Float!
+  hotelId: String!
+  hotelLocation: String!
+  hotelTitle: String!
+  imageUrl: String!
+  roomId: String!
+  roomName: String!
+  roomType: String!
+  validUntil: DateTime!
+}
+
+type HomeTestimonialDto {
+  hotelId: String!
+  hotelTitle: String!
+  review: ReviewDto!
+}
+
 type HotelDto {
   _id: String!
   ageRestriction: Int!
@@ -860,6 +880,8 @@ type Query {
   getFollowerCount(memberId: String!): Int!
   getFollowers(memberId: String!): [FollowDto!]!
   getFollowingCount(memberId: String!): Int!
+  getHomeLastMinuteDeals(limit: Int = 8): [HomeLastMinuteDealDto!]!
+  getHomeTestimonials(limit: Int = 6): [HomeTestimonialDto!]!
   getHotel(hotelId: String!): HotelDto!
   getHotelChats(hotelId: String!, input: PaginationInput!, statusFilter: ChatStatus): ChatsDto!
   getHotelReviews(hotelId: String!, input: PaginationInput!): ReviewsDto!

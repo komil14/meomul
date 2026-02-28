@@ -1,9 +1,10 @@
-import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { Logger } from '@nestjs/common';
 import { RoomDto } from '../../libs/dto/room/room';
 import { RoomInput } from '../../libs/dto/room/room.input';
 import { RoomUpdate } from '../../libs/dto/room/room.update';
 import { RoomsDto } from '../../libs/dto/common/rooms';
+import { HomeLastMinuteDealDto } from '../../libs/dto/home/home';
 import { PaginationInput } from '../../libs/dto/common/pagination';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
@@ -84,6 +85,23 @@ export class RoomResolver {
 			return this.roomService.getRoomsByHotel(hotelId, input);
 		} catch (error) {
 			this.logger.error('Query getRoomsByHotel failed', hotelId, input.page, error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Homepage last-minute deals feed (public).
+	 */
+	@Query(() => [HomeLastMinuteDealDto])
+	@Public()
+	public async getHomeLastMinuteDeals(
+		@Args('limit', { type: () => Int, nullable: true, defaultValue: 8 }) limit: number,
+	): Promise<HomeLastMinuteDealDto[]> {
+		try {
+			this.logger.log('Query getHomeLastMinuteDeals', limit);
+			return this.roomService.getHomeLastMinuteDeals(limit);
+		} catch (error) {
+			this.logger.error('Query getHomeLastMinuteDeals failed', limit, error);
 			throw error;
 		}
 	}

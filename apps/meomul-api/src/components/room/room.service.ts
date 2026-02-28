@@ -5,6 +5,7 @@ import { RoomInput } from '../../libs/dto/room/room.input';
 import { RoomUpdate } from '../../libs/dto/room/room.update';
 import { RoomDto } from '../../libs/dto/room/room';
 import { RoomsDto } from '../../libs/dto/common/rooms';
+import { HomeLastMinuteDealDto } from '../../libs/dto/home/home';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { RoomStatus } from '../../libs/enums/room.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
@@ -191,6 +192,79 @@ export class RoomService {
 			list: list.map(toRoomDto),
 			metaCounter: { total },
 		};
+	}
+
+	/**
+	 * Homepage last-minute deals (single query, no client fan-out).
+	 */
+	public async getHomeLastMinuteDeals(limit: number = 8): Promise<HomeLastMinuteDealDto[]> {
+		const safeLimit = Math.max(1, Math.min(limit, 30));
+		const candidateLimit = safeLimit * 6;
+		const now = new Date();
+
+		const rooms = await this.roomModel
+			.find({
+				$or: [{ roomStatus: RoomStatus.AVAILABLE }, { roomStatus: { $exists: false } }],
+				'lastMinuteDeal.isActive': true,
+				'lastMinuteDeal.validUntil': { $gt: now },
+			})
+			.sort({
+				'lastMinuteDeal.discountPercent': -1,
+				'lastMinuteDeal.validUntil': 1,
+				updatedAt: -1,
+			})
+			.limit(candidateLimit)
+			.exec();
+
+		if (rooms.length === 0) {
+			return [];
+		}
+
+		const hotelIds = Array.from(new Set(rooms.map((room) => String(room.hotelId))));
+		const hotels = await this.hotelModel
+			.find({
+				_id: { $in: hotelIds },
+				hotelStatus: HotelStatus.ACTIVE,
+			})
+			.select('_id hotelTitle hotelLocation hotelImages')
+			.exec();
+
+		const hotelsById = new Map<string, HotelDocument>(
+			hotels.map((hotel) => [String(hotel._id), hotel]),
+		);
+
+		const list: HomeLastMinuteDealDto[] = [];
+		for (const room of rooms) {
+			const deal = room.lastMinuteDeal;
+			if (!deal?.isActive || deal.validUntil <= now) {
+				continue;
+			}
+
+			const hotel = hotelsById.get(String(room.hotelId));
+			if (!hotel) {
+				continue;
+			}
+
+			list.push({
+				roomId: room._id.toString(),
+				hotelId: String(room.hotelId),
+				hotelTitle: hotel.hotelTitle,
+				hotelLocation: String(hotel.hotelLocation),
+				roomName: room.roomName,
+				roomType: String(room.roomType),
+				imageUrl: room.roomImages?.[0] ?? hotel.hotelImages?.[0] ?? '',
+				basePrice: deal.originalPrice ?? room.basePrice,
+				dealPrice: deal.dealPrice ?? room.basePrice,
+				discountPercent: deal.discountPercent ?? 0,
+				validUntil: deal.validUntil,
+			});
+
+			if (list.length >= safeLimit) {
+				break;
+			}
+		}
+
+		return list;
 	}
 
 	/**

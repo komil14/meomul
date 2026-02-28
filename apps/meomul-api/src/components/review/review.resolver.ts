@@ -1,9 +1,10 @@
-import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { Logger } from '@nestjs/common';
 import { ReviewDto } from '../../libs/dto/review/review';
 import { ReviewInput } from '../../libs/dto/review/review.input';
 import { ReviewUpdate } from '../../libs/dto/review/review.update';
 import { ReviewsDto } from '../../libs/dto/common/reviews';
+import { HomeTestimonialDto } from '../../libs/dto/home/home';
 import { PaginationInput } from '../../libs/dto/common/pagination';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
@@ -124,6 +125,23 @@ export class ReviewResolver {
 			return this.reviewService.getHotelReviews(hotelId, input);
 		} catch (error) {
 			this.logger.error('Query getHotelReviews failed', hotelId, input.page, error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Homepage testimonials (public, single feed).
+	 */
+	@Query(() => [HomeTestimonialDto])
+	@Public()
+	public async getHomeTestimonials(
+		@Args('limit', { type: () => Int, nullable: true, defaultValue: 6 }) limit: number,
+	): Promise<HomeTestimonialDto[]> {
+		try {
+			this.logger.log('Query getHomeTestimonials', limit);
+			return this.reviewService.getHomeTestimonials(limit);
+		} catch (error) {
+			this.logger.error('Query getHomeTestimonials failed', limit, error);
 			throw error;
 		}
 	}

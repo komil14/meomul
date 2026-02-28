@@ -5,6 +5,7 @@ import { ReviewInput } from '../../libs/dto/review/review.input';
 import { ReviewUpdate } from '../../libs/dto/review/review.update';
 import { ReviewDto } from '../../libs/dto/review/review';
 import { ReviewsDto, ReviewRatingsSummaryDto } from '../../libs/dto/common/reviews';
+import { HomeTestimonialDto } from '../../libs/dto/home/home';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { ReviewStatus, LikeGroup, ViewGroup } from '../../libs/enums/common.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
@@ -265,6 +266,58 @@ export class ReviewService {
 			metaCounter: { total },
 			ratingsSummary,
 		};
+	}
+
+	/**
+	 * Homepage testimonials feed (single query, no client fan-out).
+	 */
+	public async getHomeTestimonials(limit: number = 6): Promise<HomeTestimonialDto[]> {
+		const safeLimit = Math.max(1, Math.min(limit, 20));
+		const candidateLimit = safeLimit * 5;
+
+		const reviews = await this.reviewModel
+			.find({
+				reviewStatus: ReviewStatus.APPROVED,
+				verifiedStay: true,
+			})
+			.sort({ stayDate: -1, createdAt: -1 })
+			.limit(candidateLimit)
+			.exec();
+
+		if (reviews.length === 0) {
+			return [];
+		}
+
+		const hotelIds = Array.from(new Set(reviews.map((review) => String(review.hotelId))));
+		const hotels = await this.hotelModel
+			.find({ _id: { $in: hotelIds } })
+			.select('_id hotelTitle')
+			.exec();
+
+		const hotelTitleById = new Map<string, string>(
+			hotels.map((hotel) => [String(hotel._id), hotel.hotelTitle]),
+		);
+
+		const list: HomeTestimonialDto[] = [];
+		for (const review of reviews) {
+			const hotelId = String(review.hotelId);
+			const hotelTitle = hotelTitleById.get(hotelId);
+			if (!hotelTitle) {
+				continue;
+			}
+
+			list.push({
+				hotelId,
+				hotelTitle,
+				review: toReviewDto(review),
+			});
+
+			if (list.length >= safeLimit) {
+				break;
+			}
+		}
+
+		return list;
 	}
 
 	/**
