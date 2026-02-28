@@ -336,13 +336,15 @@ export class ReviewService {
 
 			const reviewDto = toReviewDto(review);
 			const reviewer = reviewerById.get(String(review.reviewerId));
+			const reviewerNick =
+				reviewer?.memberNick?.trim() || reviewDto.reviewerNick?.trim() || `guest${String(review.reviewerId).slice(-4)}`;
 
 			list.push({
 				hotelId,
 				hotelTitle,
 				review: {
 					...reviewDto,
-					reviewerNick: reviewer?.memberNick ?? reviewDto.reviewerNick ?? 'Verified guest',
+					reviewerNick,
 					reviewerImage: reviewer?.memberImage ?? reviewDto.reviewerImage,
 				},
 			});
