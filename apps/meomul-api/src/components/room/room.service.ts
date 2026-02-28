@@ -232,9 +232,7 @@ export class RoomService {
 			.select('_id hotelTitle hotelLocation hotelImages')
 			.exec();
 
-		const hotelsById = new Map<string, HotelDocument>(
-			hotels.map((hotel) => [String(hotel._id), hotel]),
-		);
+		const hotelsById = new Map<string, HotelDocument>(hotels.map((hotel) => [String(hotel._id), hotel]));
 
 		const list: HomeLastMinuteDealDto[] = [];
 		for (const room of rooms) {

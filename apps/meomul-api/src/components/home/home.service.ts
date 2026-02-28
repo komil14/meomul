@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { HomeFeedInput } from '../../libs/dto/home/home.input';
 import { HomeFeedDto } from '../../libs/dto/home/home';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
@@ -45,12 +46,15 @@ export class HomeService {
 			this.recommendationService.getTrendingHotels(trendingLimit),
 			this.roomService.getHomeLastMinuteDeals(dealsLimit),
 			this.reviewService.getHomeTestimonials(testimonialsLimit),
-			memberId ? this.recommendationService.getRecommendedHotelsV2(memberId, recommendationLimit) : Promise.resolve(null),
+			memberId
+				? this.recommendationService.getRecommendedHotelsV2(memberId, recommendationLimit)
+				: Promise.resolve(null),
 		]);
 
 		const topHotels = topHotelsResult.list;
 		const hotelInventoryTotal = topHotelsResult.metaCounter.total;
-		const featuredHotelId = topHotels[0]?._id ? String(topHotels[0]._id) : null;
+		const featuredHotelRawId: unknown = topHotels[0]?._id;
+		const featuredHotelId = featuredHotelRawId ? this.toIdString(featuredHotelRawId) : null;
 
 		let featuredReviews: ReviewDto[] = [];
 		let featuredRatingsSummary: ReviewRatingsSummaryDto | null = null;
@@ -78,5 +82,29 @@ export class HomeService {
 		}
 
 		return Math.min(max, Math.max(min, Math.trunc(value)));
+	}
+
+	private hasHexStringMethod(value: unknown): value is { toHexString(): string } {
+		return (
+			typeof value === 'object' &&
+			value !== null &&
+			typeof (value as { toHexString?: unknown }).toHexString === 'function'
+		);
+	}
+
+	private toIdString(value: unknown): string {
+		if (typeof value === 'string') {
+			return value;
+		}
+
+		if (value instanceof Types.ObjectId) {
+			return value.toString();
+		}
+
+		if (this.hasHexStringMethod(value)) {
+			return value.toHexString();
+		}
+
+		throw new TypeError('Unsupported home id value');
 	}
 }

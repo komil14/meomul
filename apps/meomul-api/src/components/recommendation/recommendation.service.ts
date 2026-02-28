@@ -1391,6 +1391,7 @@ export class RecommendationService {
 			hotelReviews: doc.hotelReviews ?? 0,
 			hotelRating: doc.hotelRating ?? 0,
 			hotelRank: doc.hotelRank ?? 0,
+			startingPrice: doc.startingPrice ?? 0,
 			warningStrikes: doc.warningStrikes ?? 0,
 			strikeHistory: (doc.strikeHistory || []).map((s) => ({
 				bookingId: String(s.bookingId),
