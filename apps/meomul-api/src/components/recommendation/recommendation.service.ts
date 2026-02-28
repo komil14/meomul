@@ -65,7 +65,7 @@ const RECOMMENDATION_CACHE_TTL_MS = 10 * 60 * 1000;
 const TRENDING_CACHE_TTL_MS = 15 * 60 * 1000;
 const RECOMMENDATION_VERSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_RECOMMENDATION_CACHE_VERSION = '1';
-const RECOMMENDATION_ALGO_VERSION = '4';
+const RECOMMENDATION_ALGO_VERSION = '5';
 
 type RecommendationReasonStage = 'strict' | 'relaxed' | 'general' | 'fallback' | 'trending';
 type RecommendationIdInput = string | Types.ObjectId | MongooseObjectId | { toHexString(): string };
@@ -784,8 +784,48 @@ export class RecommendationService {
 			likedSimilar: false,
 			matchedPurposes: [],
 			matchedAmenities: [],
-			signals: ['Popular with guests right now', 'Strong overall activity and engagement'],
+			signals: this.buildTrendingSignals(hotel),
 		}));
+	}
+
+	private buildTrendingSignals(hotel: HotelDto): string[] {
+		const locationLabel = this.toTitleCaseLabel(String(hotel.hotelLocation));
+		const typeLabel = this.toTitleCaseLabel(String(hotel.hotelType));
+		const safeRating = Number.isFinite(hotel.hotelRating) ? Number(hotel.hotelRating) : 0;
+		const safeLikes = Number.isFinite(hotel.hotelLikes) ? Number(hotel.hotelLikes) : 0;
+		const signals: string[] = [];
+
+		if (locationLabel) {
+			signals.push(`Trending this week in ${locationLabel}`);
+		}
+
+		if (typeLabel) {
+			signals.push(`High-demand ${typeLabel.toLowerCase()} pick`);
+		}
+
+		if (safeRating > 0) {
+			signals.push(`Strong guest rating: ★ ${safeRating.toFixed(1)}`);
+		}
+
+		if (safeLikes > 0) {
+			signals.push(`${safeLikes.toLocaleString()} recent guest likes`);
+		}
+
+		if (signals.length === 0) {
+			signals.push('Popular with guests right now');
+			signals.push('Strong overall activity and engagement');
+		}
+
+		return signals.slice(0, 4);
+	}
+
+	private toTitleCaseLabel(value: string): string {
+		const normalized = value.trim().replace(/_/g, ' ').toLowerCase();
+		if (!normalized) {
+			return '';
+		}
+
+		return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
 	}
 
 	private buildExplanationStageMap(stageGroups: {
