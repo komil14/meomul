@@ -101,7 +101,7 @@ export class ChatService {
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
 		// Determine sender type and validate access
-		const senderType = this.getSenderType(currentMember, chat);
+		const senderType = await this.getSenderType(currentMember, chat);
 
 		// Validate chat is not closed
 		if (chat.chatStatus === ChatStatus.CLOSED) {
@@ -221,7 +221,7 @@ export class ChatService {
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
 		// Validate access
-		this.getSenderType(currentMember, chat);
+		await this.getSenderType(currentMember, chat);
 
 		return toChatDto(chat);
 	}
@@ -283,7 +283,7 @@ export class ChatService {
 		const chat = await this.chatModel.findById(chatId).exec();
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
-		const senderType = this.getSenderType(currentMember, chat);
+		const senderType = await this.getSenderType(currentMember, chat);
 
 		// Mark all unread messages from the OTHER side as read
 		const otherSenderType = senderType === SenderType.GUEST ? SenderType.AGENT : SenderType.GUEST;
@@ -419,7 +419,7 @@ export class ChatService {
 	/**
 	 * Determine if user is guest or agent, and validate access
 	 */
-	private getSenderType(currentMember: MemberJwtPayload, chat: ChatDocument): SenderType {
+	private async getSenderType(currentMember: MemberJwtPayload, chat: ChatDocument): Promise<SenderType> {
 		if (this.isChatOperatorRole(currentMember.memberType) && currentMember.memberType !== MemberType.AGENT) {
 			return SenderType.AGENT;
 		}
@@ -430,6 +430,14 @@ export class ChatService {
 
 		if (chat.assignedAgentId?.toString() === currentMember._id) {
 			return SenderType.AGENT;
+		}
+
+		// Allow hotel-owning agent to access any chat for their hotel
+		if (currentMember.memberType === MemberType.AGENT) {
+			const hotel = await this.hotelModel.findById(chat.hotelId).select('memberId').exec();
+			if (hotel && String(hotel.memberId) === String(currentMember._id)) {
+				return SenderType.AGENT;
+			}
 		}
 
 		throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
