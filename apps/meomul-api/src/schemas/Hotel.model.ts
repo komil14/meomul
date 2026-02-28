@@ -204,6 +204,11 @@ const HotelSchema = new Schema(
 			default: 0,
 			index: true,
 		},
+		startingPrice: {
+			type: Number,
+			default: 0,
+			min: 0,
+		},
 
 		warningStrikes: {
 			type: Number,
@@ -234,11 +239,13 @@ const HotelSchema = new Schema(
 
 // Indexes
 HotelSchema.index({ hotelStatus: 1, hotelLocation: 1, hotelRank: -1 });
+HotelSchema.index({ hotelStatus: 1, hotelLocation: 1, hotelType: 1, hotelRank: -1, hotelRating: -1 });
 HotelSchema.index({ 'detailedLocation.dong': 1 });
 HotelSchema.index({ suitableFor: 1 });
 HotelSchema.index({ hotelStatus: 1, hotelRank: -1 });
 HotelSchema.index({ hotelStatus: 1, hotelRating: -1 });
 HotelSchema.index({ hotelStatus: 1, hotelLikes: -1 });
+HotelSchema.index({ hotelStatus: 1, startingPrice: 1, hotelRating: -1 });
 HotelSchema.index({ hotelStatus: 1, createdAt: -1 });
 HotelSchema.index({ memberId: 1, createdAt: -1 });
 HotelSchema.index(

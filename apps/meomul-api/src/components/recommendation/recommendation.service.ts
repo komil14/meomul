@@ -1076,33 +1076,26 @@ export class RecommendationService {
 			});
 		}
 
-		// Stage 3: Lookup minimum room price per hotel
-		pipeline.push(
-			{
-				$lookup: {
-					from: 'rooms',
-					let: { hotelId: '$_id' },
-					pipeline: [
-						{ $match: { $expr: { $eq: ['$hotelId', '$$hotelId'] }, roomStatus: 'AVAILABLE' } },
-						{ $group: { _id: null, minPrice: { $min: '$basePrice' } } },
-					],
-					as: 'roomPricing',
-				},
+		// Stage 3: Use precomputed hotel startingPrice to avoid per-query room lookups.
+		pipeline.push({
+			$addFields: {
+				startingPrice: { $ifNull: ['$startingPrice', 0] },
 			},
-			{
-				$addFields: {
-					startingPrice: { $ifNull: [{ $arrayElemAt: ['$roomPricing.minPrice', 0] }, 0] },
-				},
-			},
-		);
+		});
 
 		if (options?.enforcePriceRange && profile.avgPriceMax) {
 			pipeline.push({
 				$match: {
-					startingPrice: {
-						$gte: profile.avgPriceMin || 0,
-						$lte: profile.avgPriceMax,
-					},
+					$or: [
+						{
+							startingPrice: {
+								$gte: profile.avgPriceMin || 0,
+								$lte: profile.avgPriceMax,
+							},
+						},
+						// Backward compatibility for old docs before startingPrice backfill.
+						{ startingPrice: 0 },
+					],
 				},
 			});
 		}

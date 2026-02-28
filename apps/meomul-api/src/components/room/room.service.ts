@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import type { Model } from 'mongoose';
 import { RoomInput } from '../../libs/dto/room/room.input';
 import { RoomUpdate } from '../../libs/dto/room/room.update';
@@ -85,6 +86,7 @@ export class RoomService {
 			startDate: new Date(),
 			days: 365,
 		});
+		await this.syncHotelStartingPrice(String(room.hotelId));
 
 		return toRoomDto(room);
 	}
@@ -139,6 +141,7 @@ export class RoomService {
 			totalRooms: shouldSyncTotalRooms ? updatedRoom.totalRooms : undefined,
 			basePrice: shouldSyncBasePrice ? updatedRoom.basePrice : undefined,
 		});
+		await this.syncHotelStartingPrice(String(updatedRoom.hotelId));
 
 		return toRoomDto(updatedRoom);
 	}
@@ -375,6 +378,7 @@ export class RoomService {
 			totalRooms: shouldSyncTotalRooms ? updatedRoom.totalRooms : undefined,
 			basePrice: shouldSyncBasePrice ? updatedRoom.basePrice : undefined,
 		});
+		await this.syncHotelStartingPrice(String(updatedRoom.hotelId));
 
 		return toRoomDto(updatedRoom);
 	}
@@ -468,6 +472,37 @@ export class RoomService {
 			totalRooms: input.totalRooms,
 			basePrice: input.basePrice,
 		});
+	}
+
+	private async syncHotelStartingPrice(hotelId: string): Promise<void> {
+		const hotelObjectId = new Types.ObjectId(hotelId);
+		const [result] = await this.roomModel
+			.aggregate<{ minPrice: number }>([
+				{
+					$match: {
+						hotelId: hotelObjectId,
+						$or: [{ roomStatus: RoomStatus.AVAILABLE }, { roomStatus: { $exists: false } }],
+					},
+				},
+				{
+					$group: {
+						_id: null,
+						minPrice: { $min: '$basePrice' },
+					},
+				},
+			])
+			.exec();
+
+		await this.hotelModel
+			.updateOne(
+				{ _id: hotelObjectId },
+				{
+					$set: {
+						startingPrice: Math.max(0, Math.round(result?.minPrice ?? 0)),
+					},
+				},
+			)
+			.exec();
 	}
 
 	/**

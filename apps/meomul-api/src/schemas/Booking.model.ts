@@ -167,6 +167,7 @@ BookingSchema.index({ hotelId: 1, checkInDate: 1 });
 BookingSchema.index({ bookingStatus: 1, checkInDate: 1 });
 BookingSchema.index({ bookingStatus: 1, checkOutDate: 1 });
 BookingSchema.index({ bookingStatus: 1, paymentStatus: 1 });
+BookingSchema.index({ guestId: 1, bookingStatus: 1, createdAt: -1 });
 
 // Recommendation: trending aggregation (recent confirmed bookings)
 BookingSchema.index({ bookingStatus: 1, createdAt: -1 });

@@ -18,6 +18,7 @@ import { SearchHistoryModule } from './search-history/search-history.module';
 import { UploadModule } from './upload/upload.module';
 import { RoomInventoryModule } from './room-inventory/room-inventory.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { HomeModule } from './home/home.module';
 
 @Module({
 	imports: [
@@ -40,6 +41,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 		UploadModule,
 		RoomInventoryModule,
 		AnalyticsModule,
+		HomeModule,
 	],
 })
 export class ComponentsModule {}

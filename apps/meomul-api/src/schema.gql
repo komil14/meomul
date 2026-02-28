@@ -404,6 +404,26 @@ type Followings {
   metaCounter: MetaCounterDto!
 }
 
+type HomeFeedDto {
+  featuredRatingsSummary: ReviewRatingsSummaryDto
+  featuredReviews: [ReviewDto!]!
+  hotelInventoryTotal: Int!
+  lastMinuteDeals: [HomeLastMinuteDealDto!]!
+  recommendationMeta: RecommendationMetaDto
+  testimonials: [HomeTestimonialDto!]!
+  topHotels: [HotelDto!]!
+  trendingHotels: [HotelDto!]!
+}
+
+input HomeFeedInput {
+  dealsLimit: Int = 8
+  featuredReviewLimit: Int = 5
+  heroLimit: Int = 5
+  recommendationLimit: Int = 6
+  testimonialsLimit: Int = 6
+  trendingLimit: Int = 10
+}
+
 type HomeLastMinuteDealDto {
   basePrice: Int!
   dealPrice: Int!
@@ -457,6 +477,7 @@ type HotelDto {
   safetyFeatures: SafetyFeaturesDto!
   smokingAllowed: Boolean!
   starRating: Int!
+  startingPrice: Int!
   strikeHistory: [StrikeHistoryDto!]!
   suitableFor: [String!]!
   updatedAt: DateTime!
@@ -880,6 +901,7 @@ type Query {
   getFollowerCount(memberId: String!): Int!
   getFollowers(memberId: String!): [FollowDto!]!
   getFollowingCount(memberId: String!): Int!
+  getHomeFeed(input: HomeFeedInput): HomeFeedDto!
   getHomeLastMinuteDeals(limit: Int = 8): [HomeLastMinuteDealDto!]!
   getHomeTestimonials(limit: Int = 6): [HomeTestimonialDto!]!
   getHotel(hotelId: String!): HotelDto!

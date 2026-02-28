@@ -39,6 +39,7 @@ export interface HotelDocument extends Document {
 	hotelReviews: number;
 	hotelRating: number;
 	hotelRank: number;
+	startingPrice: number;
 	warningStrikes: number;
 	strikeHistory: HotelStrikeHistoryEntry[];
 	hotelStatus: HotelDto['hotelStatus'];
@@ -84,6 +85,7 @@ export function toHotelDto(doc: HotelDocument): HotelDto {
 		hotelReviews: doc.hotelReviews,
 		hotelRating: doc.hotelRating,
 		hotelRank: doc.hotelRank,
+		startingPrice: doc.startingPrice ?? 0,
 		warningStrikes: doc.warningStrikes,
 		strikeHistory: (doc.strikeHistory || []).map((s) => ({
 			bookingId: String(s.bookingId),

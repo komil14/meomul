@@ -301,6 +301,9 @@ export class HotelDto {
 	hotelRank: number;
 
 	@Field(() => Int)
+	startingPrice: number;
+
+	@Field(() => Int)
 	warningStrikes: number;
 
 	@Field(() => [StrikeHistoryDto])
