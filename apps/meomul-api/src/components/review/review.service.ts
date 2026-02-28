@@ -289,13 +289,27 @@ export class ReviewService {
 		}
 
 		const hotelIds = Array.from(new Set(reviews.map((review) => String(review.hotelId))));
+		const reviewerIds = Array.from(new Set(reviews.map((review) => String(review.reviewerId))));
 		const hotels = await this.hotelModel
 			.find({ _id: { $in: hotelIds } })
 			.select('_id hotelTitle')
 			.exec();
+		const reviewers = await this.memberModel
+			.find({ _id: { $in: reviewerIds } })
+			.select('_id memberNick memberImage')
+			.exec();
 
 		const hotelTitleById = new Map<string, string>(
 			hotels.map((hotel) => [String(hotel._id), hotel.hotelTitle]),
+		);
+		const reviewerById = new Map<string, { memberNick?: string; memberImage?: string }>(
+			reviewers.map((member) => [
+				String(member._id),
+				{
+					memberNick: member.memberNick,
+					memberImage: member.memberImage,
+				},
+			]),
 		);
 
 		const list: HomeTestimonialDto[] = [];
@@ -306,10 +320,17 @@ export class ReviewService {
 				continue;
 			}
 
+			const reviewDto = toReviewDto(review);
+			const reviewer = reviewerById.get(String(review.reviewerId));
+
 			list.push({
 				hotelId,
 				hotelTitle,
-				review: toReviewDto(review),
+				review: {
+					...reviewDto,
+					reviewerNick: reviewer?.memberNick ?? reviewDto.reviewerNick ?? 'Verified guest',
+					reviewerImage: reviewer?.memberImage ?? reviewDto.reviewerImage,
+				},
 			});
 
 			if (list.length >= safeLimit) {
