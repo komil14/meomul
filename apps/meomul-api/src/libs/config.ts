@@ -3,7 +3,7 @@ export const shapeIntoMongoObjectId = (target: string | ObjectId): ObjectId => {
 	return typeof target === 'string' ? new ObjectId(target) : target;
 };
 
-export const VALID_TARGETS = ['member', 'hotel', 'room', 'review', 'refund'] as const;
+export const VALID_TARGETS = ['member', 'hotel', 'room', 'review', 'refund', 'chat'] as const;
 export type UploadTarget = (typeof VALID_TARGETS)[number];
 
 export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];

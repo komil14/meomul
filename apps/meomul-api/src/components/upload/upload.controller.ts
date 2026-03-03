@@ -58,6 +58,7 @@ const TARGET_PERMISSIONS: Record<UploadTarget, MemberType[]> = {
 	room: [MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR],
 	review: [MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR],
 	refund: [MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR],
+	chat: [MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR],
 };
 
 @Controller('upload')
