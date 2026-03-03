@@ -1,6 +1,6 @@
 import type { Document, Types } from 'mongoose';
 import { ChatDto, MessageDto } from '../dto/chat/chat';
-import { ChatStatus, MessageType, SenderType } from '../enums/common.enum';
+import { ChatScope, ChatStatus, MessageType, SenderType } from '../enums/common.enum';
 
 export interface MessageSubDocument {
 	_id?: Types.ObjectId;
@@ -17,9 +17,12 @@ export interface MessageSubDocument {
 export interface ChatDocument extends Document {
 	_id: Types.ObjectId;
 	guestId: Types.ObjectId;
-	hotelId: Types.ObjectId;
+	hotelId?: Types.ObjectId;
+	chatScope: ChatScope;
 	assignedAgentId?: Types.ObjectId;
 	bookingId?: Types.ObjectId;
+	supportTopic?: string;
+	sourcePath?: string;
 	messages: MessageSubDocument[];
 	chatStatus: ChatStatus;
 	unreadGuestMessages: number;
@@ -47,8 +50,11 @@ export function toChatDto(doc: ChatDocument): ChatDto {
 		_id: doc._id as unknown as ChatDto['_id'],
 		guestId: doc.guestId as unknown as ChatDto['guestId'],
 		hotelId: doc.hotelId as unknown as ChatDto['hotelId'],
+		chatScope: doc.chatScope,
 		assignedAgentId: doc.assignedAgentId as unknown as ChatDto['assignedAgentId'],
 		bookingId: doc.bookingId as unknown as ChatDto['bookingId'],
+		supportTopic: doc.supportTopic,
+		sourcePath: doc.sourcePath,
 		messages: doc.messages.map(toMessageDto),
 		chatStatus: doc.chatStatus,
 		unreadGuestMessages: doc.unreadGuestMessages,

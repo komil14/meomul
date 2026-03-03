@@ -12,6 +12,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { MemberType } from '../libs/enums/member.enum';
+import { ChatScope } from '../libs/enums/common.enum';
 import type { ChatDocument } from '../libs/types/chat';
 import type { HotelDocument } from '../libs/types/hotel';
 import { AuthService } from '../components/auth/auth.service';
@@ -242,7 +243,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	}
 
 	private async canAccessChat(session: UserSession, chatId: string): Promise<boolean> {
-		const chat = await this.chatModel.findById(chatId).select('guestId assignedAgentId hotelId').exec();
+		const chat = await this.chatModel.findById(chatId).select('guestId assignedAgentId hotelId chatScope').exec();
 
 		if (!chat) return false;
 
@@ -259,6 +260,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		}
 
 		if (session.memberType === MemberType.AGENT) {
+			if (chat.chatScope !== ChatScope.HOTEL || !chat.hotelId) {
+				return false;
+			}
 			const hotel = await this.hotelModel.findById(chat.hotelId).select('memberId').exec();
 			return !!hotel && String(hotel.memberId) === session.userId;
 		}

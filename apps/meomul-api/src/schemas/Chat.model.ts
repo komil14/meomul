@@ -1,5 +1,5 @@
 import { Schema } from 'mongoose';
-import { SenderType, MessageType, ChatStatus } from '../libs/enums/common.enum';
+import { SenderType, MessageType, ChatStatus, ChatScope } from '../libs/enums/common.enum';
 
 const ChatSchema = new Schema(
 	{
@@ -12,6 +12,12 @@ const ChatSchema = new Schema(
 		hotelId: {
 			type: Schema.Types.ObjectId,
 			ref: 'Hotel',
+			index: true,
+		},
+		chatScope: {
+			type: String,
+			enum: Object.values(ChatScope),
+			default: ChatScope.HOTEL,
 			required: true,
 			index: true,
 		},
@@ -23,6 +29,12 @@ const ChatSchema = new Schema(
 		bookingId: {
 			type: Schema.Types.ObjectId,
 			ref: 'Booking',
+		},
+		supportTopic: {
+			type: String,
+		},
+		sourcePath: {
+			type: String,
 		},
 
 		messages: [
@@ -84,7 +96,11 @@ const ChatSchema = new Schema(
 
 // Indexes
 ChatSchema.index({ guestId: 1, hotelId: 1 });
+ChatSchema.index({ guestId: 1, lastMessageAt: -1 });
+ChatSchema.index({ hotelId: 1, chatStatus: 1, lastMessageAt: -1 });
 ChatSchema.index({ chatStatus: 1, lastMessageAt: -1 });
 ChatSchema.index({ assignedAgentId: 1 });
+ChatSchema.index({ assignedAgentId: 1, chatStatus: 1, lastMessageAt: -1 });
+ChatSchema.index({ chatScope: 1, chatStatus: 1, lastMessageAt: -1 });
 
 export default ChatSchema;

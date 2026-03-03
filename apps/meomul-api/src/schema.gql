@@ -246,15 +246,23 @@ type ChatDto {
   _id: String!
   assignedAgentId: String
   bookingId: String
+  chatScope: ChatScope!
   chatStatus: ChatStatus!
   createdAt: DateTime!
   guestId: String!
-  hotelId: String!
+  hotelId: String
   lastMessageAt: DateTime!
   messages: [MessageDto!]!
+  sourcePath: String
+  supportTopic: String
   unreadAgentMessages: Int!
   unreadGuestMessages: Int!
   updatedAt: DateTime!
+}
+
+enum ChatScope {
+  HOTEL
+  SUPPORT
 }
 
 enum ChatStatus {
@@ -765,6 +773,7 @@ type Mutation {
   sendMessage(input: SendMessageInput!): ChatDto!
   signupMember(input: MemberInput!): AuthMemberDto!
   startChat(input: StartChatInput!): ChatDto!
+  startSupportChat(input: StartSupportChatInput!): ChatDto!
   toggleFollow(input: FollowInput!): ToggleFollowDto!
   toggleLike(input: LikeInput!): ToggleLikeDto!
   trackAnalyticsEvent(input: TrackAnalyticsEventInput!): Boolean!
@@ -1190,6 +1199,13 @@ input StartChatInput {
   bookingId: String
   hotelId: String!
   initialMessage: String!
+}
+
+input StartSupportChatInput {
+  bookingId: String
+  initialMessage: String!
+  sourcePath: String
+  topic: String
 }
 
 enum StayPurpose {

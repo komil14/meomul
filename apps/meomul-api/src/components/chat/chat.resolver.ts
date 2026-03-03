@@ -2,6 +2,7 @@ import { Args, Mutation, Query, Resolver, Int } from '@nestjs/graphql';
 import { Logger } from '@nestjs/common';
 import { ChatDto } from '../../libs/dto/chat/chat';
 import { StartChatInput } from '../../libs/dto/chat/chat.input';
+import { StartSupportChatInput } from '../../libs/dto/chat/support-chat.input';
 import { SendMessageInput } from '../../libs/dto/chat/message.input';
 import { ClaimChatInput } from '../../libs/dto/chat/claim-chat.input';
 import { ChatsDto } from '../../libs/dto/common/chats';
@@ -23,13 +24,26 @@ export class ChatResolver {
 	 * Guest starts a new chat with a hotel
 	 */
 	@Mutation(() => ChatDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER)
 	public async startChat(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: StartChatInput,
 	): Promise<ChatDto> {
 		this.logger.log('Mutation startChat', currentMember?._id, input.hotelId);
 		return this.chatService.startChat(currentMember, input);
+	}
+
+	/**
+	 * User starts a general platform support chat (not tied to a specific hotel)
+	 */
+	@Mutation(() => ChatDto)
+	@Roles(MemberType.USER, MemberType.AGENT)
+	public async startSupportChat(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('input') input: StartSupportChatInput,
+	): Promise<ChatDto> {
+		this.logger.log('Mutation startSupportChat', currentMember?._id, input.topic);
+		return this.chatService.startSupportChat(currentMember, input);
 	}
 
 	/**

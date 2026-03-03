@@ -37,6 +37,11 @@ export enum ChatStatus {
 	CLOSED = 'CLOSED',
 }
 
+export enum ChatScope {
+	HOTEL = 'HOTEL',
+	SUPPORT = 'SUPPORT',
+}
+
 export enum MessageType {
 	TEXT = 'TEXT',
 	IMAGE = 'IMAGE',
@@ -79,6 +84,7 @@ registerEnumType(ViewGroup, { name: 'ViewGroup' });
 registerEnumType(StayPurpose, { name: 'StayPurpose' });
 registerEnumType(DemandLevel, { name: 'DemandLevel' });
 registerEnumType(ChatStatus, { name: 'ChatStatus' });
+registerEnumType(ChatScope, { name: 'ChatScope' });
 registerEnumType(MessageType, { name: 'MessageType' });
 registerEnumType(SenderType, { name: 'SenderType' });
 registerEnumType(ReviewStatus, { name: 'ReviewStatus' });
