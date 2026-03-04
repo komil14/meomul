@@ -22,8 +22,13 @@ export class AnalyticsResolver {
 		@Args('input') input: PaginationInput,
 		@Args('search', { type: () => AnalyticsEventSearchInput, nullable: true }) search?: AnalyticsEventSearchInput,
 	): Promise<AnalyticsEventsDto> {
-		this.logger.log('Query getAnalyticsEventsAdmin', input.page, input.limit);
-		return this.analyticsService.getAnalyticsEventsAdmin(input, search);
+		try {
+			this.logger.log('Query getAnalyticsEventsAdmin', input.page, input.limit);
+			return this.analyticsService.getAnalyticsEventsAdmin(input, search);
+		} catch (error) {
+			this.logger.error('Query getAnalyticsEventsAdmin failed', error);
+			throw error;
+		}
 	}
 
 	@Mutation(() => Boolean)
@@ -32,7 +37,12 @@ export class AnalyticsResolver {
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: TrackAnalyticsEventInput,
 	): Promise<boolean> {
-		this.logger.debug('Mutation trackAnalyticsEvent', currentMember?._id ?? 'unknown', input.eventName);
-		return this.analyticsService.trackEvent(currentMember, input);
+		try {
+			this.logger.debug('Mutation trackAnalyticsEvent', currentMember?._id ?? 'unknown', input.eventName);
+			return this.analyticsService.trackEvent(currentMember, input);
+		} catch (error) {
+			this.logger.error('Mutation trackAnalyticsEvent failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
 	}
 }

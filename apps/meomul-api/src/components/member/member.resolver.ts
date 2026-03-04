@@ -184,6 +184,18 @@ export class MemberResolver {
 		}
 	}
 
+	@Mutation(() => ResponseDto)
+	@Roles(MemberType.USER, MemberType.AGENT)
+	public async cancelMySubscription(@CurrentMember() currentMember: MemberJwtPayload): Promise<ResponseDto> {
+		try {
+			this.logger.log('Mutation cancelMySubscription', currentMember?._id ?? 'unknown');
+			return this.memberService.cancelMySubscription(currentMember);
+		} catch (error) {
+			this.logger.error('Mutation cancelMySubscription failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
 	@Query(() => SubscriptionStatusDto)
 	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
 	public async getSubscriptionStatus(@CurrentMember() currentMember: MemberJwtPayload): Promise<SubscriptionStatusDto> {

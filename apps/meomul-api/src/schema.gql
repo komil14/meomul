@@ -753,6 +753,7 @@ type Mutation {
   approveSubscription(durationDays: Int!, memberId: String!, tier: SubscriptionTier!): MemberDto!
   cancelBooking(bookingId: String!, evidencePhotos: [String!], reason: String!): BookingDto!
   cancelBookingByOperator(bookingId: String!, evidencePhotos: [String!], reason: String!): BookingDto!
+  cancelMySubscription: ResponseDto!
   cancelPriceLock(priceLockId: String!): Boolean!
   cancelSubscription(memberId: String!): MemberDto!
   claimChat(input: ClaimChatInput!): ChatDto!

@@ -386,6 +386,28 @@ export class MemberService {
 		return updatedMember;
 	}
 
+	public async cancelMySubscription(currentMember: MemberJwtPayload): Promise<ResponseDto> {
+		if (!currentMember?._id) {
+			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
+		}
+
+		const member = await this.memberModel.findById(currentMember._id).exec();
+		if (!member) {
+			throw new BadRequestException(Messages.NO_MEMBER_NICK);
+		}
+
+		if (member.subscriptionTier === SubscriptionTier.FREE) {
+			throw new BadRequestException('You are already on the FREE tier');
+		}
+
+		await this.memberModel.findByIdAndUpdate(currentMember._id, {
+			subscriptionTier: SubscriptionTier.FREE,
+			subscriptionExpiry: null,
+		}).exec();
+
+		return { success: true, message: 'Subscription cancelled successfully' };
+	}
+
 	public async getSubscriptionStatus(currentMember: MemberJwtPayload): Promise<SubscriptionStatusDto> {
 		if (!currentMember?._id) {
 			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);

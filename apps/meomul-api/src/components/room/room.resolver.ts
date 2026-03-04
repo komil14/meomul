@@ -134,8 +134,13 @@ export class RoomResolver {
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => RoomStatus, nullable: true }) statusFilter?: RoomStatus,
 	): Promise<RoomsDto> {
-		this.logger.log('Query getAllRoomsAdmin', statusFilter);
-		return this.roomService.getAllRoomsAdmin(input, statusFilter);
+		try {
+			this.logger.log('Query getAllRoomsAdmin', statusFilter);
+			return this.roomService.getAllRoomsAdmin(input, statusFilter);
+		} catch (error) {
+			this.logger.error('Query getAllRoomsAdmin failed', statusFilter, error);
+			throw error;
+		}
 	}
 
 	/**
@@ -144,7 +149,12 @@ export class RoomResolver {
 	@Mutation(() => RoomDto)
 	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updateRoomByAdmin(@Args('input') input: RoomUpdate): Promise<RoomDto> {
-		this.logger.log('Mutation updateRoomByAdmin', input._id);
-		return this.roomService.updateRoomByAdmin(input);
+		try {
+			this.logger.log('Mutation updateRoomByAdmin', input._id);
+			return this.roomService.updateRoomByAdmin(input);
+		} catch (error) {
+			this.logger.error('Mutation updateRoomByAdmin failed', input._id, error);
+			throw error;
+		}
 	}
 }

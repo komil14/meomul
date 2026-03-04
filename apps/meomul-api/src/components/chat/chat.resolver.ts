@@ -158,8 +158,13 @@ export class ChatResolver {
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => ChatStatus, nullable: true }) statusFilter?: ChatStatus,
 	): Promise<ChatsDto> {
-		this.logger.log('Query getAllChatsAdmin', statusFilter);
-		return this.chatService.getAllChatsAdmin(input, statusFilter);
+		try {
+			this.logger.log('Query getAllChatsAdmin', statusFilter);
+			return this.chatService.getAllChatsAdmin(input, statusFilter);
+		} catch (error) {
+			this.logger.error('Query getAllChatsAdmin failed', statusFilter, error);
+			throw error;
+		}
 	}
 
 	/**
@@ -168,7 +173,12 @@ export class ChatResolver {
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async reassignChat(@Args('chatId') chatId: string, @Args('newAgentId') newAgentId: string): Promise<ChatDto> {
-		this.logger.log('Mutation reassignChat', chatId, newAgentId);
-		return this.chatService.reassignChat(chatId, newAgentId);
+		try {
+			this.logger.log('Mutation reassignChat', chatId, newAgentId);
+			return this.chatService.reassignChat(chatId, newAgentId);
+		} catch (error) {
+			this.logger.error('Mutation reassignChat failed', chatId, newAgentId, error);
+			throw error;
+		}
 	}
 }
