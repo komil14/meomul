@@ -24,7 +24,7 @@ export class HotelResolver {
 	 * Get all hotels (ADMIN only) — includes PENDING, INACTIVE, SUSPENDED
 	 */
 	@Query(() => HotelsDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAllHotelsAdmin(
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => HotelStatus, nullable: true }) statusFilter?: HotelStatus,
@@ -78,7 +78,7 @@ export class HotelResolver {
 	 * Update hotel by admin (full access)
 	 */
 	@Mutation(() => HotelDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updateHotelByAdmin(@Args('input') input: HotelUpdate): Promise<HotelDto> {
 		try {
 			this.logger.log('Mutation updateHotelByAdmin', input._id);

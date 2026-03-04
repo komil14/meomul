@@ -379,7 +379,7 @@ export class ReviewService {
 		]);
 
 		return {
-			list: list.map(toReviewDto),
+			list: await this.attachReviewerProfiles(list),
 			metaCounter: { total },
 		};
 	}
@@ -407,9 +407,13 @@ export class ReviewService {
 		]);
 
 		return {
-			list: list.map(toReviewDto),
+			list: await this.attachReviewerProfiles(list),
 			metaCounter: { total },
 		};
+	}
+
+	private static isValidImage(image?: string): boolean {
+		return !!image && image !== '' && !image.includes('default-avatar');
 	}
 
 	private async attachReviewerProfiles(list: ReviewDocument[]): Promise<ReviewDto[]> {
@@ -427,7 +431,10 @@ export class ReviewService {
 		const reviewerById = new Map(
 			reviewers.map((member) => [
 				String(member._id),
-				{ memberNick: member.memberNick, memberImage: member.memberImage },
+				{
+					memberNick: member.memberNick,
+					memberImage: ReviewService.isValidImage(member.memberImage) ? member.memberImage : undefined,
+				},
 			]),
 		);
 

@@ -24,7 +24,7 @@ export class ReviewResolver {
 	 * Get all reviews (ADMIN only) — includes FLAGGED, REMOVED
 	 */
 	@Query(() => ReviewsDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAllReviewsAdmin(
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => ReviewStatus, nullable: true }) statusFilter?: ReviewStatus,
@@ -205,7 +205,7 @@ export class ReviewResolver {
 	 * Update review status (admin only)
 	 */
 	@Mutation(() => ReviewDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updateReviewStatus(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('reviewId') reviewId: string,

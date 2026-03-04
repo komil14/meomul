@@ -129,7 +129,7 @@ export class RoomResolver {
 	 * Get all rooms (admin only)
 	 */
 	@Query(() => RoomsDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAllRoomsAdmin(
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => RoomStatus, nullable: true }) statusFilter?: RoomStatus,
@@ -142,7 +142,7 @@ export class RoomResolver {
 	 * Update room by admin (no ownership check)
 	 */
 	@Mutation(() => RoomDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updateRoomByAdmin(@Args('input') input: RoomUpdate): Promise<RoomDto> {
 		this.logger.log('Mutation updateRoomByAdmin', input._id);
 		return this.roomService.updateRoomByAdmin(input);

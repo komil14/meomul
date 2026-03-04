@@ -63,7 +63,7 @@ export class MemberResolver {
 	}
 
 	@Mutation(() => MemberDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async updateMemberByAdmin(@Args('input') input: MemberUpdate): Promise<MemberDto> {
 		try {
 			this.logger.log('Mutation updateMemberByAdmin');
@@ -75,7 +75,7 @@ export class MemberResolver {
 	}
 
 	@Query(() => MembersDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAllMembersByAdmin(@Args('input') input: PaginationInput): Promise<MembersDto> {
 		try {
 			this.logger.log('Query getAllMembersByAdmin');
@@ -103,7 +103,7 @@ export class MemberResolver {
 	}
 
 	@Query(() => MemberDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getMemberByAdmin(@Args('memberId') memberId: string): Promise<MemberDto> {
 		try {
 			this.logger.log('Query getMemberByAdmin', memberId);
@@ -115,7 +115,7 @@ export class MemberResolver {
 	}
 
 	@Mutation(() => MemberDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async deleteMemberByAdmin(@Args('memberId') memberId: string): Promise<MemberDto> {
 		try {
 			this.logger.log('Mutation deleteMemberByAdmin', memberId);
@@ -142,7 +142,7 @@ export class MemberResolver {
 	}
 
 	@Mutation(() => MemberDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async approveSubscription(
 		@Args('memberId') memberId: string,
 		@Args('tier', { type: () => SubscriptionTier }) tier: SubscriptionTier,
@@ -158,7 +158,7 @@ export class MemberResolver {
 	}
 
 	@Mutation(() => ResponseDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async denySubscription(
 		@Args('memberId') memberId: string,
 		@Args('reason', { type: () => String, nullable: true }) reason?: string,
@@ -173,7 +173,7 @@ export class MemberResolver {
 	}
 
 	@Mutation(() => MemberDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async cancelSubscription(@Args('memberId') memberId: string): Promise<MemberDto> {
 		try {
 			this.logger.log('Mutation cancelSubscription', memberId);
@@ -222,7 +222,7 @@ export class MemberResolver {
 	}
 
 	@Query(() => ResponseDto)
-	@Roles(MemberType.ADMIN)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public checkAuthRoles(@CurrentMember() currentMember: MemberJwtPayload): ResponseDto {
 		try {
 			this.logger.log('Query checkAuthRoles', currentMember?._id ?? 'unknown');
