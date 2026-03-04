@@ -137,7 +137,7 @@ export class MemberService {
 		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
 		const skip = (page - 1) * limit;
 
-		const [list, total] = await Promise.all([
+		const [list, total, userCount, agentCount, adminCount, operatorCount] = await Promise.all([
 			this.memberModel
 				.find()
 				.sort({ [sort]: direction })
@@ -145,11 +145,21 @@ export class MemberService {
 				.limit(limit)
 				.exec(),
 			this.memberModel.countDocuments().exec(),
+			this.memberModel.countDocuments({ memberType: MemberType.USER }).exec(),
+			this.memberModel.countDocuments({ memberType: MemberType.AGENT }).exec(),
+			this.memberModel.countDocuments({ memberType: MemberType.ADMIN }).exec(),
+			this.memberModel.countDocuments({ memberType: MemberType.ADMIN_OPERATOR }).exec(),
 		]);
 
 		return {
 			list,
 			metaCounter: { total },
+			typeCounts: {
+				USER: userCount,
+				AGENT: agentCount,
+				ADMIN: adminCount,
+				ADMIN_OPERATOR: operatorCount,
+			},
 		};
 	}
 

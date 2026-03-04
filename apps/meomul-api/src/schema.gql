@@ -704,6 +704,13 @@ enum MemberType {
   USER
 }
 
+type MemberTypeCounts {
+  ADMIN: Int!
+  ADMIN_OPERATOR: Int!
+  AGENT: Int!
+  USER: Int!
+}
+
 input MemberUpdate {
   _id: String
   memberAddress: String
@@ -718,6 +725,7 @@ input MemberUpdate {
 type MembersDto {
   list: [MemberDto!]!
   metaCounter: MetaCounterDto!
+  typeCounts: MemberTypeCounts
 }
 
 type MessageDto {
