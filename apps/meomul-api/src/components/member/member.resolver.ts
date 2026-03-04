@@ -197,7 +197,7 @@ export class MemberResolver {
 	}
 
 	@Query(() => SubscriptionStatusDto)
-	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN)
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getSubscriptionStatus(@CurrentMember() currentMember: MemberJwtPayload): Promise<SubscriptionStatusDto> {
 		try {
 			this.logger.log('Query getSubscriptionStatus', currentMember?._id ?? 'unknown');

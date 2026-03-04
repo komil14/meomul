@@ -166,6 +166,10 @@ type BookingDto {
   earlyCheckInFee: Int!
   guestId: String!
   hotelId: String!
+  hotelImages: [String!]
+  hotelLocation: String
+  hotelTitle: String
+  hotelType: HotelType
   lateCheckOut: Boolean!
   lateCheckOutFee: Int!
   nights: Int!
@@ -933,12 +937,12 @@ type Query {
   getMemberByAdmin(memberId: String!): MemberDto!
   getMemberFollowersPaginated(input: FollowInquiry!, memberId: String!): Followers!
   getMemberFollowingsPaginated(input: FollowInquiry!, memberId: String!): Followings!
-  getMyBookings(input: PaginationInput!): BookingsDto!
+  getMyBookings(input: PaginationInput!, statusFilter: BookingStatus): BookingsDto!
   getMyChats(input: PaginationInput!): ChatsDto!
   getMyFollowers: [FollowDto!]!
   getMyFollowing: [FollowDto!]!
   getMyLikes(likeGroup: LikeGroup!): [LikeDto!]!
-  getMyNotifications(unreadOnly: Boolean): [NotificationDto!]!
+  getMyNotifications(limit: Float, unreadOnly: Boolean): [NotificationDto!]!
   getMyPriceLock(roomId: String!): PriceLockDto
   getMyPriceLocks: [PriceLockDto!]!
   getMyRecommendationProfile: RecommendationProfileDto!

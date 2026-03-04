@@ -79,10 +79,11 @@ export class BookingResolver {
 	public async getMyBookings(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: PaginationInput,
+		@Args('statusFilter', { nullable: true, type: () => BookingStatus }) statusFilter?: BookingStatus,
 	): Promise<BookingsDto> {
 		try {
 			this.logger.log('Query getMyBookings', currentMember?._id ?? 'unknown', input.page);
-			return this.bookingService.getMyBookings(currentMember, input);
+			return this.bookingService.getMyBookings(currentMember, input, statusFilter);
 		} catch (error) {
 			this.logger.error('Query getMyBookings failed', currentMember?._id ?? 'unknown', input.page, error);
 			throw error;

@@ -68,13 +68,14 @@ export class NotificationService {
 	/**
 	 * Get all notifications for current user
 	 */
-	public async getMyNotifications(currentMember: MemberJwtPayload, unreadOnly?: boolean): Promise<NotificationDto[]> {
+	public async getMyNotifications(currentMember: MemberJwtPayload, unreadOnly?: boolean, limit?: number): Promise<NotificationDto[]> {
 		const notifications = await this.notificationModel
 			.find({
 				userId: currentMember._id,
 				...(unreadOnly ? { read: false } : {}),
 			})
 			.sort({ createdAt: -1 })
+			.limit(limit ?? 50)
 			.exec();
 
 		return notifications.map(toNotificationDto);

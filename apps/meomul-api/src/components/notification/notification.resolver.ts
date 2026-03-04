@@ -39,10 +39,11 @@ export class NotificationResolver {
 	public async getMyNotifications(
 		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('unreadOnly', { type: () => Boolean, nullable: true }) unreadOnly?: boolean,
+		@Args('limit', { type: () => Number, nullable: true }) limit?: number,
 	): Promise<NotificationDto[]> {
 		try {
 			this.logger.log('Query getMyNotifications', currentMember?._id ?? 'unknown', unreadOnly);
-			return this.notificationService.getMyNotifications(currentMember, unreadOnly);
+			return this.notificationService.getMyNotifications(currentMember, unreadOnly, limit);
 		} catch (error) {
 			this.logger.error('Query getMyNotifications failed', currentMember?._id ?? 'unknown', unreadOnly, error);
 			throw error;

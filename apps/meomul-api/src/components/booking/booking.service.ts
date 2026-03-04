@@ -324,12 +324,17 @@ export class BookingService {
 	/**
 	 * Get user's bookings
 	 */
-	public async getMyBookings(currentMember: MemberJwtPayload, input: PaginationInput): Promise<BookingsDto> {
+	public async getMyBookings(
+		currentMember: MemberJwtPayload,
+		input: PaginationInput,
+		statusFilter?: BookingStatus,
+	): Promise<BookingsDto> {
 		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
 		const skip = (page - 1) * limit;
 
 		const query: Record<string, unknown> = {
 			guestId: currentMember._id,
+			...(statusFilter ? { bookingStatus: statusFilter } : {}),
 		};
 
 		const [list, total] = await Promise.all([
@@ -342,8 +347,28 @@ export class BookingService {
 			this.bookingModel.countDocuments(query).exec(),
 		]);
 
+		// Batch-fetch hotel display data to avoid N+1 on the client
+		const uniqueHotelIds = [...new Set(list.map((b) => String(b.hotelId)))];
+		const hotels = uniqueHotelIds.length
+			? await this.hotelModel
+					.find({ _id: { $in: uniqueHotelIds } })
+					.select('_id hotelTitle hotelLocation hotelType hotelImages')
+					.exec()
+			: [];
+		const hotelMap = new Map(hotels.map((h) => [String(h._id), h]));
+
 		return {
-			list: list.map(toBookingDto),
+			list: list.map((doc) => {
+				const dto = toBookingDto(doc);
+				const hotel = hotelMap.get(String(doc.hotelId));
+				if (hotel) {
+					dto.hotelTitle = hotel.hotelTitle;
+					dto.hotelLocation = String(hotel.hotelLocation ?? '');
+					dto.hotelType = hotel.hotelType;
+					dto.hotelImages = hotel.hotelImages ?? [];
+				}
+				return dto;
+			}),
 			metaCounter: { total },
 		};
 	}

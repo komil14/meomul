@@ -2,6 +2,7 @@ import { Field, ObjectType, Int } from '@nestjs/graphql';
 import type { ObjectId } from 'mongoose';
 import { BookingStatus, PaymentStatus, PaymentMethod, CancellationFlow } from '../../enums/booking.enum';
 import { MemberType } from '../../enums/member.enum';
+import { HotelType } from '../../enums/hotel.enum';
 
 @ObjectType()
 export class BookedRoomDto {
@@ -142,4 +143,17 @@ export class BookingDto {
 
 	@Field(() => Date)
 	updatedAt: Date;
+
+	// Denormalized hotel fields for list views (populated on read, not stored)
+	@Field(() => String, { nullable: true })
+	hotelTitle?: string;
+
+	@Field(() => String, { nullable: true })
+	hotelLocation?: string;
+
+	@Field(() => HotelType, { nullable: true })
+	hotelType?: HotelType;
+
+	@Field(() => [String], { nullable: true })
+	hotelImages?: string[];
 }
