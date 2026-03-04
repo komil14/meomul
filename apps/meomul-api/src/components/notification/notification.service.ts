@@ -186,8 +186,19 @@ export class NotificationService {
 			this.notificationModel.countDocuments().exec(),
 		]);
 
+		const dtos = list.map(toNotificationDto);
+
+		// Attach user nicknames
+		const userIds = Array.from(new Set(dtos.map((d) => String(d.userId))));
+		const members = await this.memberModel
+			.find({ _id: { $in: userIds } })
+			.select({ _id: 1, memberNick: 1 })
+			.lean<{ _id: string; memberNick?: string }[]>()
+			.exec();
+		const nickById = new Map(members.map((m) => [String(m._id), m.memberNick]));
+
 		return {
-			list: list.map(toNotificationDto),
+			list: dtos.map((d) => ({ ...d, userNick: nickById.get(String(d.userId)) })),
 			metaCounter: { total },
 		};
 	}

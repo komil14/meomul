@@ -25,6 +25,9 @@ export class NotificationDto {
 	@Field(() => Boolean)
 	read: boolean;
 
+	@Field(() => String, { nullable: true })
+	userNick?: string;
+
 	@Field(() => Date)
 	createdAt: Date;
 }

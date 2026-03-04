@@ -806,6 +806,7 @@ type NotificationDto {
   title: String!
   type: NotificationType!
   userId: String!
+  userNick: String
 }
 
 input NotificationInput {
