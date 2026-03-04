@@ -1239,6 +1239,7 @@ type SubscriptionStatusDto {
   active: Boolean!
   daysRemaining: Int
   expiresAt: DateTime
+  pendingRequestedTier: String
   tier: SubscriptionTier!
 }
 

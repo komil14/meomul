@@ -266,6 +266,12 @@ export class MemberService {
 			throw new BadRequestException(`You are already on the ${requestedTier} tier`);
 		}
 
+		// Check for existing pending request
+		const hasPending = await this.notificationService.hasPendingSubscriptionRequest(String(currentMember._id));
+		if (hasPending) {
+			throw new BadRequestException('You already have a pending subscription request. Please wait for admin review.');
+		}
+
 		// Notify admins (fire-and-forget)
 		this.notificationService
 			.notifyAdmins(
@@ -317,6 +323,9 @@ export class MemberService {
 			)
 			.catch(() => {});
 
+		// Remove processed subscription request notifications
+		await this.notificationService.deleteSubscriptionRequestsForMember(memberId);
+
 		return updatedMember;
 	}
 
@@ -339,6 +348,9 @@ export class MemberService {
 				'SYSTEM',
 			)
 			.catch(() => {});
+
+		// Remove processed subscription request notifications
+		await this.notificationService.deleteSubscriptionRequestsForMember(memberId);
 
 		return {
 			success: true,
@@ -400,10 +412,12 @@ export class MemberService {
 			throw new BadRequestException('You are already on the FREE tier');
 		}
 
-		await this.memberModel.findByIdAndUpdate(currentMember._id, {
-			subscriptionTier: SubscriptionTier.FREE,
-			subscriptionExpiry: null,
-		}).exec();
+		await this.memberModel
+			.findByIdAndUpdate(currentMember._id, {
+				subscriptionTier: SubscriptionTier.FREE,
+				subscriptionExpiry: null,
+			})
+			.exec();
 
 		return { success: true, message: 'Subscription cancelled successfully' };
 	}
@@ -433,6 +447,8 @@ export class MemberService {
 			active: isActive,
 			expiresAt: member.subscriptionExpiry ?? undefined,
 			daysRemaining,
+			pendingRequestedTier:
+				(await this.notificationService.getPendingSubscriptionTier(String(currentMember._id))) ?? undefined,
 		};
 	}
 

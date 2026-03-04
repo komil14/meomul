@@ -14,4 +14,7 @@ export class SubscriptionStatusDto {
 
 	@Field(() => Int, { nullable: true })
 	daysRemaining?: number;
+
+	@Field(() => String, { nullable: true })
+	pendingRequestedTier?: string;
 }

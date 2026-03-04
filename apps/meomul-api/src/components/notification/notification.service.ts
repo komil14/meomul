@@ -216,6 +216,47 @@ export class NotificationService {
 	}
 
 	/**
+	 * Check if a member already has a pending subscription request
+	 */
+	public async hasPendingSubscriptionRequest(memberId: string): Promise<boolean> {
+		const count = await this.notificationModel
+			.countDocuments({
+				type: NotificationType.SUBSCRIPTION_REQUEST,
+				link: `/admin/members/${memberId}`,
+			})
+			.exec();
+		return count > 0;
+	}
+
+	/**
+	 * Get the requested tier from a pending subscription request (if any)
+	 */
+	public async getPendingSubscriptionTier(memberId: string): Promise<string | null> {
+		const notification = await this.notificationModel
+			.findOne({
+				type: NotificationType.SUBSCRIPTION_REQUEST,
+				link: `/admin/members/${memberId}`,
+			})
+			.sort({ createdAt: -1 })
+			.exec();
+		if (!notification) return null;
+		const match = notification.message.match(/requested (\w+) subscription/i);
+		return match?.[1]?.toUpperCase() ?? null;
+	}
+
+	/**
+	 * Delete subscription request notifications for a member (after approve/deny)
+	 */
+	public async deleteSubscriptionRequestsForMember(memberId: string): Promise<void> {
+		await this.notificationModel
+			.deleteMany({
+				type: NotificationType.SUBSCRIPTION_REQUEST,
+				link: `/admin/members/${memberId}`,
+			})
+			.exec();
+	}
+
+	/**
 	 * Delete all notifications for a user (cleanup when user is deleted)
 	 */
 	public async deleteNotificationsForUser(userId: string): Promise<void> {
