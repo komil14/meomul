@@ -148,6 +148,7 @@ export class ReviewService {
 
 		// Build update payload
 		const updateData: Record<string, unknown> = {};
+		if (input.overallRating !== undefined) updateData.overallRating = input.overallRating;
 		if (input.reviewTitle !== undefined) updateData.reviewTitle = input.reviewTitle;
 		if (input.reviewText !== undefined) updateData.reviewText = input.reviewText;
 
@@ -157,6 +158,11 @@ export class ReviewService {
 
 		if (!updatedReview) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		// Recalculate hotel stats if rating changed
+		if (input.overallRating !== undefined) {
+			await this.updateHotelReviewStats(String(updatedReview.hotelId));
 		}
 
 		return toReviewDto(updatedReview);

@@ -1074,6 +1074,7 @@ enum ReviewStatus {
 
 input ReviewUpdate {
   _id: String!
+  overallRating: Int
   reviewStatus: String
   reviewText: String
   reviewTitle: String
