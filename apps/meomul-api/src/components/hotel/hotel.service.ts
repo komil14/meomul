@@ -163,6 +163,14 @@ export class HotelService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
+		// If activating a hotel, ensure it has at least 3 images
+		if (input.hotelStatus === HotelStatus.ACTIVE) {
+			const images = input.hotelImages ?? hotel.hotelImages ?? [];
+			if (images.length < 3) {
+				throw new BadRequestException('Hotel must have at least 3 images before it can be made active');
+			}
+		}
+
 		// Build update payload (allow admin-only fields)
 		const updateData = this.buildUpdatePayload(input, true);
 

@@ -89,11 +89,10 @@ export class ReviewService {
 			reviewText: input.reviewText,
 			guestPhotos: input.guestPhotos || [],
 			helpfulCount: 0,
-			reviewStatus: ReviewStatus.APPROVED, // Auto-approve for now
+			reviewStatus: ReviewStatus.APPROVED, // Auto-approve for verified stays, can be changed to PENDING if manual moderation is desired
 		});
 
-		// Update hotel review stats
-		await this.updateHotelReviewStats(String(booking.hotelId));
+		// Hotel review stats are updated only when admin approves the review
 
 		// Notify admins (fire-and-forget)
 		this.notificationService
