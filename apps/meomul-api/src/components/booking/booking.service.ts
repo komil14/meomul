@@ -144,6 +144,12 @@ export class BookingService {
 					throw new NotFoundException(Messages.NO_DATA_FOUND);
 				}
 
+				// AGENT can only create bookings for their own hotel
+				if (currentMember.memberType === MemberType.AGENT &&
+					String(hotel.memberId) !== String(currentMember._id)) {
+					throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+				}
+
 				const txRooms = await this.roomModel
 					.find({ _id: { $in: roomIds } })
 					.session(session)
