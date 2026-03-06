@@ -8,6 +8,7 @@ import {
 	IsArray,
 	IsBoolean,
 	Min,
+	Length,
 	ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -83,6 +84,7 @@ export class BookingInput {
 
 	@IsOptional()
 	@IsString()
+	@Length(0, 1000)
 	@Field(() => String, { nullable: true })
 	specialRequests?: string;
 

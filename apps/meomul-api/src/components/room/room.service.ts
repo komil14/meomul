@@ -150,7 +150,7 @@ export class RoomService {
 	 * Get single room by ID
 	 */
 	public async getRoom(roomId: string): Promise<RoomDto> {
-		const room = await this.roomModel.findById(roomId).exec();
+		const room = await this.roomModel.findById(roomId).lean().exec();
 		if (!room) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
@@ -187,6 +187,7 @@ export class RoomService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.roomModel.countDocuments(query).exec(),
 		]);
@@ -217,6 +218,7 @@ export class RoomService {
 				updatedAt: -1,
 			})
 			.limit(candidateLimit)
+			.lean()
 			.exec();
 
 		if (rooms.length === 0) {
@@ -230,6 +232,7 @@ export class RoomService {
 				hotelStatus: HotelStatus.ACTIVE,
 			})
 			.select('_id hotelTitle hotelLocation hotelImages')
+			.lean()
 			.exec();
 
 		const hotelsById = new Map<string, HotelDocument>(hotels.map((hotel) => [String(hotel._id), hotel]));
@@ -303,6 +306,7 @@ export class RoomService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.roomModel.countDocuments(query).exec(),
 		]);
@@ -331,6 +335,7 @@ export class RoomService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.roomModel.countDocuments(query).exec(),
 		]);

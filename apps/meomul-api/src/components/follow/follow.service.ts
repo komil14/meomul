@@ -141,6 +141,7 @@ export class FollowService {
 				followerId,
 				followingId,
 			})
+			.lean()
 			.exec();
 
 		return !!follow;
@@ -155,6 +156,8 @@ export class FollowService {
 				followingId: memberId,
 			})
 			.sort({ createdAt: -1 })
+			.limit(1000)
+			.lean()
 			.exec();
 
 		return follows.map(toFollowDto);
@@ -169,6 +172,8 @@ export class FollowService {
 				followerId: memberId,
 			})
 			.sort({ createdAt: -1 })
+			.limit(1000)
+			.lean()
 			.exec();
 
 		return follows.map(toFollowDto);

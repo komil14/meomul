@@ -8,7 +8,7 @@ import {
 	MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { MemberType } from '../libs/enums/member.enum';
@@ -59,6 +59,8 @@ interface ChatMessagePayload {
 	namespace: '/chat',
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+	private readonly logger = new Logger(ChatGateway.name);
+
 	@WebSocketServer()
 	server: Server;
 
@@ -71,13 +73,49 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	private userSessions: Map<string, UserSession> = new Map();
 	private userSocketMap: Map<string, Set<string>> = new Map();
 	private socketChatMap: Map<string, Set<string>> = new Map(); // socketId -> Set of chatIds
+	private authTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
-	handleConnection(client: Socket) {
-		console.log(`Chat Client Connected: ${client.id}`);
+	private static readonly AUTH_TIMEOUT_MS = 5_000;
+
+	async handleConnection(client: Socket) {
+		this.logger.log(`Chat Client Connected: ${client.id}`);
+
+		// Attempt handshake-level auth (token sent via handshake.auth.token)
+		const handshakeToken = this.extractToken(client);
+		if (handshakeToken) {
+			try {
+				const authMember = await this.authService.verifyToken(handshakeToken);
+				if (authMember?._id) {
+					this.registerSession(client, authMember._id, authMember.memberType);
+					return; // authenticated at connection time
+				}
+			} catch {
+				// Token invalid — disconnect immediately
+				client.emit('error', { message: 'Invalid authentication token' });
+				client.disconnect(true);
+				return;
+			}
+		}
+
+		// No handshake token — allow a grace period for the 'authenticate' event
+		const timer = setTimeout(() => {
+			if (!this.userSessions.has(client.id)) {
+				client.emit('error', { message: 'Authentication timeout' });
+				client.disconnect(true);
+			}
+		}, ChatGateway.AUTH_TIMEOUT_MS);
+		this.authTimers.set(client.id, timer);
 	}
 
 	handleDisconnect(client: Socket) {
-		console.log(`Chat Client Disconnected: ${client.id}`);
+		this.logger.log(`Chat Client Disconnected: ${client.id}`);
+
+		// Clear any pending auth timer
+		const timer = this.authTimers.get(client.id);
+		if (timer) {
+			clearTimeout(timer);
+			this.authTimers.delete(client.id);
+		}
 
 		const session = this.userSessions.get(client.id);
 		if (session) {
@@ -103,6 +141,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		@MessageBody() data: { token?: string; userId?: string },
 	) {
 		try {
+			// Already authenticated via handshake — skip re-auth
+			if (this.userSessions.has(client.id)) {
+				const session = this.userSessions.get(client.id)!;
+				return { success: true, userId: session.userId, message: 'Already authenticated' };
+			}
+
 			const rawToken = this.extractToken(client, data?.token);
 			if (!rawToken) {
 				return { success: false, error: 'Authentication token is required' };
@@ -118,25 +162,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				return { success: false, error: 'Token user mismatch' };
 			}
 
-			await client.join(`user:${userId}`);
+			this.registerSession(client, userId, authMember.memberType);
 
-			this.userSessions.set(client.id, {
-				socketId: client.id,
-				userId,
-				memberType: authMember.memberType,
-				joinedAt: new Date(),
-			});
-
-			if (!this.userSocketMap.has(userId)) {
-				this.userSocketMap.set(userId, new Set());
-			}
-			this.userSocketMap.get(userId)!.add(client.id);
-
-			console.log(`Chat user ${userId} authenticated on socket ${client.id}`);
+			this.logger.log(`Chat user ${userId} authenticated on socket ${client.id}`);
 
 			return { success: true, userId, message: 'Authenticated to chat' };
 		} catch (error) {
-			console.error('Error authenticating chat user:', error);
+			this.logger.error('Error authenticating chat user:', error);
 			return { success: false, error: 'Failed to authenticate' };
 		}
 	}
@@ -166,11 +198,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			}
 			this.socketChatMap.get(client.id)!.add(chatId);
 
-			console.log(`User ${session.userId} joined chat ${chatId}`);
+			this.logger.log(`User ${session.userId} joined chat ${chatId}`);
 
 			return { success: true, chatId, message: 'Joined chat room' };
 		} catch (error) {
-			console.error('Error joining chat:', error);
+			this.logger.error('Error joining chat:', error);
 			return { success: false, error: 'Failed to join chat' };
 		}
 	}
@@ -240,6 +272,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		}
 
 		return rawToken.trim();
+	}
+
+	private registerSession(client: Socket, userId: string, memberType: MemberType): void {
+		// Clear auth timeout if it was set
+		const timer = this.authTimers.get(client.id);
+		if (timer) {
+			clearTimeout(timer);
+			this.authTimers.delete(client.id);
+		}
+
+		client.join(`user:${userId}`);
+
+		this.userSessions.set(client.id, {
+			socketId: client.id,
+			userId,
+			memberType,
+			joinedAt: new Date(),
+		});
+
+		if (!this.userSocketMap.has(userId)) {
+			this.userSocketMap.set(userId, new Set());
+		}
+		this.userSocketMap.get(userId)!.add(client.id);
 	}
 
 	private async canAccessChat(session: UserSession, chatId: string): Promise<boolean> {

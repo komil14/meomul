@@ -269,7 +269,7 @@ export class ChatService {
 	 * Get a single chat by ID (only participants can access)
 	 */
 	public async getChat(currentMember: MemberJwtPayload, chatId: string): Promise<ChatDto> {
-		const chat = await this.chatModel.findById(chatId).exec();
+		const chat = await this.chatModel.findById(chatId).lean().exec();
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
 		// Validate access
@@ -288,7 +288,7 @@ export class ChatService {
 		const filter = { guestId: currentMember._id };
 
 		const [list, total] = await Promise.all([
-			this.chatModel.find(filter).sort({ lastMessageAt: -1 }).skip(skip).limit(limit).exec(),
+			this.chatModel.find(filter).sort({ lastMessageAt: -1 }).skip(skip).limit(limit).lean().exec(),
 			this.chatModel.countDocuments(filter).exec(),
 		]);
 
@@ -319,7 +319,7 @@ export class ChatService {
 		}
 
 		const [list, total] = await Promise.all([
-			this.chatModel.find(filter).sort({ lastMessageAt: -1 }).skip(skip).limit(limit).exec(),
+			this.chatModel.find(filter).sort({ lastMessageAt: -1 }).skip(skip).limit(limit).lean().exec(),
 			this.chatModel.countDocuments(filter).exec(),
 		]);
 
@@ -404,7 +404,7 @@ export class ChatService {
 		}
 
 		const [list, total] = await Promise.all([
-			this.chatModel.find(filter).sort({ lastMessageAt: -1 }).skip(skip).limit(limit).exec(),
+			this.chatModel.find(filter).sort({ lastMessageAt: -1 }).skip(skip).limit(limit).lean().exec(),
 			this.chatModel.countDocuments(filter).exec(),
 		]);
 
@@ -555,6 +555,7 @@ export class ChatService {
 				memberStatus: MemberStatus.ACTIVE,
 			})
 			.select('_id')
+			.lean()
 			.exec();
 
 		if (supportMembers.length === 0) {

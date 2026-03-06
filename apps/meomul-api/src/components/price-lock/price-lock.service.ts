@@ -69,6 +69,7 @@ export class PriceLockService {
 				roomId,
 				expiresAt: { $gt: new Date() },
 			})
+			.lean()
 			.exec();
 
 		return lock ? toPriceLockDto(lock) : null;
@@ -84,6 +85,7 @@ export class PriceLockService {
 				expiresAt: { $gt: new Date() },
 			})
 			.sort({ createdAt: -1 })
+			.lean()
 			.exec();
 
 		return locks.map(toPriceLockDto);
@@ -121,13 +123,14 @@ export class PriceLockService {
 				roomId,
 				expiresAt: { $gt: new Date() },
 			})
+			.lean()
 			.exec();
 
 		if (lock) {
 			return { price: lock.lockedPrice, isLocked: true, isDeal: false, discountPercent: 0 };
 		}
 
-		const room = await this.roomModel.findById(roomId).exec();
+		const room = await this.roomModel.findById(roomId).lean().exec();
 		if (!room) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}

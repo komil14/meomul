@@ -82,6 +82,7 @@ export class ViewService {
 				memberId: new Types.ObjectId(memberId),
 				viewGroup,
 			})
+			.lean()
 			.exec();
 
 		return !!view;
@@ -97,6 +98,8 @@ export class ViewService {
 				viewGroup,
 			})
 			.sort({ createdAt: -1 })
+			.limit(500)
+			.lean()
 			.exec();
 
 		return views.map(toViewDto);

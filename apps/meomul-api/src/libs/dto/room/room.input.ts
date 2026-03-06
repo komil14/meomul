@@ -27,6 +27,7 @@ export class RoomInput {
 
 	@IsOptional()
 	@IsString()
+	@Length(0, 5000)
 	@Field(() => String, { defaultValue: '' })
 	roomDesc: string;
 

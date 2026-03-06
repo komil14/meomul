@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
+import { Types } from 'mongoose';
 import { ReviewInput } from '../../libs/dto/review/review.input';
 import { ReviewUpdate } from '../../libs/dto/review/review.update';
 import { ReviewDto } from '../../libs/dto/review/review';
@@ -203,7 +204,7 @@ export class ReviewService {
 	 * Get single review
 	 */
 	public async getReview(reviewId: string, currentMember?: MemberJwtPayload): Promise<ReviewDto> {
-		const review = await this.reviewModel.findById(reviewId).exec();
+		const review = await this.reviewModel.findById(reviewId).lean().exec();
 		if (!review) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
@@ -227,7 +228,7 @@ export class ReviewService {
 		}
 
 		// Return review with current view count
-		const updatedReview = await this.reviewModel.findById(reviewId).exec();
+		const updatedReview = await this.reviewModel.findById(reviewId).lean().exec();
 		return toReviewDto(updatedReview!);
 	}
 
@@ -249,6 +250,7 @@ export class ReviewService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.reviewModel.countDocuments(query).exec(),
 			this.reviewModel
@@ -303,6 +305,7 @@ export class ReviewService {
 			})
 			.sort({ stayDate: -1, createdAt: -1 })
 			.limit(candidateLimit)
+			.lean()
 			.exec();
 
 		if (reviews.length === 0) {
@@ -314,10 +317,12 @@ export class ReviewService {
 		const hotels = await this.hotelModel
 			.find({ _id: { $in: hotelIds } })
 			.select('_id hotelTitle')
+			.lean()
 			.exec();
 		const reviewers = await this.memberModel
 			.find({ _id: { $in: reviewerIds } })
 			.select('_id memberNick memberImage')
+			.lean()
 			.exec();
 
 		const hotelTitleById = new Map<string, string>(hotels.map((hotel) => [String(hotel._id), hotel.hotelTitle]));
@@ -379,6 +384,7 @@ export class ReviewService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.reviewModel.countDocuments(query).exec(),
 		]);
@@ -407,6 +413,7 @@ export class ReviewService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.reviewModel.countDocuments(query).exec(),
 		]);
@@ -610,37 +617,29 @@ export class ReviewService {
 	}
 
 	/**
-	 * Update hotel review statistics
+	 * Update hotel review statistics using aggregation (avoids fetching all reviews into memory)
 	 */
 	private async updateHotelReviewStats(hotelId: string): Promise<void> {
 		try {
-			const reviews = await this.reviewModel
-				.find({
-					hotelId,
-					reviewStatus: ReviewStatus.APPROVED,
-				})
+			const result = await this.reviewModel
+				.aggregate<{ count: number; avgRating: number }>([
+					{ $match: { hotelId: new Types.ObjectId(hotelId), reviewStatus: ReviewStatus.APPROVED } },
+					{
+						$group: {
+							_id: null,
+							count: { $sum: 1 },
+							avgRating: { $avg: '$overallRating' },
+						},
+					},
+				])
 				.exec();
 
-			if (reviews.length === 0) {
-				// Reset stats if no approved reviews
-				await this.hotelModel
-					.findByIdAndUpdate(hotelId, {
-						hotelRank: 0,
-						hotelReviews: 0,
-					})
-					.exec();
-				return;
-			}
+			const stats = result[0];
 
-			// Calculate average rating
-			const totalRating = reviews.reduce((sum, review) => sum + review.overallRating, 0);
-			const averageRating = totalRating / reviews.length;
-
-			// Update hotel
 			await this.hotelModel
 				.findByIdAndUpdate(hotelId, {
-					hotelRank: averageRating,
-					hotelReviews: reviews.length,
+					hotelRank: stats?.avgRating ?? 0,
+					hotelReviews: stats?.count ?? 0,
 				})
 				.exec();
 		} catch (error) {

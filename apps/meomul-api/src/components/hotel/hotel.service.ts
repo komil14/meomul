@@ -212,7 +212,7 @@ export class HotelService {
 	 * Get single hotel by ID
 	 */
 	public async getHotel(hotelId: string, currentMember?: MemberJwtPayload): Promise<HotelDto> {
-		const hotel = await this.hotelModel.findById(hotelId).exec();
+		const hotel = await this.hotelModel.findById(hotelId).lean().exec();
 		if (!hotel) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
@@ -271,6 +271,7 @@ export class HotelService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.hotelModel.countDocuments(query).exec(),
 		]);
@@ -432,6 +433,7 @@ export class HotelService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.hotelModel.countDocuments(query).exec(),
 		]);
@@ -462,6 +464,7 @@ export class HotelService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.hotelModel.countDocuments(query).exec(),
 		]);
@@ -505,7 +508,7 @@ export class HotelService {
 		}
 
 		// Find matching rooms and get distinct hotel IDs
-		const matchingRooms = await this.roomModel.find(roomQuery).select('hotelId _id totalRooms basePrice').exec();
+		const matchingRooms = await this.roomModel.find(roomQuery).select('hotelId _id totalRooms basePrice').lean().exec();
 
 		if (matchingRooms.length === 0) {
 			return [];

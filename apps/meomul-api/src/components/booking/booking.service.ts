@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectModel } from '@nestjs/mongoose';
@@ -145,8 +146,7 @@ export class BookingService {
 				}
 
 				// AGENT can only create bookings for their own hotel
-				if (currentMember.memberType === MemberType.AGENT &&
-					String(hotel.memberId) !== String(currentMember._id)) {
+				if (currentMember.memberType === MemberType.AGENT && String(hotel.memberId) !== String(currentMember._id)) {
 					throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 				}
 
@@ -673,7 +673,7 @@ export class BookingService {
 	 */
 	private generateBookingCode(): string {
 		const timestamp = Date.now().toString(36).toUpperCase();
-		const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+		const random = randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase();
 		return `BK${timestamp}${random}`;
 	}
 

@@ -8,7 +8,7 @@ import {
 	MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import type { RoomDocument } from '../libs/types/room';
@@ -44,6 +44,8 @@ const ROOM_EXISTS_CACHE_TTL_MS = 60_000;
 	namespace: '/room-viewers',
 })
 export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconnect {
+	private readonly logger = new Logger(RoomViewersGateway.name);
+
 	@WebSocketServer()
 	server: Server;
 
@@ -53,11 +55,11 @@ export class RoomViewersGateway implements OnGatewayConnection, OnGatewayDisconn
 	constructor(@InjectModel('Room') private readonly roomModel: Model<RoomDocument>) {}
 
 	handleConnection(client: Socket) {
-		console.log(`Room Viewer Connected: ${client.id}`);
+		this.logger.log(`Room Viewer Connected: ${client.id}`);
 	}
 
 	async handleDisconnect(client: Socket) {
-		console.log(`Room Viewer Disconnected: ${client.id}`);
+		this.logger.log(`Room Viewer Disconnected: ${client.id}`);
 
 		// Find and remove viewer session
 		const session = this.viewerSessions.get(client.id);

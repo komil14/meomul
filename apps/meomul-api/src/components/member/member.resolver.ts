@@ -1,5 +1,6 @@
-import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Args, Context, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { Logger } from '@nestjs/common';
+import type { Response, Request } from 'express';
 import { AuthMemberDto } from '../../libs/dto/auth/auth-member';
 import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
@@ -18,18 +19,47 @@ import { MemberType, SubscriptionTier } from '../../libs/enums/member.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import { MemberService } from './member.service';
 
+const REFRESH_TOKEN_COOKIE = 'meomul_rt';
+const REFRESH_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 @Resolver()
 export class MemberResolver {
 	private readonly logger = new Logger(MemberResolver.name);
 
 	constructor(private readonly memberService: MemberService) {}
 
+	private setRefreshTokenCookie(res: Response, refreshToken: string): void {
+		const isProduction = process.env.NODE_ENV === 'production';
+		res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
+			httpOnly: true,
+			secure: isProduction,
+			sameSite: isProduction ? 'none' : 'lax',
+			maxAge: REFRESH_TOKEN_MAX_AGE_MS,
+			path: '/',
+		});
+	}
+
+	private clearRefreshTokenCookie(res: Response): void {
+		const isProduction = process.env.NODE_ENV === 'production';
+		res.clearCookie(REFRESH_TOKEN_COOKIE, {
+			httpOnly: true,
+			secure: isProduction,
+			sameSite: isProduction ? 'none' : 'lax',
+			path: '/',
+		});
+	}
+
 	@Mutation(() => AuthMemberDto)
 	@Public()
-	public async signupMember(@Args('input') input: MemberInput): Promise<AuthMemberDto> {
+	public async signupMember(
+		@Args('input') input: MemberInput,
+		@Context() ctx: { res: Response },
+	): Promise<AuthMemberDto> {
 		try {
 			this.logger.log('Mutation signup');
-			return this.memberService.signup(input);
+			const result = await this.memberService.signup(input);
+			this.setRefreshTokenCookie(ctx.res, result.refreshToken);
+			return result;
 		} catch (error) {
 			this.logger.error('Mutation signup failed', error);
 			throw error;
@@ -38,12 +68,55 @@ export class MemberResolver {
 
 	@Mutation(() => AuthMemberDto)
 	@Public()
-	public async loginMember(@Args('input') input: LoginInput): Promise<AuthMemberDto> {
+	public async loginMember(
+		@Args('input') input: LoginInput,
+		@Context() ctx: { res: Response },
+	): Promise<AuthMemberDto> {
 		try {
 			this.logger.log('Mutation login');
-			return this.memberService.login(input);
+			const result = await this.memberService.login(input);
+			this.setRefreshTokenCookie(ctx.res, result.refreshToken);
+			return result;
 		} catch (error) {
 			this.logger.error('Mutation login failed', error);
+			throw error;
+		}
+	}
+
+	@Mutation(() => AuthMemberDto)
+	@Public()
+	public async refreshToken(@Context() ctx: { req: Request; res: Response }): Promise<AuthMemberDto> {
+		try {
+			const rawToken = (ctx.req.cookies as Record<string, string | undefined>)?.[REFRESH_TOKEN_COOKIE];
+			if (!rawToken) {
+				throw new Error('No refresh token');
+			}
+			this.logger.debug('Mutation refreshToken');
+			const result = await this.memberService.refreshAccessToken(rawToken);
+			// Rotate: set new refresh token cookie
+			this.setRefreshTokenCookie(ctx.res, result.refreshToken);
+			return result;
+		} catch (error) {
+			this.logger.warn('Mutation refreshToken failed', (error as Error)?.message);
+			this.clearRefreshTokenCookie(ctx.res);
+			throw error;
+		}
+	}
+
+	@Mutation(() => ResponseDto)
+	@Public()
+	public async logout(@Context() ctx: { req: Request; res: Response }): Promise<ResponseDto> {
+		try {
+			const rawToken = (ctx.req.cookies as Record<string, string | undefined>)?.[REFRESH_TOKEN_COOKIE];
+			if (rawToken) {
+				await this.memberService.logoutRefreshToken(rawToken);
+			}
+			this.clearRefreshTokenCookie(ctx.res);
+			return { success: true, message: 'Logged out successfully' };
+		} catch (error) {
+			this.logger.error('Mutation logout failed', error);
+			// Always clear the cookie even on error
+			this.clearRefreshTokenCookie(ctx.res);
 			throw error;
 		}
 	}

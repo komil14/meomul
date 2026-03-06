@@ -350,6 +350,7 @@ export class RecommendationService {
 				})
 				.sort({ hotelRank: -1, hotelRating: -1 })
 				.limit(limit)
+				.lean()
 				.exec();
 			result = hotels.map(toHotelDto);
 		} else {
@@ -370,7 +371,10 @@ export class RecommendationService {
 		if (cached) return cached;
 
 		// Check batch-precomputed data first
-		const precomputed = await this.recCacheModel.findOne({ cacheKey: `trending:${location}` }).exec();
+		const precomputed = await this.recCacheModel
+			.findOne({ cacheKey: `trending:${location}` })
+			.lean()
+			.exec();
 		const precomputedData = Array.isArray(precomputed?.data) ? (precomputed.data as HotelDto[]) : [];
 
 		if (precomputedData.length > 0) {
@@ -398,6 +402,7 @@ export class RecommendationService {
 			})
 			.sort({ hotelRank: -1, hotelRating: -1 })
 			.limit(limit - locationFiltered.length)
+			.lean()
 			.exec();
 
 		const result = [...locationFiltered, ...additional.map(toHotelDto)];
@@ -413,7 +418,7 @@ export class RecommendationService {
 		const cached = await this.cacheManager.get<HotelDto[]>(cacheKey);
 		if (cached) return cached;
 
-		const sourceHotel = await this.hotelModel.findById(hotelId).exec();
+		const sourceHotel = await this.hotelModel.findById(hotelId).lean().exec();
 		if (!sourceHotel) {
 			return [];
 		}
@@ -531,6 +536,7 @@ export class RecommendationService {
 				.select('location hotelTypes purpose amenities priceMin priceMax createdAt')
 				.sort({ createdAt: -1 })
 				.limit(200)
+				.lean()
 				.exec(),
 
 			// Get viewed hotel IDs
@@ -539,10 +545,11 @@ export class RecommendationService {
 				.select('viewRefId')
 				.sort({ createdAt: -1 })
 				.limit(50)
+				.lean()
 				.exec(),
 
 			// Get liked hotel IDs
-			this.likeModel.find({ memberId: memberObjectId, likeGroup: LikeGroup.HOTEL }).select('likeRefId').exec(),
+			this.likeModel.find({ memberId: memberObjectId, likeGroup: LikeGroup.HOTEL }).select('likeRefId').lean().exec(),
 
 			// Get booked hotel IDs
 			this.bookingModel
@@ -553,6 +560,7 @@ export class RecommendationService {
 				.select('hotelId')
 				.sort({ createdAt: -1 })
 				.limit(20)
+				.lean()
 				.exec(),
 		]);
 
@@ -573,6 +581,7 @@ export class RecommendationService {
 					hotelStatus: HotelStatus.ACTIVE,
 				})
 				.select('hotelLocation hotelType suitableFor')
+				.lean()
 				.exec();
 
 			for (const hotel of signalHotelDocs) {

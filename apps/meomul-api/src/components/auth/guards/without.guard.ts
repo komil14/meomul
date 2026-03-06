@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import type { IncomingHttpHeaders } from 'http';
 import type { MemberJwtPayload } from '../../../libs/types/member';
@@ -11,10 +11,12 @@ type WithoutGuardRequest = {
 
 @Injectable()
 export class WithoutGuard implements CanActivate {
+	private readonly logger = new Logger(WithoutGuard.name);
+
 	constructor(private readonly authService: AuthService) {}
 
 	public async canActivate(context: ExecutionContext): Promise<boolean> {
-		console.info('--- @guard() Authentication [WithoutGuard] ---');
+		this.logger.verbose('--- @guard() Authentication [WithoutGuard] ---');
 
 		const gqlContext = GqlExecutionContext.create(context);
 		const req = gqlContext.getContext<{ req: WithoutGuardRequest }>().req;
@@ -41,7 +43,7 @@ export class WithoutGuard implements CanActivate {
 			req.body.authMember = null;
 		}
 
-		console.log('memberNick[without] =>', req.body.authMember?.memberNick ?? 'none');
+		this.logger.verbose(`memberNick[without] => ${req.body.authMember?.memberNick ?? 'none'}`);
 		return true;
 	}
 }

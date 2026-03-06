@@ -9,5 +9,16 @@ export type UploadTarget = (typeof VALID_TARGETS)[number];
 export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 export const VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 
+/** Map of allowed MIME types to their valid file extensions */
+export const MIME_TO_EXTENSIONS: Record<string, string[]> = {
+	'image/jpeg': ['.jpg', '.jpeg'],
+	'image/jpg': ['.jpg', '.jpeg'],
+	'image/png': ['.png'],
+	'image/webp': ['.webp'],
+	'video/mp4': ['.mp4'],
+	'video/quicktime': ['.mov'],
+	'video/webm': ['.webm'],
+};
+
 export const VIDEO_SIZE_LIMIT = 50 * 1024 * 1024; // 50MB
 export const IMAGE_SIZE_LIMIT = 5 * 1024 * 1024; // 5MB

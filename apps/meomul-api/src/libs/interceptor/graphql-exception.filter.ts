@@ -1,9 +1,12 @@
-import { Catch, HttpException, HttpStatus } from '@nestjs/common';
+import { Catch, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { GqlExceptionFilter } from '@nestjs/graphql';
 import { GraphQLError } from 'graphql';
 
 @Catch()
 export class GraphqlExceptionFilter implements GqlExceptionFilter {
+	private readonly logger = new Logger(GraphqlExceptionFilter.name);
+	private readonly isProduction = process.env.NODE_ENV === 'production';
+
 	public catch(exception: unknown): GraphQLError {
 		const { message, statusCode } = this.resolveError(exception);
 		return new GraphQLError(message, {
@@ -38,7 +41,17 @@ export class GraphqlExceptionFilter implements GqlExceptionFilter {
 				message = exception.message;
 			}
 		} else if (exception instanceof Error) {
-			message = exception.message;
+			// In production, never leak internal error details to client
+			if (this.isProduction) {
+				this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
+				message = 'Internal server error';
+			} else {
+				message = exception.message;
+			}
+		} else {
+			if (this.isProduction) {
+				this.logger.error('Unknown exception type caught', exception);
+			}
 		}
 
 		return { message, statusCode };

@@ -8,7 +8,7 @@ import {
 	MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuthService } from '../components/auth/auth.service';
 import { MemberType } from '../libs/enums/member.enum';
 
@@ -48,6 +48,8 @@ interface UserSession {
 	namespace: '/notifications',
 })
 export class NotificationGateway implements OnGatewayConnection, OnGatewayDisconnect {
+	private readonly logger = new Logger(NotificationGateway.name);
+
 	@WebSocketServer()
 	server: Server;
 
@@ -55,13 +57,49 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 
 	private userSessions: Map<string, UserSession> = new Map();
 	private userSocketMap: Map<string, Set<string>> = new Map(); // userId -> Set of socketIds
+	private authTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
-	handleConnection(client: Socket) {
-		console.log(`Notification Client Connected: ${client.id}`);
+	private static readonly AUTH_TIMEOUT_MS = 5_000;
+
+	async handleConnection(client: Socket) {
+		this.logger.log(`Notification Client Connected: ${client.id}`);
+
+		// Attempt handshake-level auth
+		const handshakeToken = this.extractToken(client);
+		if (handshakeToken) {
+			try {
+				const authMember = await this.authService.verifyToken(handshakeToken);
+				if (authMember?._id) {
+					this.registerSession(client, authMember._id, authMember.memberType);
+					return;
+				}
+			} catch (error) {
+				this.logger.warn(`Handshake auth failed for ${client.id}: ${error}`);
+				client.emit('error', { message: 'Invalid authentication token' });
+				client.disconnect(true);
+				return;
+			}
+		}
+
+		// Grace period for 'authenticate' event
+		const timer = setTimeout(() => {
+			if (!this.userSessions.has(client.id)) {
+				client.emit('error', { message: 'Authentication timeout' });
+				client.disconnect(true);
+			}
+		}, NotificationGateway.AUTH_TIMEOUT_MS);
+		this.authTimers.set(client.id, timer);
 	}
 
 	handleDisconnect(client: Socket) {
-		console.log(`Notification Client Disconnected: ${client.id}`);
+		this.logger.log(`Notification Client Disconnected: ${client.id}`);
+
+		// Clear any pending auth timer
+		const timer = this.authTimers.get(client.id);
+		if (timer) {
+			clearTimeout(timer);
+			this.authTimers.delete(client.id);
+		}
 
 		// Remove user session
 		const session = this.userSessions.get(client.id);
@@ -86,6 +124,12 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 		@MessageBody() data: { token?: string; userId?: string },
 	) {
 		try {
+			// Already authenticated via handshake
+			if (this.userSessions.has(client.id)) {
+				const session = this.userSessions.get(client.id)!;
+				return { success: true, userId: session.userId, message: 'Already authenticated' };
+			}
+
 			const rawToken = this.extractToken(client, data?.token);
 			if (!rawToken) {
 				return {
@@ -110,24 +154,9 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 				};
 			}
 
-			// Join user-specific room
-			await client.join(`user:${userId}`);
+			this.registerSession(client, userId, authMember.memberType);
 
-			// Store session
-			this.userSessions.set(client.id, {
-				socketId: client.id,
-				userId,
-				memberType: authMember.memberType,
-				joinedAt: new Date(),
-			});
-
-			// Update user socket map
-			if (!this.userSocketMap.has(userId)) {
-				this.userSocketMap.set(userId, new Set());
-			}
-			this.userSocketMap.get(userId)!.add(client.id);
-
-			console.log(`User ${userId} authenticated on socket ${client.id}`);
+			this.logger.log(`User ${userId} authenticated on socket ${client.id}`);
 
 			return {
 				success: true,
@@ -135,7 +164,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 				message: 'Successfully authenticated',
 			};
 		} catch (error) {
-			console.error('Error authenticating user:', error);
+			this.logger.error('Error authenticating user:', error);
 			return {
 				success: false,
 				error: 'Failed to authenticate',
@@ -168,7 +197,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 				message: 'Notification marked as read',
 			};
 		} catch (error) {
-			console.error('Error marking notification as read:', error);
+			this.logger.error('Error marking notification as read:', error);
 			return {
 				success: false,
 				error: 'Failed to mark notification as read',
@@ -185,7 +214,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 			timestamp: new Date(),
 		});
 
-		console.log(`Notification sent to user ${userId}:`, notification.title);
+		this.logger.log(`Notification sent to user ${userId}: ${notification.title}`);
 	}
 
 	/**
@@ -206,7 +235,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 			timestamp: new Date(),
 		});
 
-		console.log('Notification broadcasted to all users:', notification.title);
+		this.logger.log(`Notification broadcasted to all users: ${notification.title}`);
 	}
 
 	/**
@@ -295,5 +324,27 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
 		}
 
 		return rawToken.trim();
+	}
+
+	private registerSession(client: Socket, userId: string, memberType: MemberType): void {
+		const timer = this.authTimers.get(client.id);
+		if (timer) {
+			clearTimeout(timer);
+			this.authTimers.delete(client.id);
+		}
+
+		client.join(`user:${userId}`);
+
+		this.userSessions.set(client.id, {
+			socketId: client.id,
+			userId,
+			memberType,
+			joinedAt: new Date(),
+		});
+
+		if (!this.userSocketMap.has(userId)) {
+			this.userSocketMap.set(userId, new Set());
+		}
+		this.userSocketMap.get(userId)!.add(client.id);
 	}
 }

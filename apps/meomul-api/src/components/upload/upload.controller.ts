@@ -25,6 +25,7 @@ import {
 	IMAGE_MIME_TYPES,
 	VIDEO_SIZE_LIMIT,
 	VIDEO_MIME_TYPES,
+	MIME_TO_EXTENSIONS,
 } from '../../libs/config';
 import { MemberType } from '../../libs/enums/member.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
@@ -86,6 +87,11 @@ export class UploadController {
 				if (!IMAGE_MIME_TYPES.includes(file.mimetype)) {
 					return cb(new BadRequestException(Messages.PROVIDE_ALLOWED_FORMAT), false);
 				}
+				const ext = path.extname(file.originalname).toLowerCase();
+				const allowedExts = MIME_TO_EXTENSIONS[file.mimetype];
+				if (allowedExts && !allowedExts.includes(ext)) {
+					return cb(new BadRequestException('File extension does not match its content type'), false);
+				}
 				cb(null, true);
 			},
 		}),
@@ -126,6 +132,11 @@ export class UploadController {
 			fileFilter: (_req, file, cb) => {
 				if (!VIDEO_MIME_TYPES.includes(file.mimetype)) {
 					return cb(new BadRequestException('Please provide a valid video format (mp4, mov, webm)!'), false);
+				}
+				const ext = path.extname(file.originalname).toLowerCase();
+				const allowedExts = MIME_TO_EXTENSIONS[file.mimetype];
+				if (allowedExts && !allowedExts.includes(ext)) {
+					return cb(new BadRequestException('File extension does not match its content type'), false);
 				}
 				cb(null, true);
 			},

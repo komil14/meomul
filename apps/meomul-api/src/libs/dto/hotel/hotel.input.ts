@@ -274,6 +274,7 @@ export class HotelInput {
 
 	@IsOptional()
 	@IsString()
+	@Length(0, 5000)
 	@Field(() => String, { defaultValue: '' })
 	hotelDesc: string;
 

@@ -98,6 +98,7 @@ export class LikeService {
 				memberId,
 				likeGroup,
 			})
+			.lean()
 			.exec();
 
 		return !!like;
@@ -113,6 +114,8 @@ export class LikeService {
 				likeGroup,
 			})
 			.sort({ createdAt: -1 })
+			.limit(1000)
+			.lean()
 			.exec();
 
 		return likes.map(toLikeDto);

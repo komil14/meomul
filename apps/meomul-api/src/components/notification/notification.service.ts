@@ -68,7 +68,11 @@ export class NotificationService {
 	/**
 	 * Get all notifications for current user
 	 */
-	public async getMyNotifications(currentMember: MemberJwtPayload, unreadOnly?: boolean, limit?: number): Promise<NotificationDto[]> {
+	public async getMyNotifications(
+		currentMember: MemberJwtPayload,
+		unreadOnly?: boolean,
+		limit?: number,
+	): Promise<NotificationDto[]> {
 		const notifications = await this.notificationModel
 			.find({
 				userId: currentMember._id,
@@ -76,6 +80,7 @@ export class NotificationService {
 			})
 			.sort({ createdAt: -1 })
 			.limit(limit ?? 50)
+			.lean()
 			.exec();
 
 		return notifications.map(toNotificationDto);
@@ -85,7 +90,7 @@ export class NotificationService {
 	 * Get notification by ID
 	 */
 	public async getNotification(notificationId: string, currentMember: MemberJwtPayload): Promise<NotificationDto> {
-		const notification = await this.notificationModel.findById(notificationId).exec();
+		const notification = await this.notificationModel.findById(notificationId).lean().exec();
 
 		if (!notification) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
@@ -183,6 +188,7 @@ export class NotificationService {
 				.sort({ [sort]: direction })
 				.skip(skip)
 				.limit(limit)
+				.lean()
 				.exec(),
 			this.notificationModel.countDocuments().exec(),
 		]);
@@ -211,6 +217,8 @@ export class NotificationService {
 		const notifications = await this.notificationModel
 			.find({ type: NotificationType.SUBSCRIPTION_REQUEST })
 			.sort({ createdAt: -1 })
+			.limit(200)
+			.lean()
 			.exec();
 
 		return notifications.map(toNotificationDto);
@@ -239,6 +247,7 @@ export class NotificationService {
 				link: `/admin/members/${memberId}`,
 			})
 			.sort({ createdAt: -1 })
+			.lean()
 			.exec();
 		if (!notification) return null;
 		const match = notification.message.match(/requested (\w+) subscription/i);
@@ -275,6 +284,7 @@ export class NotificationService {
 		const admins = await this.memberModel
 			.find({ memberType: { $in: [MemberType.ADMIN, MemberType.ADMIN_OPERATOR] } })
 			.select('_id')
+			.lean()
 			.exec();
 
 		if (admins.length === 0) return;

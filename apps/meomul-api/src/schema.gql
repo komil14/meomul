@@ -775,11 +775,13 @@ type Mutation {
   denySubscription(memberId: String!, reason: String): ResponseDto!
   lockPrice(input: CreatePriceLockInput!): PriceLockDto!
   loginMember(input: LoginInput!): AuthMemberDto!
+  logout: ResponseDto!
   markAllAsRead: Int!
   markAsRead(notificationId: String!): NotificationDto!
   markChatMessagesAsRead(chatId: String!): ChatDto!
   markHelpful(reviewId: String!): ReviewDto!
   reassignChat(chatId: String!, newAgentId: String!): ChatDto!
+  refreshToken: AuthMemberDto!
   requestSubscription(requestedTier: SubscriptionTier!): ResponseDto!
   respondToReview(responseText: String!, reviewId: String!): ReviewDto!
   saveOnboardingPreferences(input: OnboardingPreferenceInput!): ResponseDto!

@@ -26,9 +26,11 @@ import { attachMongoSlowQueryMonitor } from '../../meomul-api/src/database/mongo
 				connectTimeoutMS: 30000,
 				socketTimeoutMS: 45000,
 				serverSelectionTimeoutMS: 30000,
-				maxPoolSize: 10,
+				// Batch worker needs fewer connections than the API
+				maxPoolSize: process.env.NODE_ENV === 'production' ? 20 : 10,
 				minPoolSize: 1,
 				monitorCommands: process.env.MONGO_SLOW_QUERY_LOG === 'true',
+				autoIndex: process.env.NODE_ENV !== 'production',
 				connectionFactory: (connection: Connection) => {
 					attachMongoSlowQueryMonitor(connection, 'batch');
 					return connection;

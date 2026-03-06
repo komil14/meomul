@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model, ClientSession } from 'mongoose';
 import { Types } from 'mongoose';
@@ -59,7 +59,7 @@ export class MemberService {
 		private readonly recommendationService: RecommendationService,
 	) {}
 
-	public async signup(input: MemberInput): Promise<AuthMemberDto> {
+	public async signup(input: MemberInput): Promise<AuthMemberDto & { refreshToken: string }> {
 		if (input.memberType === MemberType.ADMIN || input.memberType === MemberType.ADMIN_OPERATOR) {
 			throw new BadRequestException('Admin account types cannot be created through public signup');
 		}
@@ -76,7 +76,10 @@ export class MemberService {
 			...input,
 			memberPassword,
 		});
-		const accessToken = await this.authService.generateJwtToken(createdMember);
+		const [accessToken, refreshToken] = await Promise.all([
+			this.authService.generateJwtToken(createdMember),
+			this.authService.createRefreshToken(createdMember._id.toString()),
+		]);
 
 		// Notify admins (fire-and-forget)
 		this.notificationService
@@ -88,10 +91,10 @@ export class MemberService {
 			)
 			.catch(() => {});
 
-		return this.toAuthMember(createdMember, accessToken);
+		return { ...this.toAuthMember(createdMember, accessToken), refreshToken };
 	}
 
-	public async login(input: LoginInput): Promise<AuthMemberDto> {
+	public async login(input: LoginInput): Promise<AuthMemberDto & { refreshToken: string }> {
 		const member = await this.memberModel.findOne({ memberNick: input.memberNick }).select('+memberPassword').exec();
 
 		if (!member || member.memberStatus === MemberStatus.DELETE) {
@@ -111,8 +114,11 @@ export class MemberService {
 			throw new UnauthorizedException(Messages.WRONG_PASSWORD);
 		}
 
-		const accessToken = await this.authService.generateJwtToken(member);
-		return this.toAuthMember(member, accessToken);
+		const [accessToken, refreshToken] = await Promise.all([
+			this.authService.generateJwtToken(member),
+			this.authService.createRefreshToken(member._id.toString()),
+		]);
+		return { ...this.toAuthMember(member, accessToken), refreshToken };
 	}
 
 	public async updateMember(currentMember: MemberJwtPayload, input: MemberUpdate): Promise<MemberDocument> {
@@ -603,6 +609,45 @@ export class MemberService {
 	): Promise<void> {
 		const options = session ? { session } : {};
 		await this.memberModel.findByIdAndUpdate(memberId, { $inc: { [targetKey]: modifier } }, options).exec();
+	}
+
+	// ── Refresh token operations ────────────────────────────────────────
+
+	private readonly refreshLogger = new Logger('RefreshToken');
+
+	/**
+	 * Validate the refresh token, look up the member, and issue a new access token.
+	 * Returns { accessToken, refreshToken (new, rotated) } or throws.
+	 */
+	public async refreshAccessToken(rawRefreshToken: string): Promise<AuthMemberDto & { refreshToken: string }> {
+		const memberId = await this.authService.validateRefreshToken(rawRefreshToken);
+		if (!memberId) {
+			throw new UnauthorizedException('Invalid or expired refresh token');
+		}
+
+		const member = await this.memberModel.findById(memberId).exec();
+		if (!member || member.memberStatus === MemberStatus.DELETE || member.memberStatus === MemberStatus.BLOCK) {
+			// Revoke all tokens for this member if they're blocked/deleted
+			await this.authService.revokeAllMemberTokens(memberId);
+			throw new UnauthorizedException('Account not available');
+		}
+
+		// Rotate: revoke old refresh token and issue a new one
+		await this.authService.revokeRefreshToken(rawRefreshToken);
+		const [accessToken, newRefreshToken] = await Promise.all([
+			this.authService.generateJwtToken(member),
+			this.authService.createRefreshToken(memberId),
+		]);
+
+		this.refreshLogger.debug(`Token refreshed for member ${memberId}`);
+		return { ...this.toAuthMember(member, accessToken), refreshToken: newRefreshToken };
+	}
+
+	/**
+	 * Revoke a specific refresh token (logout from one device).
+	 */
+	public async logoutRefreshToken(rawRefreshToken: string): Promise<void> {
+		await this.authService.revokeRefreshToken(rawRefreshToken);
 	}
 
 	private toAuthMember(member: MemberDocument, accessToken: string): AuthMemberDto {

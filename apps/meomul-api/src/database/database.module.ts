@@ -17,10 +17,12 @@ import { attachMongoSlowQueryMonitor } from './mongo-monitor';
 				socketTimeoutMS: 45000,
 				// How long the driver waits to find an available server
 				serverSelectionTimeoutMS: 30000,
-				// Keep the connection pool small — scheduler jobs are infrequent
-				maxPoolSize: 10,
-				minPoolSize: 1,
+				// Connection pool: larger for API under load, small for dev
+				maxPoolSize: process.env.NODE_ENV === 'production' ? 50 : 10,
+				minPoolSize: process.env.NODE_ENV === 'production' ? 5 : 1,
 				monitorCommands: process.env.MONGO_SLOW_QUERY_LOG === 'true',
+				// Disable auto-index creation in production (indexes should be managed via migrations)
+				autoIndex: process.env.NODE_ENV !== 'production',
 			}),
 		}),
 	],
