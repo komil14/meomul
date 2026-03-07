@@ -29,6 +29,7 @@ import {
 } from '../../libs/config';
 import { MemberType } from '../../libs/enums/member.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
+import { getUploadsRoot } from '../../libs/utils/uploads-path';
 
 type UploadRequest = Request & {
 	query: Request['query'] & { target?: string };
@@ -42,7 +43,7 @@ function createStorage(getTarget: (req: UploadRequest) => string) {
 			if (!VALID_TARGETS.includes(target as UploadTarget)) {
 				return cb(new BadRequestException('Invalid upload target'), '');
 			}
-			const dir = path.join(process.cwd(), 'uploads', target);
+			const dir = path.join(getUploadsRoot(), target);
 			mkdirSync(dir, { recursive: true });
 			cb(null, dir);
 		},

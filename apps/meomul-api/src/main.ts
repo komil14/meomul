@@ -4,9 +4,9 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import * as path from 'path';
 import { AppModule } from './app.module';
 import { RedisIoAdapter } from './socket/redis-io.adapter';
+import { getUploadsRoot } from './libs/utils/uploads-path';
 
 async function bootstrap() {
 	const logger = new Logger('Bootstrap');
@@ -18,6 +18,7 @@ async function bootstrap() {
 		helmet({
 			contentSecurityPolicy: isProduction ? undefined : false,
 			crossOriginEmbedderPolicy: false,
+			crossOriginResourcePolicy: { policy: 'cross-origin' },
 		}),
 	);
 
@@ -60,7 +61,7 @@ async function bootstrap() {
 	);
 
 	// Serve static files — accessible at http://localhost:3001/uploads/<target>/<filename>
-	app.useStaticAssets(path.join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+	app.useStaticAssets(getUploadsRoot(), { prefix: '/uploads' });
 
 	// Graceful shutdown hooks (always enabled, not just for Redis)
 	app.enableShutdownHooks();
