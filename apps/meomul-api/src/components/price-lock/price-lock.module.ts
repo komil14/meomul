@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import PriceLockSchema from '../../schemas/PriceLock.model';
 import RoomSchema from '../../schemas/Room.model';
+import HotelSchema from '../../schemas/Hotel.model';
 import { PriceLockService } from './price-lock.service';
 import { PriceLockResolver } from './price-lock.resolver';
 import { AuthModule } from '../auth/auth.module';
@@ -11,6 +12,7 @@ import { AuthModule } from '../auth/auth.module';
 		MongooseModule.forFeature([
 			{ name: 'PriceLock', schema: PriceLockSchema },
 			{ name: 'Room', schema: RoomSchema },
+			{ name: 'Hotel', schema: HotelSchema },
 		]),
 		AuthModule,
 	],

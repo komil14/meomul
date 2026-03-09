@@ -35,6 +35,20 @@ describe('RecommendationService', () => {
 			del: jest.fn().mockResolvedValue(undefined),
 		};
 
+		const searchHistoryModel = {
+			find: jest.fn().mockReturnValue({
+				select: jest.fn().mockReturnValue({
+					sort: jest.fn().mockReturnValue({
+						limit: jest.fn().mockReturnValue({
+							lean: jest.fn().mockReturnValue({
+								exec: jest.fn().mockResolvedValue([]),
+							}),
+						}),
+					}),
+				}),
+			}),
+		};
+
 		const userProfileModel = {
 			findOne: jest.fn().mockReturnValue({
 				lean: jest.fn().mockReturnValue({
@@ -49,12 +63,12 @@ describe('RecommendationService', () => {
 			{} as never,
 			{} as never,
 			{} as never,
-			{} as never,
+			searchHistoryModel as never,
 			userProfileModel as never,
 			{} as never,
 		);
 
-		return { service, cacheManager, userProfileModel };
+		return { service, cacheManager, searchHistoryModel, userProfileModel };
 	};
 
 	it('returns hasProfile=false when profile is missing', async () => {
@@ -155,7 +169,7 @@ describe('RecommendationService', () => {
 		expect(result.meta.matchedLocationCount).toBe(2);
 		expect(result.explanations).toHaveLength(4);
 		expect(cacheManager.set).toHaveBeenCalledWith(
-			expect.stringContaining(`rec:${memberId}:v-stage:algo-4:4`),
+			expect.stringContaining(`rec:${memberId}:v-stage:algo-5:4`),
 			result,
 			600000,
 		);
@@ -183,7 +197,7 @@ describe('RecommendationService', () => {
 			if (key === `rec:v:${memberId}`) {
 				return 'v-cache';
 			}
-			if (key === `rec:${memberId}:v-cache:algo-4:3`) {
+			if (key === `rec:${memberId}:v-cache:algo-5:3`) {
 				return cachedPayload;
 			}
 			return null;

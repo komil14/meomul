@@ -3,11 +3,14 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreatePriceLockInput } from '../../libs/dto/price-lock/price-lock.input';
 import { PriceLockDto } from '../../libs/dto/price-lock/price-lock';
+import { HotelStatus } from '../../libs/enums/hotel.enum';
+import { RoomStatus } from '../../libs/enums/room.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { PriceLockDocument } from '../../libs/types/price-lock';
 import { toPriceLockDto } from '../../libs/types/price-lock';
 import type { RoomDocument } from '../../libs/types/room';
+import type { HotelDocument } from '../../libs/types/hotel';
 
 const LOCK_DURATION_MINUTES = 30;
 
@@ -16,6 +19,7 @@ export class PriceLockService {
 	constructor(
 		@InjectModel('PriceLock') private readonly priceLockModel: Model<PriceLockDocument>,
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
+		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 	) {}
 
 	/**
@@ -27,6 +31,7 @@ export class PriceLockService {
 		if (!room) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
+		await this.assertRoomIsPubliclyBookable(room);
 		const currentEffectivePrice = this.resolveCurrentPublicPrice(room);
 
 		// Verify the submitted price matches the actual room price
@@ -134,6 +139,7 @@ export class PriceLockService {
 		if (!room) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
+		await this.assertRoomIsPubliclyBookable(room);
 
 		const currentPublicPrice = this.resolveCurrentPublicPrice(room);
 		const isActiveDeal = Boolean(
@@ -149,5 +155,16 @@ export class PriceLockService {
 			return room.lastMinuteDeal.dealPrice;
 		}
 		return room.basePrice;
+	}
+
+	private async assertRoomIsPubliclyBookable(room: Pick<RoomDocument, '_id' | 'hotelId' | 'roomStatus'>): Promise<void> {
+		if (room.roomStatus && room.roomStatus !== RoomStatus.AVAILABLE) {
+			throw new BadRequestException('Room is not available for price lock');
+		}
+
+		const hotel = await this.hotelModel.findById(room.hotelId).select('hotelStatus').lean().exec();
+		if (!hotel || hotel.hotelStatus !== HotelStatus.ACTIVE) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
 	}
 }

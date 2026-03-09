@@ -9,7 +9,7 @@ import { BookingDto } from '../../libs/dto/booking/booking';
 import { BookingsDto } from '../../libs/dto/common/bookings';
 import { Direction, PaginationInput } from '../../libs/dto/common/pagination';
 import { BookingStatus, CancellationFlow, PaymentStatus } from '../../libs/enums/booking.enum';
-import { CancellationPolicy } from '../../libs/enums/hotel.enum';
+import { CancellationPolicy, HotelStatus } from '../../libs/enums/hotel.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
 import { RoomStatus } from '../../libs/enums/room.enum';
 import { Messages } from '../../libs/messages';
@@ -50,9 +50,14 @@ export class BookingService {
 		const checkIn = new Date(input.checkInDate);
 		const checkOut = new Date(input.checkOutDate);
 		const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+		const today = this.normalizeToUtcDay(new Date());
+		const normalizedCheckIn = this.normalizeToUtcDay(checkIn);
 
 		if (nights < 1) {
 			throw new BadRequestException('Check-out date must be after check-in date');
+		}
+		if (normalizedCheckIn < today) {
+			throw new BadRequestException('Check-in date cannot be in the past');
 		}
 
 		// Check for duplicate roomIds in the booking
@@ -70,10 +75,22 @@ export class BookingService {
 			throw new NotFoundException('One or more rooms not found');
 		}
 
+		const hotel = await this.hotelModel.findById(input.hotelId).select('memberId hotelStatus').exec();
+		if (!hotel) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+		if (hotel.hotelStatus !== HotelStatus.ACTIVE) {
+			throw new BadRequestException('Hotel is not available for booking');
+		}
+
 		// Check room availability and status, verify prices (honoring price locks)
 		for (const inputRoom of input.rooms) {
 			const room = rooms.find((r) => String(r._id) === inputRoom.roomId);
 			if (!room) continue;
+
+			if (String(room.hotelId) !== String(input.hotelId)) {
+				throw new BadRequestException('All rooms must belong to the specified hotel');
+			}
 
 			if (room.roomStatus !== RoomStatus.AVAILABLE) {
 				throw new BadRequestException(`Room ${room.roomName} is not available`);
@@ -143,6 +160,9 @@ export class BookingService {
 				const hotel = await this.hotelModel.findById(input.hotelId).session(session).exec();
 				if (!hotel) {
 					throw new NotFoundException(Messages.NO_DATA_FOUND);
+				}
+				if (hotel.hotelStatus !== HotelStatus.ACTIVE) {
+					throw new BadRequestException('Hotel is not available for booking');
 				}
 
 				// AGENT can only create bookings for their own hotel
@@ -446,6 +466,12 @@ export class BookingService {
 
 		if (newStatus === BookingStatus.NO_SHOW && new Date(booking.checkInDate).getTime() > Date.now()) {
 			throw new BadRequestException('NO_SHOW can only be set after check-in date');
+		}
+		if (newStatus === BookingStatus.CHECKED_IN && new Date(booking.checkInDate).getTime() > Date.now()) {
+			throw new BadRequestException('CHECKED_IN can only be set on or after check-in date');
+		}
+		if (newStatus === BookingStatus.CHECKED_OUT && new Date(booking.checkOutDate).getTime() > Date.now()) {
+			throw new BadRequestException('CHECKED_OUT can only be set on or after check-out date');
 		}
 
 		// Validate state transitions
@@ -902,6 +928,10 @@ export class BookingService {
 		if (checkInDate.getTime() <= Date.now()) {
 			throw new BadRequestException('Guest cancellation is only allowed before check-in time');
 		}
+	}
+
+	private normalizeToUtcDay(date: Date): Date {
+		return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
 	}
 
 	/**

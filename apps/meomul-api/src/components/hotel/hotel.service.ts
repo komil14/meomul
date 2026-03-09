@@ -10,7 +10,7 @@ import { HotelDto } from '../../libs/dto/hotel/hotel';
 import { HotelsDto } from '../../libs/dto/common/hotels';
 import { Direction, MetaCounterDto, PaginationInput } from '../../libs/dto/common/pagination';
 import { HotelSearchInput } from '../../libs/dto/common/search.input';
-import { HotelStatus, BadgeLevel } from '../../libs/enums/hotel.enum';
+import { HotelStatus, BadgeLevel, VerificationStatus } from '../../libs/enums/hotel.enum';
 import { MemberType, MemberStatus } from '../../libs/enums/member.enum';
 import { RoomStatus } from '../../libs/enums/room.enum';
 import { StayPurpose, ViewGroup } from '../../libs/enums/common.enum';
@@ -86,7 +86,7 @@ export class HotelService {
 			safeStayCertified,
 			suitableFor,
 			hotelStatus: HotelStatus.PENDING,
-			verificationStatus: 'PENDING',
+			verificationStatus: VerificationStatus.PENDING,
 			badgeLevel: BadgeLevel.NONE,
 		});
 
@@ -830,8 +830,25 @@ export class HotelService {
 		if (!isAdmin) {
 			delete updateData.hotelStatus;
 			delete updateData.badgeLevel;
+			delete updateData.verificationStatus;
 		}
 
-		return updateData;
+		return this.stripUndefinedValues(updateData) as Record<string, unknown>;
+	}
+
+	private stripUndefinedValues(value: unknown): unknown {
+		if (Array.isArray(value)) {
+			return value.map((item) => this.stripUndefinedValues(item));
+		}
+
+		if (value && typeof value === 'object') {
+			const entries = Object.entries(value as Record<string, unknown>)
+				.filter(([, entryValue]) => entryValue !== undefined)
+				.map(([key, entryValue]) => [key, this.stripUndefinedValues(entryValue)] as const);
+
+			return Object.fromEntries(entries);
+		}
+
+		return value;
 	}
 }

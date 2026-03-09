@@ -1382,7 +1382,11 @@ export class RecommendationService {
 			flexibleCheckOut: doc.flexibleCheckOut,
 			verificationStatus: doc.verificationStatus,
 			badgeLevel: doc.badgeLevel,
-			verificationDocs: doc.verificationDocs,
+			verificationDocs: {
+				businessLicense: doc.verificationDocs?.businessLicense,
+				touristLicense: doc.verificationDocs?.touristLicense,
+				propertyOwnership: doc.verificationDocs?.propertyOwnership,
+			},
 			lastInspectionDate: doc.lastInspectionDate,
 			cancellationPolicy: doc.cancellationPolicy,
 			ageRestriction: doc.ageRestriction,

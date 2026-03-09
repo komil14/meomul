@@ -4,8 +4,11 @@ import type { Model } from 'mongoose';
 import { PriceCalendarInput } from '../../libs/dto/price-calendar/price-calendar.input';
 import { PriceCalendarDto, DayPriceDto, CheapestDateDto } from '../../libs/dto/price-calendar/price-calendar';
 import { DemandLevel } from '../../libs/enums/common.enum';
+import { HotelStatus } from '../../libs/enums/hotel.enum';
+import { RoomStatus } from '../../libs/enums/room.enum';
 import { Messages } from '../../libs/messages';
 import type { RoomDocument } from '../../libs/types/room';
+import type { HotelDocument } from '../../libs/types/hotel';
 import type { RoomInventoryDocument } from '../../libs/types/room-inventory';
 import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 
@@ -13,6 +16,7 @@ import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 export class PriceCalendarService {
 	constructor(
 		@InjectModel('Room') private readonly roomModel: Model<RoomDocument>,
+		@InjectModel('Hotel') private readonly hotelModel: Model<HotelDocument>,
 		@InjectModel('RoomInventory') private readonly roomInventoryModel: Model<RoomInventoryDocument>,
 		private readonly roomInventoryService: RoomInventoryService,
 	) {}
@@ -26,6 +30,7 @@ export class PriceCalendarService {
 		if (!room) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
+		await this.assertRoomIsPubliclyVisible(room);
 
 		const { year, month } = this.resolveTargetMonth(input.month);
 		const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
@@ -166,5 +171,16 @@ export class PriceCalendarService {
 		const m = String(date.getUTCMonth() + 1).padStart(2, '0');
 		const d = String(date.getUTCDate()).padStart(2, '0');
 		return `${y}-${m}-${d}`;
+	}
+
+	private async assertRoomIsPubliclyVisible(room: Pick<RoomDocument, 'hotelId' | 'roomStatus'>): Promise<void> {
+		if (room.roomStatus && room.roomStatus !== RoomStatus.AVAILABLE) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
+
+		const hotel = await this.hotelModel.findById(room.hotelId).select('hotelStatus').lean().exec();
+		if (!hotel || hotel.hotelStatus !== HotelStatus.ACTIVE) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
 	}
 }

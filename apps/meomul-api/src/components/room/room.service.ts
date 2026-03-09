@@ -155,6 +155,8 @@ export class RoomService {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
 
+		await this.ensureHotelIsPubliclyAvailable(String(room.hotelId));
+
 		// Only show available rooms to public; legacy documents may miss roomStatus.
 		if (room.roomStatus && room.roomStatus !== RoomStatus.AVAILABLE) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
@@ -175,6 +177,8 @@ export class RoomService {
 	public async getRoomsByHotel(hotelId: string, input: PaginationInput): Promise<RoomsDto> {
 		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
 		const skip = (page - 1) * limit;
+
+		await this.ensureHotelIsPubliclyAvailable(hotelId);
 
 		const query: Record<string, unknown> = {
 			hotelId: hotelId,
@@ -517,5 +521,17 @@ export class RoomService {
 				$unset: { lastMinuteDeal: 1 },
 			})
 			.exec();
+	}
+
+	private async ensureHotelIsPubliclyAvailable(hotelId: string): Promise<void> {
+		const hotel = await this.hotelModel
+			.findById(hotelId)
+			.select('hotelStatus')
+			.lean()
+			.exec();
+
+		if (!hotel || hotel.hotelStatus !== HotelStatus.ACTIVE) {
+			throw new NotFoundException(Messages.NO_DATA_FOUND);
+		}
 	}
 }
