@@ -33,38 +33,36 @@ export class AuthGuard implements CanActivate {
 			throw new UnauthorizedException(Messages.NOT_AUTHENTICATED);
 		}
 
+		// Extract token: httpOnly cookie takes priority (secure), fallback to Authorization header
+		const cookieToken = (req.cookies as Record<string, string | undefined> | undefined)?.['meomul_at'];
 		const authorizationHeader = req.headers.authorization;
-		const authHeader =
+		const bearerHeader =
 			typeof authorizationHeader === 'string'
 				? authorizationHeader
 				: Array.isArray(authorizationHeader)
 					? authorizationHeader[0]
 					: undefined;
+		const bearerToken =
+			bearerHeader && bearerHeader.startsWith('Bearer ') ? bearerHeader.slice(7) : undefined;
+
+		const token = cookieToken ?? bearerToken;
 
 		// If public route, try to extract user if token exists, but don't fail if it doesn't
 		if (isPublic) {
-			if (authHeader && typeof authHeader === 'string') {
-				const [type, token] = authHeader.split(' ');
-				if (type === 'Bearer' && token) {
-					try {
-						const member = await this.authService.verifyToken(token);
-						req.member = member;
-					} catch {
-						// Invalid token on public route - just continue without user
-						req.member = null;
-					}
+			if (token) {
+				try {
+					const member = await this.authService.verifyToken(token);
+					req.member = member;
+				} catch {
+					// Invalid token on public route - just continue without user
+					req.member = null;
 				}
 			}
 			return true;
 		}
 
 		// Protected route - require valid token
-		if (!authHeader || typeof authHeader !== 'string') {
-			throw new UnauthorizedException(Messages.TOKEN_NOT_EXIST);
-		}
-
-		const [type, token] = authHeader.split(' ');
-		if (type !== 'Bearer' || !token) {
+		if (!token) {
 			throw new UnauthorizedException(Messages.TOKEN_NOT_EXIST);
 		}
 

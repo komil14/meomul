@@ -21,6 +21,8 @@ import { MemberService } from './member.service';
 
 const REFRESH_TOKEN_COOKIE = 'meomul_rt';
 const REFRESH_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const ACCESS_TOKEN_COOKIE = 'meomul_at';
+const ACCESS_TOKEN_MAX_AGE_MS = 15 * 60 * 1000; // 15 minutes (match JWT_EXPIRES_IN default)
 
 @Resolver()
 export class MemberResolver {
@@ -49,6 +51,27 @@ export class MemberResolver {
 		});
 	}
 
+	private setAccessTokenCookie(res: Response, accessToken: string): void {
+		const isProduction = process.env.NODE_ENV === 'production';
+		res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
+			httpOnly: true,
+			secure: isProduction,
+			sameSite: isProduction ? 'none' : 'lax',
+			maxAge: ACCESS_TOKEN_MAX_AGE_MS,
+			path: '/',
+		});
+	}
+
+	private clearAccessTokenCookie(res: Response): void {
+		const isProduction = process.env.NODE_ENV === 'production';
+		res.clearCookie(ACCESS_TOKEN_COOKIE, {
+			httpOnly: true,
+			secure: isProduction,
+			sameSite: isProduction ? 'none' : 'lax',
+			path: '/',
+		});
+	}
+
 	@Mutation(() => AuthMemberDto)
 	@Public()
 	public async signupMember(
@@ -59,6 +82,7 @@ export class MemberResolver {
 			this.logger.log('Mutation signup');
 			const result = await this.memberService.signup(input);
 			this.setRefreshTokenCookie(ctx.res, result.refreshToken);
+			this.setAccessTokenCookie(ctx.res, result.accessToken);
 			return result;
 		} catch (error) {
 			this.logger.error('Mutation signup failed', error);
@@ -76,6 +100,7 @@ export class MemberResolver {
 			this.logger.log('Mutation login');
 			const result = await this.memberService.login(input);
 			this.setRefreshTokenCookie(ctx.res, result.refreshToken);
+			this.setAccessTokenCookie(ctx.res, result.accessToken);
 			return result;
 		} catch (error) {
 			this.logger.error('Mutation login failed', error);
@@ -93,12 +118,14 @@ export class MemberResolver {
 			}
 			this.logger.debug('Mutation refreshToken');
 			const result = await this.memberService.refreshAccessToken(rawToken);
-			// Rotate: set new refresh token cookie
+			// Rotate: set new refresh token cookie and access token cookie
 			this.setRefreshTokenCookie(ctx.res, result.refreshToken);
+			this.setAccessTokenCookie(ctx.res, result.accessToken);
 			return result;
 		} catch (error) {
 			this.logger.warn('Mutation refreshToken failed', (error as Error)?.message);
 			this.clearRefreshTokenCookie(ctx.res);
+			this.clearAccessTokenCookie(ctx.res);
 			throw error;
 		}
 	}
@@ -112,11 +139,13 @@ export class MemberResolver {
 				await this.memberService.logoutRefreshToken(rawToken);
 			}
 			this.clearRefreshTokenCookie(ctx.res);
+			this.clearAccessTokenCookie(ctx.res);
 			return { success: true, message: 'Logged out successfully' };
 		} catch (error) {
 			this.logger.error('Mutation logout failed', error);
-			// Always clear the cookie even on error
+			// Always clear cookies even on error
 			this.clearRefreshTokenCookie(ctx.res);
+			this.clearAccessTokenCookie(ctx.res);
 			throw error;
 		}
 	}

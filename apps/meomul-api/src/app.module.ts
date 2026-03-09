@@ -18,6 +18,8 @@ import { ComponentsModule } from './components/components.module';
 import { AuthModule } from './components/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { SocketModule } from './socket/socket.module';
+import { HealthModule } from './health/health.module';
+import { validateEnv } from './config/env.validation';
 import { GraphqlExceptionFilter } from './libs/interceptor/graphql-exception.filter';
 import { LoggingInterceptor } from './libs/interceptor/logging.interceptor';
 import { AuthGuard } from './components/auth/guards/auth.guard';
@@ -62,7 +64,7 @@ import { RolesGuard } from './components/auth/guards/roles.guard';
 				}
 			},
 		}),
-		ConfigModule.forRoot(),
+		ConfigModule.forRoot({ validate: validateEnv, isGlobal: true }),
 		ThrottlerModule.forRoot({
 			throttlers: [
 				{ name: 'short', ttl: 1000, limit: 10 },
@@ -82,6 +84,7 @@ import { RolesGuard } from './components/auth/guards/roles.guard';
 		AuthModule,
 		DatabaseModule,
 		SocketModule,
+		HealthModule,
 	],
 	controllers: [AppController],
 	providers: [

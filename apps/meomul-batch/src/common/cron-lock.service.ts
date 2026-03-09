@@ -79,6 +79,7 @@ export class CronLockService {
 				)
 				.exec();
 			this.logger.error(`Job "${jobName}" failed`, error);
+			void this.sendFailureAlert(jobName, message);
 			throw error;
 		} finally {
 			const durationMs = Date.now() - startedAt;
@@ -94,6 +95,26 @@ export class CronLockService {
 				)
 				.exec();
 			this.logger.log(`Job "${jobName}" completed in ${durationMs}ms`);
+		}
+	}
+
+	private async sendFailureAlert(jobName: string, errorMessage: string): Promise<void> {
+		const webhookUrl = process.env.BATCH_ALERT_WEBHOOK_URL;
+		if (!webhookUrl) return;
+
+		try {
+			await fetch(webhookUrl, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					job: jobName,
+					error: errorMessage,
+					host: this.ownerId,
+					at: new Date().toISOString(),
+				}),
+			});
+		} catch {
+			// Never let the webhook failure propagate or crash the worker
 		}
 	}
 }
