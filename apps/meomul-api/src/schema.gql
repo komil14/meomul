@@ -598,6 +598,7 @@ input HotelUpdate {
   smokingAllowed: Boolean
   starRating: Int
   suitableFor: [String!]
+  verificationStatus: VerificationStatus
 }
 
 type HotelsDto {

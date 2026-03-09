@@ -100,6 +100,7 @@ const HotelSchema = new Schema(
 			businessLicense: String,
 			touristLicense: String,
 			propertyOwnership: String,
+			default: {},
 		},
 		lastInspectionDate: Date,
 

@@ -1,6 +1,6 @@
 import { Field, InputType, Int } from '@nestjs/graphql';
 import { IsOptional, IsString, IsEnum, IsNumber, IsBoolean, IsArray, Min, Max, IsNotEmpty } from 'class-validator';
-import { HotelStatus, BadgeLevel, CancellationPolicy } from '../../enums/hotel.enum';
+import { HotelStatus, BadgeLevel, CancellationPolicy, VerificationStatus } from '../../enums/hotel.enum';
 import { AmenitiesInput, SafetyFeaturesInput, FlexibleTimingInput } from './hotel.input';
 
 @InputType()
@@ -97,4 +97,9 @@ export class HotelUpdate {
 	@IsEnum(BadgeLevel)
 	@Field(() => BadgeLevel, { nullable: true })
 	badgeLevel?: BadgeLevel;
+
+	@IsOptional()
+	@IsEnum(VerificationStatus)
+	@Field(() => VerificationStatus, { nullable: true })
+	verificationStatus?: VerificationStatus;
 }

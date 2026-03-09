@@ -218,7 +218,9 @@ export class HotelService {
 		}
 
 		const isOwner = !!currentMember && String(hotel.memberId) === String(currentMember._id);
-		const isAdmin = currentMember?.memberType === MemberType.ADMIN;
+		const isAdmin =
+			currentMember?.memberType === MemberType.ADMIN ||
+			currentMember?.memberType === MemberType.ADMIN_OPERATOR;
 
 		// Public users can only see ACTIVE hotels. Owners/admins can view their non-active listings.
 		if (hotel.hotelStatus !== HotelStatus.ACTIVE && !isOwner && !isAdmin) {

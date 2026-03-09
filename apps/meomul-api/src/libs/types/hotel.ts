@@ -52,6 +52,8 @@ export interface HotelDocument extends Document {
  * Convert Mongoose HotelDocument to HotelDto
  */
 export function toHotelDto(doc: HotelDocument): HotelDto {
+	const verificationDocs = doc.verificationDocs ?? {};
+
 	return {
 		_id: doc._id as unknown as HotelDto['_id'],
 		memberId: doc.memberId as unknown as HotelDto['memberId'],
@@ -67,7 +69,11 @@ export function toHotelDto(doc: HotelDocument): HotelDto {
 		flexibleCheckOut: doc.flexibleCheckOut,
 		verificationStatus: doc.verificationStatus,
 		badgeLevel: doc.badgeLevel,
-		verificationDocs: doc.verificationDocs,
+		verificationDocs: {
+			businessLicense: verificationDocs.businessLicense,
+			touristLicense: verificationDocs.touristLicense,
+			propertyOwnership: verificationDocs.propertyOwnership,
+		},
 		lastInspectionDate: doc.lastInspectionDate,
 		cancellationPolicy: doc.cancellationPolicy,
 		ageRestriction: doc.ageRestriction,
