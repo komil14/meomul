@@ -15,6 +15,7 @@ import { OnboardingPreferenceInput } from '../../libs/dto/preference/onboarding-
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Throttle } from '@nestjs/throttler';
 import { MemberType, SubscriptionTier } from '../../libs/enums/member.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import { MemberService } from './member.service';
@@ -74,6 +75,7 @@ export class MemberResolver {
 
 	@Mutation(() => AuthMemberDto)
 	@Public()
+	@Throttle({ long: { limit: 5, ttl: 60000 } })
 	public async signupMember(
 		@Args('input') input: MemberInput,
 		@Context() ctx: { res: Response },
@@ -92,6 +94,7 @@ export class MemberResolver {
 
 	@Mutation(() => AuthMemberDto)
 	@Public()
+	@Throttle({ long: { limit: 5, ttl: 60000 } })
 	public async loginMember(
 		@Args('input') input: LoginInput,
 		@Context() ctx: { res: Response },

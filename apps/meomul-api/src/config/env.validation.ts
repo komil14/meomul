@@ -60,6 +60,7 @@ class EnvironmentVariables {
 	@IsString()
 	@IsOptional()
 	BATCH_ALERT_WEBHOOK_URL?: string;
+
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
