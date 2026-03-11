@@ -108,6 +108,21 @@ export class HotelResolver {
 		}
 	}
 
+	@Query(() => [HotelDto])
+	@Public()
+	public async getHotelsByIds(
+		@Args({ name: 'hotelIds', type: () => [String] }) hotelIds: string[],
+		@CurrentMember() currentMember?: MemberJwtPayload,
+	): Promise<HotelDto[]> {
+		try {
+			this.logger.log('Query getHotelsByIds', hotelIds.length, currentMember?._id ?? 'anonymous');
+			return this.hotelService.getHotelsByIds(hotelIds, currentMember);
+		} catch (error) {
+			this.logger.error('Query getHotelsByIds failed', hotelIds, error);
+			throw error;
+		}
+	}
+
 	/**
 	 * Search hotels with filters (Public)
 	 */

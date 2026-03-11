@@ -245,6 +245,41 @@ export class HotelService {
 		return toHotelDto(hotel);
 	}
 
+	public async getHotelsByIds(hotelIds: string[], currentMember?: MemberJwtPayload): Promise<HotelDto[]> {
+		const uniqueIds = Array.from(new Set(hotelIds.filter((id) => Types.ObjectId.isValid(id))));
+		if (uniqueIds.length === 0) {
+			return [];
+		}
+
+		const hotels = await this.hotelModel
+			.find({ _id: { $in: uniqueIds } })
+			.lean()
+			.exec();
+
+		const isAdmin =
+			currentMember?.memberType === MemberType.ADMIN ||
+			currentMember?.memberType === MemberType.ADMIN_OPERATOR;
+
+		const visibleHotels = hotels.filter((hotel) => {
+			if (hotel.hotelStatus === HotelStatus.ACTIVE) {
+				return true;
+			}
+
+			if (!currentMember) {
+				return false;
+			}
+
+			const isOwner = String(hotel.memberId) === String(currentMember._id);
+			return isOwner || isAdmin;
+		});
+
+		const hotelMap = new Map(visibleHotels.map((hotel) => [String(hotel._id), hotel]));
+		return uniqueIds
+			.map((hotelId) => hotelMap.get(hotelId))
+			.filter((hotel): hotel is NonNullable<typeof hotel> => Boolean(hotel))
+			.map(toHotelDto);
+	}
+
 	/**
 	 * Get hotels with search and filters
 	 */

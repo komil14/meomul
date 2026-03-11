@@ -934,6 +934,7 @@ type Query {
   getHotelChats(hotelId: String!, input: PaginationInput!, statusFilter: ChatStatus): ChatsDto!
   getHotelReviews(hotelId: String!, input: PaginationInput!): ReviewsDto!
   getHotels(input: PaginationInput!, search: HotelSearchInput): HotelsDto!
+  getHotelsByIds(hotelIds: [String!]!): [HotelDto!]!
   getHotelsCount(search: HotelSearchInput): MetaCounterDto!
   getLikeCount(likeGroup: LikeGroup!, likeRefId: String!): Int!
   getMember: MemberDto!

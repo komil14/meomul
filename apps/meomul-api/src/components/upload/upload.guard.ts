@@ -12,6 +12,7 @@ export class UploadGuard implements CanActivate {
 
 	public async canActivate(context: ExecutionContext): Promise<boolean> {
 		const req = context.switchToHttp().getRequest<UploadRequest>();
+		const cookieToken = (req.cookies as Record<string, string | undefined> | undefined)?.['meomul_at'];
 		const authorizationHeader = req.headers.authorization;
 		const authHeader =
 			typeof authorizationHeader === 'string'
@@ -20,12 +21,11 @@ export class UploadGuard implements CanActivate {
 					? authorizationHeader[0]
 					: undefined;
 
-		if (!authHeader || typeof authHeader !== 'string') {
-			throw new UnauthorizedException(Messages.TOKEN_NOT_EXIST);
-		}
+		const bearerToken =
+			authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+		const token = cookieToken ?? bearerToken;
 
-		const [type, token] = authHeader.split(' ');
-		if (type !== 'Bearer' || !token) {
+		if (!token) {
 			throw new UnauthorizedException(Messages.TOKEN_NOT_EXIST);
 		}
 
