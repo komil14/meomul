@@ -261,10 +261,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	}
 
 	private extractToken(client: Socket, tokenFromPayload?: string): string | null {
+		const cookieHeader = typeof client.handshake.headers.cookie === 'string' ? client.handshake.headers.cookie : null;
 		const authHeader =
 			typeof client.handshake.headers.authorization === 'string' ? client.handshake.headers.authorization : null;
 		const authToken = typeof client.handshake.auth?.token === 'string' ? client.handshake.auth.token : null;
-		const rawToken = tokenFromPayload || authToken || authHeader;
+		const cookieToken = this.extractCookieValue(cookieHeader, 'meomul_at');
+		const rawToken = tokenFromPayload || authToken || authHeader || cookieToken;
 		if (!rawToken) return null;
 
 		if (rawToken.startsWith('Bearer ')) {
@@ -272,6 +274,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		}
 
 		return rawToken.trim();
+	}
+
+	private extractCookieValue(cookieHeader: string | null, key: string): string | null {
+		if (!cookieHeader) return null;
+
+		for (const segment of cookieHeader.split(';')) {
+			const [rawName, ...rawValueParts] = segment.split('=');
+			if (!rawName || rawValueParts.length === 0) continue;
+			if (rawName.trim() !== key) continue;
+
+			const rawValue = rawValueParts.join('=').trim();
+			if (!rawValue) return null;
+
+			try {
+				return decodeURIComponent(rawValue);
+			} catch {
+				return rawValue;
+			}
+		}
+
+		return null;
 	}
 
 	private registerSession(client: Socket, userId: string, memberType: MemberType): void {

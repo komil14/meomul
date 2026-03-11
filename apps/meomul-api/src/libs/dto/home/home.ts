@@ -60,6 +60,9 @@ export class HomeFeedDto {
 	@Field(() => Int)
 	hotelInventoryTotal: number;
 
+	@Field(() => Int)
+	totalVerifiedReviews: number;
+
 	@Field(() => [HotelDto])
 	trendingHotels: HotelDto[];
 

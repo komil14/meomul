@@ -88,6 +88,8 @@ export class ChatService {
 			)
 			.catch(() => {});
 
+		void this.notifyChatParticipants(chat, 'chatListUpdated', { chatId: String(chat._id) });
+
 		return toChatDto(chat);
 	}
 
@@ -134,6 +136,8 @@ export class ChatService {
 				`/admin/chats/${chat._id.toString()}`,
 			)
 			.catch(() => {});
+
+		void this.notifyChatParticipants(chat, 'chatListUpdated', { chatId: String(chat._id) });
 
 		return toChatDto(chat);
 	}
@@ -193,6 +197,8 @@ export class ChatService {
 			read: false,
 		});
 
+		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId: input.chatId });
+
 		return toChatDto(updatedChat!);
 	}
 
@@ -230,6 +236,7 @@ export class ChatService {
 
 		// Emit WebSocket event for chat claimed
 		this.chatGateway.emitChatClaimed(input.chatId, currentMember._id);
+		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId: input.chatId });
 
 		return toChatDto(updatedChat!);
 	}
@@ -261,6 +268,7 @@ export class ChatService {
 
 		// Emit WebSocket event for chat closed
 		this.chatGateway.emitChatClosed(chatId, currentMember._id);
+		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId });
 
 		return toChatDto(updatedChat!);
 	}
@@ -359,6 +367,7 @@ export class ChatService {
 		this.chatGateway.emitMessagesRead(chatId, currentMember._id);
 
 		const updatedChat = await this.chatModel.findById(chatId).exec();
+		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId });
 		return toChatDto(updatedChat!);
 	}
 
@@ -468,8 +477,48 @@ export class ChatService {
 
 		// Emit WebSocket event for chat reassignment
 		this.chatGateway.emitChatClaimed(chatId, newAgentId);
+		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId });
 
 		return toChatDto(updatedChat!);
+	}
+
+	private async notifyChatParticipants(
+		chat: ChatDocument,
+		event: string,
+		payload: Record<string, unknown>,
+	): Promise<void> {
+		const userIds = new Set<string>();
+
+		if (chat.guestId) {
+			userIds.add(String(chat.guestId));
+		}
+		if (chat.assignedAgentId) {
+			userIds.add(String(chat.assignedAgentId));
+		}
+
+		if (chat.chatScope === ChatScope.HOTEL && chat.hotelId) {
+			const hotel = await this.hotelModel.findById(chat.hotelId).select('memberId').lean().exec();
+			if (hotel?.memberId) {
+				userIds.add(String(hotel.memberId));
+			}
+		}
+
+		const backofficeMembers = await this.memberModel
+			.find({
+				memberType: { $in: [MemberType.ADMIN, MemberType.ADMIN_OPERATOR] },
+				memberStatus: MemberStatus.ACTIVE,
+			})
+			.select('_id')
+			.lean()
+			.exec();
+
+		for (const member of backofficeMembers) {
+			userIds.add(String(member._id));
+		}
+
+		for (const userId of userIds) {
+			this.chatGateway.sendToUser(userId, event, payload);
+		}
 	}
 
 	/**

@@ -45,12 +45,20 @@ export function toMessageDto(msg: MessageSubDocument): MessageDto {
 	};
 }
 
+function normalizeChatScope(doc: ChatDocument): ChatScope {
+	if (doc.chatScope === ChatScope.HOTEL || doc.chatScope === ChatScope.SUPPORT) {
+		return doc.chatScope;
+	}
+
+	return doc.hotelId ? ChatScope.HOTEL : ChatScope.SUPPORT;
+}
+
 export function toChatDto(doc: ChatDocument): ChatDto {
 	return {
 		_id: doc._id as unknown as ChatDto['_id'],
 		guestId: doc.guestId as unknown as ChatDto['guestId'],
 		hotelId: doc.hotelId as unknown as ChatDto['hotelId'],
-		chatScope: doc.chatScope,
+		chatScope: normalizeChatScope(doc),
 		assignedAgentId: doc.assignedAgentId as unknown as ChatDto['assignedAgentId'],
 		bookingId: doc.bookingId as unknown as ChatDto['bookingId'],
 		supportTopic: doc.supportTopic,

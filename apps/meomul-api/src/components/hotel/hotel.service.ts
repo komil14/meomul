@@ -330,6 +330,26 @@ export class HotelService {
 		return { total };
 	}
 
+	public async getActiveHotelsReviewTotal(): Promise<number> {
+		const [result] = await this.hotelModel
+			.aggregate<{ totalReviews: number }>([
+				{
+					$match: {
+						hotelStatus: HotelStatus.ACTIVE,
+					},
+				},
+				{
+					$group: {
+						_id: null,
+						totalReviews: { $sum: { $ifNull: ['$hotelReviews', 0] } },
+					},
+				},
+			])
+			.exec();
+
+		return result?.totalReviews ?? 0;
+	}
+
 	private async buildHotelsListingQuery(searchInput?: HotelSearchInput): Promise<Record<string, unknown> | null> {
 		const query = this.buildSearchQuery(searchInput);
 

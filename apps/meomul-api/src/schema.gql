@@ -424,6 +424,7 @@ type HomeFeedDto {
   recommendationMeta: RecommendationMetaDto
   testimonials: [HomeTestimonialDto!]!
   topHotels: [HotelDto!]!
+  totalVerifiedReviews: Int!
   trendingHotels: [HotelDto!]!
 }
 

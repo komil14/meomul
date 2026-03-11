@@ -41,8 +41,9 @@ export class HomeService {
 			direction: Direction.DESC,
 		};
 
-		const [topHotelsResult, trendingHotels, lastMinuteDeals, testimonials, recommendationResult] = await Promise.all([
+		const [topHotelsResult, totalVerifiedReviews, trendingHotels, lastMinuteDeals, testimonials, recommendationResult] = await Promise.all([
 			this.hotelService.getHotels(heroPagination),
+			this.hotelService.getActiveHotelsReviewTotal(),
 			this.recommendationService.getTrendingHotels(trendingLimit),
 			this.roomService.getHomeLastMinuteDeals(dealsLimit),
 			this.reviewService.getHomeTestimonials(testimonialsLimit),
@@ -67,6 +68,7 @@ export class HomeService {
 		return {
 			topHotels,
 			hotelInventoryTotal,
+			totalVerifiedReviews,
 			trendingHotels,
 			featuredReviews,
 			featuredRatingsSummary,
