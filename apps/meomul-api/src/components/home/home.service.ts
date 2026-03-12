@@ -41,7 +41,8 @@ export class HomeService {
 			direction: Direction.DESC,
 		};
 
-		const [topHotelsResult, totalVerifiedReviews, trendingHotels, lastMinuteDeals, testimonials, recommendationResult] = await Promise.all([
+		const [topHotelsResult, totalVerifiedReviews, trendingHotels, initialLastMinuteDeals, testimonials, recommendationResult] =
+			await Promise.all([
 			this.hotelService.getHotels(heroPagination),
 			this.hotelService.getActiveHotelsReviewTotal(),
 			this.recommendationService.getTrendingHotels(trendingLimit),
@@ -51,6 +52,12 @@ export class HomeService {
 				? this.recommendationService.getRecommendedHotelsV2(memberId, recommendationLimit)
 				: Promise.resolve(null),
 		]);
+
+		let lastMinuteDeals = initialLastMinuteDeals;
+		if (lastMinuteDeals.length === 0) {
+			await this.roomService.ensureHomeLastMinuteDeals(dealsLimit);
+			lastMinuteDeals = await this.roomService.getHomeLastMinuteDeals(dealsLimit);
+		}
 
 		const topHotels = topHotelsResult.list;
 		const hotelInventoryTotal = topHotelsResult.metaCounter.total;
