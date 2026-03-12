@@ -31,45 +31,77 @@ export class MemberResolver {
 
 	constructor(private readonly memberService: MemberService) {}
 
+	private getCookieDomain(): string | undefined {
+		if (process.env.NODE_ENV !== 'production') {
+			return undefined;
+		}
+
+		const frontendUrl = process.env.FRONTEND_URL?.trim();
+		if (!frontendUrl) {
+			return undefined;
+		}
+
+		try {
+			const hostname = new URL(frontendUrl).hostname.toLowerCase();
+			if (!hostname || hostname === 'localhost') {
+				return undefined;
+			}
+			if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) {
+				return undefined;
+			}
+			return hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+		} catch {
+			return undefined;
+		}
+	}
+
 	private setRefreshTokenCookie(res: Response, refreshToken: string): void {
 		const isProduction = process.env.NODE_ENV === 'production';
+		const domain = this.getCookieDomain();
 		res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
 			httpOnly: true,
 			secure: isProduction,
 			sameSite: isProduction ? 'none' : 'lax',
 			maxAge: REFRESH_TOKEN_MAX_AGE_MS,
 			path: '/',
+			...(domain ? { domain } : {}),
 		});
 	}
 
 	private clearRefreshTokenCookie(res: Response): void {
 		const isProduction = process.env.NODE_ENV === 'production';
+		const domain = this.getCookieDomain();
 		res.clearCookie(REFRESH_TOKEN_COOKIE, {
 			httpOnly: true,
 			secure: isProduction,
 			sameSite: isProduction ? 'none' : 'lax',
 			path: '/',
+			...(domain ? { domain } : {}),
 		});
 	}
 
 	private setAccessTokenCookie(res: Response, accessToken: string): void {
 		const isProduction = process.env.NODE_ENV === 'production';
+		const domain = this.getCookieDomain();
 		res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
 			httpOnly: true,
 			secure: isProduction,
 			sameSite: isProduction ? 'none' : 'lax',
 			maxAge: ACCESS_TOKEN_MAX_AGE_MS,
 			path: '/',
+			...(domain ? { domain } : {}),
 		});
 	}
 
 	private clearAccessTokenCookie(res: Response): void {
 		const isProduction = process.env.NODE_ENV === 'production';
+		const domain = this.getCookieDomain();
 		res.clearCookie(ACCESS_TOKEN_COOKIE, {
 			httpOnly: true,
 			secure: isProduction,
 			sameSite: isProduction ? 'none' : 'lax',
 			path: '/',
+			...(domain ? { domain } : {}),
 		});
 	}
 
