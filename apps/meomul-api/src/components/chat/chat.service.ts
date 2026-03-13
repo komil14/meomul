@@ -14,7 +14,7 @@ import { MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import { Messages } from '../../libs/messages';
 import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import type { ChatDocument } from '../../libs/types/chat';
-import { toChatDto } from '../../libs/types/chat';
+import { countUnreadMessagesForMember, toChatDto } from '../../libs/types/chat';
 import type { HotelDocument } from '../../libs/types/hotel';
 import { ChatGateway } from '../../socket/chat.gateway';
 import { NotificationService } from '../notification/notification.service';
@@ -84,13 +84,13 @@ export class ChatService {
 				NotificationType.CHAT_MESSAGE,
 				'New Support Chat',
 				`Guest started a chat for hotel ${input.hotelId}`,
-				`/admin/chats/${chat._id.toString()}`,
+				`/chats/${chat._id.toString()}`,
 			)
 			.catch(() => {});
 
 		void this.notifyChatParticipants(chat, 'chatListUpdated', { chatId: String(chat._id) });
 
-		return toChatDto(chat);
+		return this.toChatDtoWithGuest(chat, currentMember);
 	}
 
 	/**
@@ -133,13 +133,13 @@ export class ChatService {
 				NotificationType.CHAT_MESSAGE,
 				'New General Support Chat',
 				`User opened platform support chat${input.topic ? ` (${input.topic})` : ''}`,
-				`/admin/chats/${chat._id.toString()}`,
+				`/chats/${chat._id.toString()}`,
 			)
 			.catch(() => {});
 
 		void this.notifyChatParticipants(chat, 'chatListUpdated', { chatId: String(chat._id) });
 
-		return toChatDto(chat);
+		return this.toChatDtoWithGuest(chat, currentMember);
 	}
 
 	/**
@@ -149,8 +149,10 @@ export class ChatService {
 		const chat = await this.chatModel.findById(input.chatId).exec();
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
-		// Determine sender type and validate access
-		const senderType = await this.getSenderType(currentMember, chat);
+		const senderType = await this.assertChatReadAccess(currentMember, chat);
+		if (senderType === SenderType.AGENT) {
+			this.assertOperatorWriteAccess(currentMember, chat);
+		}
 
 		// Validate chat is not closed
 		if (chat.chatStatus === ChatStatus.CLOSED) {
@@ -166,6 +168,7 @@ export class ChatService {
 			imageUrl: input.imageUrl,
 			fileUrl: input.fileUrl,
 			timestamp: new Date(),
+			readByMemberIds: [new Types.ObjectId(currentMember._id)],
 			read: false,
 		};
 
@@ -199,7 +202,7 @@ export class ChatService {
 
 		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId: input.chatId });
 
-		return toChatDto(updatedChat!);
+		return this.toChatDtoWithGuest(updatedChat!, currentMember);
 	}
 
 	/**
@@ -238,7 +241,7 @@ export class ChatService {
 		this.chatGateway.emitChatClaimed(input.chatId, currentMember._id);
 		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId: input.chatId });
 
-		return toChatDto(updatedChat!);
+		return this.toChatDtoWithGuest(updatedChat!, currentMember);
 	}
 
 	/**
@@ -248,14 +251,9 @@ export class ChatService {
 		const chat = await this.chatModel.findById(chatId).exec();
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
-		// Only guest, assigned agent, admin, or admin operator can close
-		const isGuest = chat.guestId.toString() === currentMember._id;
-		const isAssignedAgent = chat.assignedAgentId?.toString() === currentMember._id;
-		const isBackofficeOperator =
-			currentMember.memberType === MemberType.ADMIN || currentMember.memberType === MemberType.ADMIN_OPERATOR;
-
-		if (!isGuest && !isAssignedAgent && !isBackofficeOperator) {
-			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		const senderType = await this.assertChatReadAccess(currentMember, chat);
+		if (senderType === SenderType.AGENT) {
+			this.assertOperatorWriteAccess(currentMember, chat);
 		}
 
 		if (chat.chatStatus === ChatStatus.CLOSED) {
@@ -270,7 +268,7 @@ export class ChatService {
 		this.chatGateway.emitChatClosed(chatId, currentMember._id);
 		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId });
 
-		return toChatDto(updatedChat!);
+		return this.toChatDtoWithGuest(updatedChat!, currentMember);
 	}
 
 	/**
@@ -280,10 +278,9 @@ export class ChatService {
 		const chat = await this.chatModel.findById(chatId).lean().exec();
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
-		// Validate access
-		await this.getSenderType(currentMember, chat);
+		await this.assertChatReadAccess(currentMember, chat);
 
-		return toChatDto(chat);
+		return this.toChatDtoWithGuest(chat, currentMember);
 	}
 
 	/**
@@ -301,7 +298,7 @@ export class ChatService {
 		]);
 
 		return {
-			list: list.map(toChatDto),
+			list: await this.toChatDtosWithGuest(list, currentMember, { includeMessages: false }),
 			metaCounter: { total },
 		};
 	}
@@ -332,7 +329,29 @@ export class ChatService {
 		]);
 
 		return {
-			list: list.map(toChatDto),
+			list: await this.toChatDtosWithGuest(list, currentMember, { includeMessages: false }),
+			metaCounter: { total },
+		};
+	}
+
+	public async getOperatorChats(
+		currentMember: MemberJwtPayload,
+		input: PaginationInput,
+		scopeFilter?: ChatScope,
+		statusFilter?: ChatStatus,
+		hotelId?: string,
+	): Promise<ChatsDto> {
+		const { page, limit } = input;
+		const skip = (page - 1) * limit;
+		const filter = await this.buildOperatorChatFilter(currentMember, scopeFilter, statusFilter, hotelId);
+
+		const [list, total] = await Promise.all([
+			this.chatModel.find(filter).sort({ lastMessageAt: -1 }).skip(skip).limit(limit).lean().exec(),
+			this.chatModel.countDocuments(filter).exec(),
+		]);
+
+		return {
+			list: await this.toChatDtosWithGuest(list, currentMember, { includeMessages: false }),
 			metaCounter: { total },
 		};
 	}
@@ -344,22 +363,33 @@ export class ChatService {
 		const chat = await this.chatModel.findById(chatId).exec();
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
-		const senderType = await this.getSenderType(currentMember, chat);
+		const senderType = await this.assertChatReadAccess(currentMember, chat);
 
-		// Mark all unread messages from the OTHER side as read
 		const otherSenderType = senderType === SenderType.GUEST ? SenderType.AGENT : SenderType.GUEST;
+		const currentMemberId = new Types.ObjectId(currentMember._id);
 
-		// Step 1: Reset unread counter
 		const counterReset = senderType === SenderType.GUEST ? { unreadGuestMessages: 0 } : { unreadAgentMessages: 0 };
 
-		await this.chatModel.findByIdAndUpdate(chatId, { $set: counterReset }).exec();
-
-		// Step 2: Mark individual messages as read
 		await this.chatModel
 			.findByIdAndUpdate(
 				chatId,
-				{ $set: { 'messages.$[msg].read': true } },
-				{ arrayFilters: [{ 'msg.senderType': otherSenderType, 'msg.read': false }] },
+				{
+					$set: {
+						...counterReset,
+						'messages.$[msg].read': true,
+					},
+					$addToSet: {
+						'messages.$[msg].readByMemberIds': currentMemberId,
+					},
+				},
+				{
+					arrayFilters: [
+						{
+							'msg.senderType': otherSenderType,
+							'msg.readByMemberIds': { $ne: currentMemberId },
+						},
+					],
+				},
 			)
 			.exec();
 
@@ -368,42 +398,46 @@ export class ChatService {
 
 		const updatedChat = await this.chatModel.findById(chatId).exec();
 		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId });
-		return toChatDto(updatedChat!);
+		return this.toChatDtoWithGuest(updatedChat!, currentMember);
 	}
 
 	/**
 	 * Get total unread message count across all chats (as guest AND as agent)
 	 */
 	public async getMyUnreadCount(currentMember: MemberJwtPayload): Promise<number> {
-		const memberId = new Types.ObjectId(currentMember._id);
+		if (currentMember.memberType === MemberType.USER) {
+			const chats = await this.chatModel
+				.find({ guestId: currentMember._id })
+				.select('messages senderType guestId')
+				.lean()
+				.exec();
 
-		const result = await this.chatModel
-			.aggregate<{ total: number }>([
-				{
-					$match: {
-						$or: [{ guestId: memberId }, { assignedAgentId: memberId }],
-					},
-				},
-				{
-					$group: {
-						_id: null,
-						total: {
-							$sum: {
-								$cond: [{ $eq: ['$guestId', memberId] }, '$unreadGuestMessages', '$unreadAgentMessages'],
-							},
-						},
-					},
-				},
-			])
-			.exec();
+			return chats.reduce(
+				(total, chat) => total + countUnreadMessagesForMember(chat.messages ?? [], currentMember._id, SenderType.AGENT),
+				0,
+			);
+		}
 
-		return result.length > 0 ? result[0].total : 0;
+		if (!this.isChatOperatorRole(currentMember.memberType)) {
+			return 0;
+		}
+
+		const filter = await this.buildOperatorChatFilter(currentMember);
+		const chats = await this.chatModel.find(filter).select('messages senderType guestId').lean().exec();
+		return chats.reduce(
+			(total, chat) => total + countUnreadMessagesForMember(chat.messages ?? [], currentMember._id, SenderType.GUEST),
+			0,
+		);
 	}
 
 	/**
 	 * Get all chats (admin only)
 	 */
-	public async getAllChatsAdmin(input: PaginationInput, statusFilter?: ChatStatus): Promise<ChatsDto> {
+	public async getAllChatsAdmin(
+		currentMember: MemberJwtPayload,
+		input: PaginationInput,
+		statusFilter?: ChatStatus,
+	): Promise<ChatsDto> {
 		const { page, limit } = input;
 		const skip = (page - 1) * limit;
 
@@ -418,7 +452,7 @@ export class ChatService {
 		]);
 
 		return {
-			list: list.map(toChatDto),
+			list: await this.toChatDtosWithGuest(list, currentMember, { includeMessages: false }),
 			metaCounter: { total },
 		};
 	}
@@ -426,7 +460,7 @@ export class ChatService {
 	/**
 	 * Admin reassigns a chat to a different agent
 	 */
-	public async reassignChat(chatId: string, newAgentId: string): Promise<ChatDto> {
+	public async reassignChat(currentMember: MemberJwtPayload, chatId: string, newAgentId: string): Promise<ChatDto> {
 		const chat = await this.chatModel.findById(chatId).exec();
 		if (!chat) throw new NotFoundException(Messages.NO_DATA_FOUND);
 
@@ -459,7 +493,7 @@ export class ChatService {
 		}
 
 		if (chat.assignedAgentId?.toString() === String(assignee._id)) {
-			return toChatDto(chat);
+			return this.toChatDtoWithGuest(chat, currentMember);
 		}
 
 		const updatedChat = await this.chatModel
@@ -479,7 +513,72 @@ export class ChatService {
 		this.chatGateway.emitChatClaimed(chatId, newAgentId);
 		void this.notifyChatParticipants(updatedChat!, 'chatListUpdated', { chatId });
 
-		return toChatDto(updatedChat!);
+		return this.toChatDtoWithGuest(updatedChat!, currentMember);
+	}
+
+	private async buildGuestProfileMap(
+		chats: Array<Pick<ChatDocument, 'guestId'>>,
+	): Promise<Map<string, { guestNick?: string; guestImage?: string; guestMemberType?: MemberType }>> {
+		const guestIds = Array.from(
+			new Set(
+				chats
+					.map((chat) => String(chat.guestId ?? ''))
+					.filter((guestId) => Types.ObjectId.isValid(guestId)),
+			),
+		);
+
+		if (guestIds.length === 0) {
+			return new Map();
+		}
+
+		const members = await this.memberModel
+			.find({ _id: { $in: guestIds } })
+			.select('_id memberNick memberImage memberType')
+			.lean<{ _id: Types.ObjectId | string; memberNick?: string; memberImage?: string; memberType?: MemberType }[]>()
+			.exec();
+
+		return new Map(
+			members.map((member) => [
+				String(member._id),
+				{
+					guestNick: member.memberNick?.trim() || undefined,
+					guestImage: member.memberImage?.trim() || undefined,
+					guestMemberType: member.memberType,
+				},
+			]),
+		);
+	}
+
+	private async toChatDtoWithGuest(
+		chat: ChatDocument,
+		currentMember?: MemberJwtPayload,
+		options?: { includeMessages?: boolean },
+	): Promise<ChatDto> {
+		const guestProfiles = await this.buildGuestProfileMap([chat]);
+		const guestProfile = guestProfiles.get(String(chat.guestId));
+		return toChatDto(chat, currentMember, {
+			...options,
+			guestNick: guestProfile?.guestNick,
+			guestImage: guestProfile?.guestImage,
+			guestMemberType: guestProfile?.guestMemberType,
+		});
+	}
+
+	private async toChatDtosWithGuest(
+		chats: ChatDocument[],
+		currentMember?: MemberJwtPayload,
+		options?: { includeMessages?: boolean },
+	): Promise<ChatDto[]> {
+		const guestProfiles = await this.buildGuestProfileMap(chats);
+		return chats.map((chat) => {
+			const guestProfile = guestProfiles.get(String(chat.guestId));
+			return toChatDto(chat, currentMember, {
+				...options,
+				guestNick: guestProfile?.guestNick,
+				guestImage: guestProfile?.guestImage,
+				guestMemberType: guestProfile?.guestMemberType,
+			});
+		});
 	}
 
 	private async notifyChatParticipants(
@@ -524,32 +623,34 @@ export class ChatService {
 	/**
 	 * Determine if user is guest or agent, and validate access
 	 */
-	private async getSenderType(currentMember: MemberJwtPayload, chat: ChatDocument): Promise<SenderType> {
-		if (this.isChatOperatorRole(currentMember.memberType) && currentMember.memberType !== MemberType.AGENT) {
-			return SenderType.AGENT;
-		}
-
+	private async assertChatReadAccess(currentMember: MemberJwtPayload, chat: ChatDocument): Promise<SenderType> {
 		if (chat.guestId.toString() === currentMember._id) {
 			return SenderType.GUEST;
 		}
 
-		if (chat.assignedAgentId?.toString() === currentMember._id) {
+		if (!this.isChatOperatorRole(currentMember.memberType)) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		if (chat.chatScope === ChatScope.SUPPORT) {
+			if (currentMember.memberType === MemberType.AGENT) {
+				throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+			}
 			return SenderType.AGENT;
 		}
 
-		// Allow hotel-owning agent to access any chat for their hotel
-		if (currentMember.memberType === MemberType.AGENT) {
-			if (chat.chatScope !== ChatScope.HOTEL || !chat.hotelId) {
-				throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
-			}
-
-			const hotel = await this.hotelModel.findById(chat.hotelId).select('memberId').exec();
-			if (hotel && String(hotel.memberId) === String(currentMember._id)) {
-				return SenderType.AGENT;
-			}
+		if (!chat.hotelId) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
 
-		throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		await this.assertHotelChatAccess(currentMember, String(chat.hotelId));
+		return SenderType.AGENT;
+	}
+
+	private assertOperatorWriteAccess(currentMember: MemberJwtPayload, chat: ChatDocument): void {
+		if (chat.assignedAgentId?.toString() !== currentMember._id) {
+			throw new ForbiddenException('Claim this chat before replying or closing it');
+		}
 	}
 
 	private async assertHotelChatAccess(currentMember: MemberJwtPayload, hotelId: string): Promise<void> {
@@ -587,6 +688,7 @@ export class ChatService {
 			messageType: MessageType.TEXT,
 			content,
 			timestamp: new Date(),
+			readByMemberIds: [new Types.ObjectId(senderId)],
 			read: false,
 		};
 	}
@@ -595,6 +697,59 @@ export class ChatService {
 		return senderType === SenderType.GUEST
 			? { unreadGuestMessages: 0, unreadAgentMessages: 1 }
 			: { unreadGuestMessages: 1, unreadAgentMessages: 0 };
+	}
+
+	private async buildOperatorChatFilter(
+		currentMember: MemberJwtPayload,
+		scopeFilter?: ChatScope,
+		statusFilter?: ChatStatus,
+		hotelId?: string,
+	): Promise<Record<string, unknown>> {
+		if (!this.isChatOperatorRole(currentMember.memberType)) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		if (scopeFilter === ChatScope.SUPPORT && currentMember.memberType === MemberType.AGENT) {
+			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+
+		const filter: Record<string, unknown> = {};
+
+		if (statusFilter) {
+			filter.chatStatus = statusFilter;
+		}
+
+		if (currentMember.memberType === MemberType.AGENT) {
+			const ownedHotels = await this.hotelModel
+				.find({ memberId: currentMember._id })
+				.select('_id')
+				.lean()
+				.exec();
+			const ownedHotelIds = ownedHotels.map((hotel) => hotel._id);
+
+			filter.chatScope = ChatScope.HOTEL;
+			if (hotelId) {
+				if (!ownedHotelIds.some((ownedHotelId) => String(ownedHotelId) === hotelId)) {
+					throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+				}
+				filter.hotelId = hotelId;
+				return filter;
+			}
+
+			filter.hotelId =
+				ownedHotelIds.length > 0 ? { $in: ownedHotelIds } : { $in: [new Types.ObjectId('000000000000000000000000')] };
+			return filter;
+		}
+
+		if (scopeFilter) {
+			filter.chatScope = scopeFilter;
+		}
+
+		if (hotelId) {
+			filter.hotelId = hotelId;
+		}
+
+		return filter;
 	}
 
 	private async selectSupportAssigneeId(): Promise<Types.ObjectId | null> {

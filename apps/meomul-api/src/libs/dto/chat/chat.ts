@@ -1,6 +1,7 @@
 import { Field, ObjectType, Int } from '@nestjs/graphql';
 import type { ObjectId } from 'mongoose';
 import { ChatScope, ChatStatus, MessageType, SenderType } from '../../enums/common.enum';
+import { MemberType } from '../../enums/member.enum';
 
 @ObjectType()
 export class MessageDto {
@@ -38,6 +39,15 @@ export class ChatDto {
 	guestId: ObjectId;
 
 	@Field(() => String, { nullable: true })
+	guestNick?: string;
+
+	@Field(() => String, { nullable: true })
+	guestImage?: string;
+
+	@Field(() => MemberType, { nullable: true })
+	guestMemberType?: MemberType;
+
+	@Field(() => String, { nullable: true })
 	hotelId?: ObjectId;
 
 	@Field(() => ChatScope)
@@ -55,8 +65,11 @@ export class ChatDto {
 	@Field(() => String, { nullable: true })
 	sourcePath?: string;
 
-	@Field(() => [MessageDto])
-	messages: MessageDto[];
+	@Field(() => [MessageDto], { nullable: true })
+	messages?: MessageDto[];
+
+	@Field(() => MessageDto, { nullable: true })
+	lastMessage?: MessageDto;
 
 	@Field(() => ChatStatus)
 	chatStatus: ChatStatus;

@@ -60,6 +60,11 @@ const ChatSchema = new Schema(
 					type: Date,
 					default: Date.now,
 				},
+				readByMemberIds: [
+					{
+						type: Schema.Types.ObjectId,
+					},
+				],
 				read: {
 					type: Boolean,
 					default: false,

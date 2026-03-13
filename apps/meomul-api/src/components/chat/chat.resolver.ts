@@ -7,7 +7,7 @@ import { SendMessageInput } from '../../libs/dto/chat/message.input';
 import { ClaimChatInput } from '../../libs/dto/chat/claim-chat.input';
 import { ChatsDto } from '../../libs/dto/common/chats';
 import { PaginationInput } from '../../libs/dto/common/pagination';
-import { ChatStatus } from '../../libs/enums/common.enum';
+import { ChatScope, ChatStatus } from '../../libs/enums/common.enum';
 import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { MemberType } from '../../libs/enums/member.enum';
@@ -124,6 +124,19 @@ export class ChatResolver {
 		return this.chatService.getMyChats(currentMember, input);
 	}
 
+	@Query(() => ChatsDto)
+	@Roles(MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
+	public async getOperatorChats(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('input') input: PaginationInput,
+		@Args('scopeFilter', { type: () => ChatScope, nullable: true }) scopeFilter?: ChatScope,
+		@Args('statusFilter', { type: () => ChatStatus, nullable: true }) statusFilter?: ChatStatus,
+		@Args('hotelId', { type: () => String, nullable: true }) hotelId?: string,
+	): Promise<ChatsDto> {
+		this.logger.log('Query getOperatorChats', currentMember?._id, scopeFilter, statusFilter, hotelId);
+		return this.chatService.getOperatorChats(currentMember, input, scopeFilter, statusFilter, hotelId);
+	}
+
 	/**
 	 * Get hotel's chats (for agent/admin)
 	 */
@@ -155,12 +168,13 @@ export class ChatResolver {
 	@Query(() => ChatsDto)
 	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
 	public async getAllChatsAdmin(
+		@CurrentMember() currentMember: MemberJwtPayload,
 		@Args('input') input: PaginationInput,
 		@Args('statusFilter', { type: () => ChatStatus, nullable: true }) statusFilter?: ChatStatus,
 	): Promise<ChatsDto> {
 		try {
 			this.logger.log('Query getAllChatsAdmin', statusFilter);
-			return this.chatService.getAllChatsAdmin(input, statusFilter);
+			return this.chatService.getAllChatsAdmin(currentMember, input, statusFilter);
 		} catch (error) {
 			this.logger.error('Query getAllChatsAdmin failed', statusFilter, error);
 			throw error;
@@ -172,10 +186,14 @@ export class ChatResolver {
 	 */
 	@Mutation(() => ChatDto)
 	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
-	public async reassignChat(@Args('chatId') chatId: string, @Args('newAgentId') newAgentId: string): Promise<ChatDto> {
+	public async reassignChat(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('chatId') chatId: string,
+		@Args('newAgentId') newAgentId: string,
+	): Promise<ChatDto> {
 		try {
 			this.logger.log('Mutation reassignChat', chatId, newAgentId);
-			return this.chatService.reassignChat(chatId, newAgentId);
+			return this.chatService.reassignChat(currentMember, chatId, newAgentId);
 		} catch (error) {
 			this.logger.error('Mutation reassignChat failed', chatId, newAgentId, error);
 			throw error;

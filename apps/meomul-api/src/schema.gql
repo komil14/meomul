@@ -254,9 +254,13 @@ type ChatDto {
   chatStatus: ChatStatus!
   createdAt: DateTime!
   guestId: String!
+  guestImage: String
+  guestMemberType: MemberType
+  guestNick: String
   hotelId: String
+  lastMessage: MessageDto
   lastMessageAt: DateTime!
-  messages: [MessageDto!]!
+  messages: [MessageDto!]
   sourcePath: String
   supportTopic: String
   unreadAgentMessages: Int!
@@ -955,6 +959,7 @@ type Query {
   getMySearchHistory(limit: Int): [SearchHistoryDto!]!
   getMyUnreadChatCount: Int!
   getNotification(notificationId: String!): NotificationDto!
+  getOperatorChats(hotelId: String, input: PaginationInput!, scopeFilter: ChatScope, statusFilter: ChatStatus): ChatsDto!
   getPriceCalendar(input: PriceCalendarInput!): PriceCalendarDto!
   getRecommendedHotels(limit: Int = 10): [HotelDto!]!
   getRecommendedHotelsV2(limit: Int = 10): RecommendedHotelsV2Dto!
