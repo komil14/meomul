@@ -1,8 +1,9 @@
 import { Args, Context, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { Logger } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import type { Response, Request } from 'express';
 import { AuthMemberDto } from '../../libs/dto/auth/auth-member';
 import { LoginInput } from '../../libs/dto/auth/login.input';
+import { ResetPasswordInput } from '../../libs/dto/auth/reset-password.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
 import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MemberDto } from '../../libs/dto/member/member';
@@ -127,6 +128,21 @@ export class MemberResolver {
 		}
 	}
 
+	@Mutation(() => ResponseDto)
+	@Public()
+	@Throttle({ long: { limit: 5, ttl: 60000 } })
+	public async resetPassword(
+		@Args('input') input: ResetPasswordInput,
+	): Promise<ResponseDto> {
+		try {
+			this.logger.log('Mutation resetPassword');
+			return this.memberService.resetPassword(input);
+		} catch (error) {
+			this.logger.error('Mutation resetPassword failed', error);
+			throw error;
+		}
+	}
+
 	@Mutation(() => AuthMemberDto)
 	@Public()
 	@Throttle({ long: { limit: 5, ttl: 60000 } })
@@ -152,7 +168,7 @@ export class MemberResolver {
 		try {
 			const rawToken = (ctx.req.cookies as Record<string, string | undefined>)?.[REFRESH_TOKEN_COOKIE];
 			if (!rawToken) {
-				throw new Error('No refresh token');
+				throw new UnauthorizedException('No refresh token');
 			}
 			this.logger.debug('Mutation refreshToken');
 			const result = await this.memberService.refreshAccessToken(rawToken);
@@ -161,7 +177,11 @@ export class MemberResolver {
 			this.setAccessTokenCookie(ctx.res, result.accessToken);
 			return result;
 		} catch (error) {
-			this.logger.warn('Mutation refreshToken failed', (error as Error)?.message);
+			if (error instanceof UnauthorizedException && error.message === 'No refresh token') {
+				this.logger.debug('Mutation refreshToken skipped: no refresh token cookie');
+			} else {
+				this.logger.warn('Mutation refreshToken failed', (error as Error)?.message);
+			}
 			this.clearRefreshTokenCookie(ctx.res);
 			this.clearAccessTokenCookie(ctx.res);
 			throw error;

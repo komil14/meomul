@@ -846,6 +846,7 @@ type Mutation {
   refreshToken: AuthMemberDto!
   requestHostApplication(input: HostApplicationInput!): HostApplicationDto!
   requestSubscription(requestedTier: SubscriptionTier!): ResponseDto!
+  resetPassword(input: ResetPasswordInput!): ResponseDto!
   respondToReview(responseText: String!, reviewId: String!): ReviewDto!
   reviewHostApplication(input: HostApplicationReviewInput!): HostApplicationDto!
   saveOnboardingPreferences(input: OnboardingPreferenceInput!): ResponseDto!
@@ -1078,6 +1079,12 @@ type RecommendedHotelsV2Dto {
   explanations: [RecommendationExplanationDto!]!
   list: [HotelDto!]!
   meta: RecommendationMetaDto!
+}
+
+input ResetPasswordInput {
+  memberNick: String!
+  memberPhone: String!
+  newPassword: String!
 }
 
 type ResponseDto {

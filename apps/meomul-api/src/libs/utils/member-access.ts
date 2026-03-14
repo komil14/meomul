@@ -18,14 +18,21 @@ export function hasApprovedHostAccess(member: MemberAccessContext): boolean {
 	if (member.memberType !== MemberType.AGENT) {
 		return false;
 	}
-	return member.hostAccessStatus === HostAccessStatus.APPROVED;
+	return (
+		member.hostAccessStatus !== HostAccessStatus.PENDING &&
+		member.hostAccessStatus !== HostAccessStatus.REJECTED
+	);
 }
 
 export function assertApprovedHostAccess(member: MemberAccessContext): void {
 	if (isBackofficeOperator(member.memberType)) {
 		return;
 	}
-	if (member.memberType === MemberType.AGENT && member.hostAccessStatus !== HostAccessStatus.APPROVED) {
+	if (
+		member.memberType === MemberType.AGENT &&
+		(member.hostAccessStatus === HostAccessStatus.PENDING ||
+			member.hostAccessStatus === HostAccessStatus.REJECTED)
+	) {
 		throw new ForbiddenException('Host access is pending approval');
 	}
 	if (member.memberType !== MemberType.AGENT) {

@@ -20,6 +20,14 @@ export class LoggingInterceptor implements NestInterceptor {
 			}),
 			catchError((error: unknown) => {
 				const duration = Date.now() - start;
+				if (
+					operationName === 'refreshToken' &&
+					error instanceof Error &&
+					error.message === 'No refresh token'
+				) {
+					this.logger.debug(`[GraphQL] ${operationName} skipped ${duration}ms`);
+					throw error;
+				}
 				const errorStack = error instanceof Error ? (error.stack ?? error.message) : String(error);
 				this.logger.error(`[GraphQL] ${operationName} failed ${duration}ms`, errorStack);
 				throw error;

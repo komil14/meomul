@@ -4,6 +4,7 @@ import type { Model, ClientSession } from 'mongoose';
 import { Types } from 'mongoose';
 import { AuthMemberDto } from '../../libs/dto/auth/auth-member';
 import { LoginInput } from '../../libs/dto/auth/login.input';
+import { ResetPasswordInput } from '../../libs/dto/auth/reset-password.input';
 import { HostApplicationDto } from '../../libs/dto/member/host-application';
 import { HostApplicationInput } from '../../libs/dto/member/host-application.input';
 import { HostApplicationReviewInput } from '../../libs/dto/member/host-application-review.input';
@@ -302,6 +303,33 @@ export class MemberService {
 			this.authService.createRefreshToken(member._id.toString()),
 		]);
 		return { ...this.toAuthMember(member, accessToken), refreshToken };
+	}
+
+	public async resetPassword(input: ResetPasswordInput): Promise<ResponseDto> {
+		const member = await this.memberModel
+			.findOne({
+				memberNick: input.memberNick.trim(),
+				memberPhone: input.memberPhone.trim(),
+			})
+			.select('+memberPassword')
+			.exec();
+
+		if (!member || member.memberStatus === MemberStatus.DELETE) {
+			throw new BadRequestException(Messages.INVALID_MEMBER_RECOVERY);
+		}
+
+		if (member.memberStatus === MemberStatus.BLOCK) {
+			throw new UnauthorizedException(Messages.BLOCKED_USER);
+		}
+
+		member.memberPassword = await this.authService.hashPassword(input.newPassword);
+		await member.save();
+		await this.authService.revokeAllMemberTokens(member._id.toString());
+
+		return {
+			success: true,
+			message: 'Password updated successfully. Please log in again.',
+		};
 	}
 
 	public async updateMember(currentMember: MemberJwtPayload, input: MemberUpdate): Promise<MemberDocument> {
@@ -845,6 +873,7 @@ export class MemberService {
 
 		return {
 			...memberObject,
+			hostAccessStatus: memberObject.hostAccessStatus ?? HostAccessStatus.NONE,
 			accessToken,
 		};
 	}

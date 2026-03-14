@@ -8,6 +8,7 @@ export const Messages = {
 	BAD_REQUEST: 'Bad Request',
 	USED_MEMBER_NICK_OR_PHONE: 'Already used member nick or phone!',
 	NO_MEMBER_NICK: 'No member with that member nick!',
+	INVALID_MEMBER_RECOVERY: 'Member nickname or phone number is incorrect!',
 	BLOCKED_USER: 'You have been blocked!',
 	WRONG_PASSWORD: 'Wrong password, try again!',
 	NOT_AUTHENTICATED: 'You are not authenticated, please login first!',

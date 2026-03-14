@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, genSalt, hash } from 'bcryptjs';
 import { randomBytes, createHash } from 'crypto';
 import type { Model } from 'mongoose';
+import { HostAccessStatus } from '../../libs/enums/member.enum';
 import type { MemberDocument, MemberJwtPayload } from '../../libs/types/member';
 import type { RefreshTokenDocument } from '../../libs/types/refresh-token';
 
@@ -32,7 +33,7 @@ export class AuthService {
 			memberNick: member.memberNick,
 			memberType: member.memberType,
 			memberStatus: member.memberStatus,
-			hostAccessStatus: member.hostAccessStatus,
+			hostAccessStatus: member.hostAccessStatus ?? HostAccessStatus.NONE,
 			memberAuthType: member.memberAuthType,
 		});
 	}
