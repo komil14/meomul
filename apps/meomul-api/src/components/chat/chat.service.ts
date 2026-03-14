@@ -100,6 +100,72 @@ export class ChatService {
 		const senderType = SenderType.GUEST;
 		const unreadSeed = this.buildUnreadSeed(senderType);
 		const initialMessage = this.buildInitialMessage(currentMember._id, senderType, input.initialMessage);
+		const existingSupportChats = await this.chatModel
+			.find({
+				guestId: currentMember._id,
+				chatScope: ChatScope.SUPPORT,
+				chatStatus: { $in: [ChatStatus.WAITING, ChatStatus.ACTIVE] },
+			})
+			.sort({ lastMessageAt: -1, updatedAt: -1 })
+			.exec();
+
+		const primaryExistingChat = existingSupportChats[0] ?? null;
+
+		if (primaryExistingChat) {
+			if (existingSupportChats.length > 1) {
+				const duplicateIds = existingSupportChats.slice(1).map((chat) => chat._id);
+				if (duplicateIds.length > 0) {
+					await this.chatModel.updateMany(
+						{ _id: { $in: duplicateIds } },
+						{ $set: { chatStatus: ChatStatus.CLOSED } },
+					);
+				}
+			}
+
+			const shouldAssignSupport = !primaryExistingChat.assignedAgentId;
+			const assignedSupportId = shouldAssignSupport ? await this.selectSupportAssigneeId() : null;
+			const updatedExistingChat = await this.chatModel
+				.findByIdAndUpdate(
+					primaryExistingChat._id,
+					{
+						$push: { messages: initialMessage },
+						$set: {
+							lastMessageAt: new Date(),
+							supportTopic: primaryExistingChat.supportTopic || input.topic || undefined,
+							sourcePath: primaryExistingChat.sourcePath || input.sourcePath || undefined,
+							...(assignedSupportId
+								? {
+										assignedAgentId: assignedSupportId,
+										chatStatus: ChatStatus.ACTIVE,
+									}
+								: {}),
+						},
+						$inc: { unreadAgentMessages: 1 },
+					},
+					{ returnDocument: 'after' },
+				)
+				.exec();
+
+			this.chatGateway.emitNewMessage(updatedExistingChat!._id.toString(), {
+				senderId: currentMember._id,
+				senderType,
+				messageType: MessageType.TEXT,
+				content: input.initialMessage,
+				timestamp: initialMessage.timestamp,
+				read: false,
+			});
+
+			if (assignedSupportId) {
+				this.chatGateway.emitChatClaimed(updatedExistingChat!._id.toString(), assignedSupportId.toString());
+			}
+
+			void this.notifyChatParticipants(updatedExistingChat!, 'chatListUpdated', {
+				chatId: String(updatedExistingChat!._id),
+			});
+
+			return this.toChatDtoWithGuest(updatedExistingChat!, currentMember);
+		}
+
 		const assignedSupportId = await this.selectSupportAssigneeId();
 
 		const chat = await this.chatModel.create({
