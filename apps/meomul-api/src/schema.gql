@@ -91,6 +91,7 @@ type AuthMemberDto {
   accessToken: String!
   createdAt: DateTime!
   deletedAt: DateTime
+  hostAccessStatus: HostAccessStatus!
   memberAddress: String
   memberArticles: Int!
   memberAuthType: MemberAuthType!
@@ -462,6 +463,59 @@ type HomeTestimonialDto {
   review: ReviewDto!
 }
 
+enum HostAccessStatus {
+  APPROVED
+  NONE
+  PENDING
+  REJECTED
+}
+
+type HostApplicationDto {
+  _id: String!
+  applicantMemberId: String!
+  applicantMemberNick: String
+  businessDescription: String!
+  businessEmail: String
+  businessName: String!
+  contactPhone: String
+  createdAt: DateTime!
+  hotelType: HotelType!
+  intendedHotelLocation: HotelLocation
+  intendedHotelName: String
+  notes: String
+  reviewNote: String
+  reviewedAt: DateTime
+  reviewedByMemberId: String
+  reviewedByMemberNick: String
+  status: HostApplicationStatus!
+  suitableFor: [StayPurpose!]!
+  updatedAt: DateTime!
+}
+
+input HostApplicationInput {
+  businessDescription: String!
+  businessEmail: String
+  businessName: String!
+  contactPhone: String
+  hotelType: HotelType!
+  intendedHotelLocation: HotelLocation
+  intendedHotelName: String
+  notes: String
+  suitableFor: [StayPurpose!]! = []
+}
+
+input HostApplicationReviewInput {
+  applicationId: String!
+  reviewNote: String
+  status: HostApplicationStatus!
+}
+
+enum HostApplicationStatus {
+  APPROVED
+  PENDING
+  REJECTED
+}
+
 type HotelDto {
   _id: String!
   ageRestriction: Int!
@@ -667,6 +721,7 @@ type MemberDto {
   _id: String!
   createdAt: DateTime!
   deletedAt: DateTime
+  hostAccessStatus: HostAccessStatus!
   memberAddress: String
   memberArticles: Int!
   memberAuthType: MemberAuthType!
@@ -789,8 +844,10 @@ type Mutation {
   markHelpful(reviewId: String!): ReviewDto!
   reassignChat(chatId: String!, newAgentId: String!): ChatDto!
   refreshToken: AuthMemberDto!
+  requestHostApplication(input: HostApplicationInput!): HostApplicationDto!
   requestSubscription(requestedTier: SubscriptionTier!): ResponseDto!
   respondToReview(responseText: String!, reviewId: String!): ReviewDto!
+  reviewHostApplication(input: HostApplicationReviewInput!): HostApplicationDto!
   saveOnboardingPreferences(input: OnboardingPreferenceInput!): ResponseDto!
   sendMessage(input: SendMessageInput!): ChatDto!
   signupMember(input: MemberInput!): AuthMemberDto!
@@ -936,6 +993,7 @@ type Query {
   getHomeFeed(input: HomeFeedInput): HomeFeedDto!
   getHomeLastMinuteDeals(limit: Int = 8): [HomeLastMinuteDealDto!]!
   getHomeTestimonials(limit: Int = 6): [HomeTestimonialDto!]!
+  getHostApplicationsByAdmin(statusFilter: HostApplicationStatus): [HostApplicationDto!]!
   getHotel(hotelId: String!): HotelDto!
   getHotelChats(hotelId: String!, input: PaginationInput!, statusFilter: ChatStatus): ChatsDto!
   getHotelReviews(hotelId: String!, input: PaginationInput!): ReviewsDto!
@@ -951,6 +1009,7 @@ type Query {
   getMyChats(input: PaginationInput!): ChatsDto!
   getMyFollowers: [FollowDto!]!
   getMyFollowing: [FollowDto!]!
+  getMyHostApplication: HostApplicationDto
   getMyLikes(likeGroup: LikeGroup!): [LikeDto!]!
   getMyNotifications(limit: Float, unreadOnly: Boolean): [NotificationDto!]!
   getMyPriceLock(roomId: String!): PriceLockDto

@@ -11,6 +11,7 @@ describe('MemberService.saveOnboardingPreferences', () => {
 		const userProfileModel = {
 			updateOne: jest.fn().mockResolvedValue({ acknowledged: true }),
 		};
+		const hostApplicationModel = {};
 		const recommendationService = {
 			invalidateUserCache: jest.fn().mockResolvedValue(undefined),
 		};
@@ -18,6 +19,7 @@ describe('MemberService.saveOnboardingPreferences', () => {
 		const service = new MemberService(
 			{} as never,
 			userProfileModel as never,
+			hostApplicationModel as never,
 			{} as never,
 			{} as never,
 			recommendationService as never,

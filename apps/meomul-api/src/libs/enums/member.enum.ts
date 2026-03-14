@@ -28,7 +28,22 @@ export enum SubscriptionTier {
 	ELITE = 'ELITE',
 }
 
+export enum HostApplicationStatus {
+	PENDING = 'PENDING',
+	APPROVED = 'APPROVED',
+	REJECTED = 'REJECTED',
+}
+
+export enum HostAccessStatus {
+	NONE = 'NONE',
+	PENDING = 'PENDING',
+	APPROVED = 'APPROVED',
+	REJECTED = 'REJECTED',
+}
+
 registerEnumType(MemberType, { name: 'MemberType' });
 registerEnumType(MemberStatus, { name: 'MemberStatus' });
 registerEnumType(MemberAuthType, { name: 'MemberAuthType' });
 registerEnumType(SubscriptionTier, { name: 'SubscriptionTier' });
+registerEnumType(HostApplicationStatus, { name: 'HostApplicationStatus' });
+registerEnumType(HostAccessStatus, { name: 'HostAccessStatus' });

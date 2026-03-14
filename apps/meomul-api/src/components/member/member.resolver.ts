@@ -6,6 +6,9 @@ import { LoginInput } from '../../libs/dto/auth/login.input';
 import { MemberInput } from '../../libs/dto/member/member.input';
 import { MemberUpdate } from '../../libs/dto/member/member.update';
 import { MemberDto } from '../../libs/dto/member/member';
+import { HostApplicationDto } from '../../libs/dto/member/host-application';
+import { HostApplicationInput } from '../../libs/dto/member/host-application.input';
+import { HostApplicationReviewInput } from '../../libs/dto/member/host-application-review.input';
 import { BookingGuestCandidateDto } from '../../libs/dto/member/booking-guest-candidate';
 import { SubscriptionStatusDto } from '../../libs/dto/member/subscription-status';
 import { MembersDto } from '../../libs/dto/common/members';
@@ -16,7 +19,7 @@ import { CurrentMember } from '../auth/decorators/current-member.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Throttle } from '@nestjs/throttler';
-import { MemberType, SubscriptionTier } from '../../libs/enums/member.enum';
+import { HostApplicationStatus, MemberType, SubscriptionTier } from '../../libs/enums/member.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import { MemberService } from './member.service';
 
@@ -195,6 +198,64 @@ export class MemberResolver {
 			return this.memberService.updateMember(currentMember, input);
 		} catch (error) {
 			this.logger.error('Mutation updateMember failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	@Mutation(() => HostApplicationDto)
+	@Roles(MemberType.AGENT)
+	public async requestHostApplication(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('input') input: HostApplicationInput,
+	): Promise<HostApplicationDto> {
+		try {
+			this.logger.log('Mutation requestHostApplication', currentMember?._id ?? 'unknown');
+			return this.memberService.requestHostApplication(currentMember, input);
+		} catch (error) {
+			this.logger.error('Mutation requestHostApplication failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	@Query(() => HostApplicationDto, { nullable: true })
+	@Roles(MemberType.USER, MemberType.AGENT, MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
+	public async getMyHostApplication(
+		@CurrentMember() currentMember: MemberJwtPayload,
+	): Promise<HostApplicationDto | null> {
+		try {
+			this.logger.log('Query getMyHostApplication', currentMember?._id ?? 'unknown');
+			return this.memberService.getMyHostApplication(currentMember);
+		} catch (error) {
+			this.logger.error('Query getMyHostApplication failed', currentMember?._id ?? 'unknown', error);
+			throw error;
+		}
+	}
+
+	@Query(() => [HostApplicationDto])
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
+	public async getHostApplicationsByAdmin(
+		@Args('statusFilter', { type: () => HostApplicationStatus, nullable: true }) statusFilter?: HostApplicationStatus,
+	): Promise<HostApplicationDto[]> {
+		try {
+			this.logger.log('Query getHostApplicationsByAdmin', statusFilter ?? 'all');
+			return this.memberService.getHostApplicationsByAdmin(statusFilter);
+		} catch (error) {
+			this.logger.error('Query getHostApplicationsByAdmin failed', error);
+			throw error;
+		}
+	}
+
+	@Mutation(() => HostApplicationDto)
+	@Roles(MemberType.ADMIN, MemberType.ADMIN_OPERATOR)
+	public async reviewHostApplication(
+		@CurrentMember() currentMember: MemberJwtPayload,
+		@Args('input') input: HostApplicationReviewInput,
+	): Promise<HostApplicationDto> {
+		try {
+			this.logger.log('Mutation reviewHostApplication', currentMember?._id ?? 'unknown', input.applicationId);
+			return this.memberService.reviewHostApplication(currentMember, input);
+		} catch (error) {
+			this.logger.error('Mutation reviewHostApplication failed', currentMember?._id ?? 'unknown', input.applicationId, error);
 			throw error;
 		}
 	}

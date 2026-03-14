@@ -1,5 +1,11 @@
 import { Schema } from 'mongoose';
-import { MemberAuthType, MemberStatus, MemberType, SubscriptionTier } from '../libs/enums/member.enum';
+import {
+	HostAccessStatus,
+	MemberAuthType,
+	MemberStatus,
+	MemberType,
+	SubscriptionTier,
+} from '../libs/enums/member.enum';
 
 const MemberSchema = new Schema(
 	{
@@ -13,6 +19,12 @@ const MemberSchema = new Schema(
 			type: String,
 			enum: Object.values(MemberStatus),
 			default: MemberStatus.ACTIVE,
+			required: true,
+		},
+		hostAccessStatus: {
+			type: String,
+			enum: Object.values(HostAccessStatus),
+			default: HostAccessStatus.NONE,
 			required: true,
 		},
 		memberAuthType: {
@@ -124,6 +136,7 @@ const MemberSchema = new Schema(
 
 // Indexes
 MemberSchema.index({ memberType: 1, memberStatus: 1 });
+MemberSchema.index({ memberType: 1, hostAccessStatus: 1, memberStatus: 1 });
 MemberSchema.index({ memberRank: -1 });
 
 export default MemberSchema;

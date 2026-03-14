@@ -21,6 +21,7 @@ import { toHotelDto } from '../../libs/types/hotel';
 import type { RoomDocument } from '../../libs/types/room';
 import type { SearchHistoryDocument } from '../../libs/types/search-history';
 import type { RoomInventoryDocument } from '../../libs/types/room-inventory';
+import { assertApprovedHostAccess } from '../../libs/utils/member-access';
 import { ViewService } from '../view/view.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../../libs/enums/common.enum';
@@ -49,6 +50,7 @@ export class HotelService {
 		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
+		assertApprovedHostAccess(currentMember);
 
 		// Check member status
 		if (currentMember.memberStatus !== MemberStatus.ACTIVE) {
@@ -109,6 +111,9 @@ export class HotelService {
 	public async updateHotel(currentMember: MemberJwtPayload, input: HotelUpdate): Promise<HotelDto> {
 		if (!input._id) {
 			throw new BadRequestException(Messages.BAD_REQUEST);
+		}
+		if (currentMember.memberType === MemberType.AGENT) {
+			assertApprovedHostAccess(currentMember);
 		}
 
 		// Find hotel
@@ -475,6 +480,7 @@ export class HotelService {
 		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
+		assertApprovedHostAccess(currentMember);
 
 		const { page, limit, sort = 'createdAt', direction = Direction.DESC } = input;
 		const skip = (page - 1) * limit;

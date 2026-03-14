@@ -32,6 +32,7 @@ export class AuthService {
 			memberNick: member.memberNick,
 			memberType: member.memberType,
 			memberStatus: member.memberStatus,
+			hostAccessStatus: member.hostAccessStatus,
 			memberAuthType: member.memberAuthType,
 		});
 	}

@@ -29,6 +29,7 @@ import {
 } from '../../libs/config';
 import { MemberType } from '../../libs/enums/member.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
+import { assertApprovedHostAccess } from '../../libs/utils/member-access';
 import { getUploadsRoot } from '../../libs/utils/uploads-path';
 
 type UploadRequest = Request & {
@@ -176,6 +177,12 @@ export class UploadController {
 		const allowedRoles = TARGET_PERMISSIONS[target];
 		if (!allowedRoles.includes(memberType)) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
+		}
+		if (
+			req.member?.memberType === MemberType.AGENT &&
+			(target === 'hotel' || target === 'room')
+		) {
+			assertApprovedHostAccess(req.member);
 		}
 	}
 }

@@ -16,6 +16,7 @@ import type { MemberJwtPayload } from '../../libs/types/member';
 import type { RoomDocument } from '../../libs/types/room';
 import { toRoomDto } from '../../libs/types/room';
 import type { HotelDocument } from '../../libs/types/hotel';
+import { assertApprovedHostAccess } from '../../libs/utils/member-access';
 import { RoomInventoryService } from '../room-inventory/room-inventory.service';
 
 @Injectable()
@@ -34,6 +35,7 @@ export class RoomService {
 		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
+		assertApprovedHostAccess(currentMember);
 
 		// Check member status
 		if (currentMember.memberStatus !== MemberStatus.ACTIVE) {
@@ -97,6 +99,9 @@ export class RoomService {
 	public async updateRoom(currentMember: MemberJwtPayload, input: RoomUpdate): Promise<RoomDto> {
 		if (!input._id) {
 			throw new BadRequestException(Messages.BAD_REQUEST);
+		}
+		if (currentMember.memberType === MemberType.AGENT) {
+			assertApprovedHostAccess(currentMember);
 		}
 
 		// Find room
@@ -408,6 +413,7 @@ export class RoomService {
 		if (currentMember.memberType !== MemberType.AGENT && currentMember.memberType !== MemberType.ADMIN) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
+		assertApprovedHostAccess(currentMember);
 
 		// Verify hotel ownership
 		const hotel = await this.hotelModel.findById(hotelId).exec();

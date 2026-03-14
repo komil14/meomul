@@ -18,6 +18,7 @@ import type { BookingDocument } from '../../libs/types/booking';
 import { toBookingDto } from '../../libs/types/booking';
 import type { RoomDocument } from '../../libs/types/room';
 import type { HotelDocument } from '../../libs/types/hotel';
+import { assertApprovedHostAccess, isBackofficeOperator } from '../../libs/utils/member-access';
 import { PriceLockService } from '../price-lock/price-lock.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../../libs/enums/common.enum';
@@ -43,6 +44,9 @@ export class BookingService {
 		// Check member status
 		if (currentMember.memberStatus !== MemberStatus.ACTIVE) {
 			throw new ForbiddenException(Messages.NOT_AUTHENTICATED);
+		}
+		if (currentMember.memberType === MemberType.AGENT) {
+			assertApprovedHostAccess(currentMember);
 		}
 		const bookingGuestId = await this.resolveBookingGuestId(currentMember, input.guestId);
 
@@ -406,6 +410,9 @@ export class BookingService {
 		if (currentMember.memberType !== MemberType.AGENT && !canManageAllHotels) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
+		if (currentMember.memberType === MemberType.AGENT) {
+			assertApprovedHostAccess(currentMember);
+		}
 
 		// Verify hotel ownership
 		const hotel = await this.hotelModel.findById(hotelId).exec();
@@ -723,13 +730,14 @@ export class BookingService {
 	 * Validate operational access for booking management.
 	 */
 	private async assertHotelBookingManagementAccess(currentMember: MemberJwtPayload, hotelId: string): Promise<void> {
-		if (this.isBackofficeOperator(currentMember.memberType)) {
+		if (isBackofficeOperator(currentMember.memberType)) {
 			return;
 		}
 
 		if (currentMember.memberType !== MemberType.AGENT) {
 			throw new ForbiddenException(Messages.NOT_ALLOWED_REQUEST);
 		}
+		assertApprovedHostAccess(currentMember);
 
 		const hotel = await this.hotelModel.findById(hotelId).select('memberId').exec();
 		if (!hotel) {
@@ -741,7 +749,7 @@ export class BookingService {
 	}
 
 	private isBackofficeOperator(memberType: MemberType): boolean {
-		return memberType === MemberType.ADMIN || memberType === MemberType.ADMIN_OPERATOR;
+		return isBackofficeOperator(memberType);
 	}
 
 	private async resolveBookingGuestId(currentMember: MemberJwtPayload, requestedGuestId?: string): Promise<string> {
