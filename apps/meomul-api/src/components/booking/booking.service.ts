@@ -311,12 +311,7 @@ export class BookingService {
 				.catch(() => {});
 		}
 
-		// Invalidate recommendation cache for this user (fire-and-forget)
-		Promise.all([
-			this.cacheManager.set(`rec:v:${bookingGuestId}`, Date.now().toString(), 7 * 24 * 60 * 60 * 1000),
-			this.cacheManager.del(`rec:${bookingGuestId}:10`),
-			this.cacheManager.del(`rec:${bookingGuestId}:20`),
-		]).catch(() => {});
+		this.invalidateRecCache(bookingGuestId);
 
 		return toBookingDto(createdBooking);
 	}
@@ -504,6 +499,8 @@ export class BookingService {
 				'BOOKING',
 			)
 			.catch(() => {});
+
+		this.invalidateRecCache(String(updatedBooking.guestId));
 
 		return toBookingDto(updatedBooking);
 	}
@@ -860,6 +857,7 @@ export class BookingService {
 		if (!updatedBooking) {
 			throw new NotFoundException(Messages.NO_DATA_FOUND);
 		}
+		const finalizedBooking = updatedBooking as BookingDocument;
 
 		this.notificationService
 			.notifyAdmins(
@@ -904,7 +902,19 @@ export class BookingService {
 				.catch(() => {});
 		}
 
-		return toBookingDto(updatedBooking);
+		this.invalidateRecCache(String(finalizedBooking.guestId));
+
+		return toBookingDto(finalizedBooking);
+	}
+
+	private invalidateRecCache(memberId: string): void {
+		const versionKey = `rec:v:${memberId}`;
+		const nextVersion = Date.now().toString();
+		Promise.all([
+			this.cacheManager.set(versionKey, nextVersion, 7 * 24 * 60 * 60 * 1000),
+			this.cacheManager.del(`rec:${memberId}:10`),
+			this.cacheManager.del(`rec:${memberId}:20`),
+		]).catch(() => {});
 	}
 
 	private bookingStatusMessage(status: BookingStatus, bookingCode: string): string {

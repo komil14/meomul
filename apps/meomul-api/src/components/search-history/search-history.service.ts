@@ -6,13 +6,17 @@ import { SearchHistoryDto } from '../../libs/dto/search-history/search-history';
 import { Messages } from '../../libs/messages';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { SearchHistoryDocument } from '../../libs/types/search-history';
+import { RecommendationService } from '../recommendation/recommendation.service';
 import { toSearchHistoryDto } from '../../libs/types/search-history';
 
 @Injectable()
 export class SearchHistoryService {
 	private readonly logger = new Logger(SearchHistoryService.name);
 
-	constructor(@InjectModel('SearchHistory') private readonly searchHistoryModel: Model<SearchHistoryDocument>) {}
+	constructor(
+		@InjectModel('SearchHistory') private readonly searchHistoryModel: Model<SearchHistoryDocument>,
+		private readonly recommendationService: RecommendationService,
+	) {}
 
 	/**
 	 * Get current user's recent search history
@@ -46,6 +50,7 @@ export class SearchHistoryService {
 		}
 
 		await this.searchHistoryModel.deleteOne({ _id: historyId }).exec();
+		await this.recommendationService.invalidateUserCache(currentMember._id);
 		this.logger.log('Deleted search history item', historyId, currentMember._id);
 		return true;
 	}
@@ -55,6 +60,7 @@ export class SearchHistoryService {
 	 */
 	public async clearMySearchHistory(currentMember: MemberJwtPayload): Promise<number> {
 		const result = await this.searchHistoryModel.deleteMany({ memberId: currentMember._id }).exec();
+		await this.recommendationService.invalidateUserCache(currentMember._id);
 
 		this.logger.log('Cleared search history', currentMember._id, result.deletedCount);
 		return result.deletedCount;

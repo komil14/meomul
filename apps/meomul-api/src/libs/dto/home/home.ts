@@ -1,6 +1,6 @@
 import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
 import { HotelDto } from '../hotel/hotel';
-import { RecommendationMetaDto } from '../preference/recommended-hotels.dto';
+import { RecommendationMetaDto, RecommendedHotelsV2Dto } from '../preference/recommended-hotels.dto';
 import { ReviewDto } from '../review/review';
 import { ReviewRatingsSummaryDto } from '../common/reviews';
 
@@ -80,4 +80,7 @@ export class HomeFeedDto {
 
 	@Field(() => RecommendationMetaDto, { nullable: true })
 	recommendationMeta?: RecommendationMetaDto | null;
+
+	@Field(() => RecommendedHotelsV2Dto, { nullable: true })
+	recommendationResult?: RecommendedHotelsV2Dto | null;
 }

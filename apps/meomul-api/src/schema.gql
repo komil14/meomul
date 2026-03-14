@@ -426,6 +426,7 @@ type HomeFeedDto {
   hotelInventoryTotal: Int!
   lastMinuteDeals: [HomeLastMinuteDealDto!]!
   recommendationMeta: RecommendationMetaDto
+  recommendationResult: RecommendedHotelsV2Dto
   testimonials: [HomeTestimonialDto!]!
   topHotels: [HotelDto!]!
   totalVerifiedReviews: Int!

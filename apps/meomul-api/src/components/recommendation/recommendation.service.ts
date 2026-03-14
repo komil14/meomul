@@ -135,12 +135,19 @@ export class RecommendationService {
 			return noProfileResult;
 		}
 
-		const strictStageEnabled = profile.preferredLocations.length > 0;
-		const strictRatio = strictStageEnabled ? this.clampNumber(onboardingWeight * 0.8, 0.2, 0.68) : 0;
-		const relaxedRatio = strictStageEnabled ? this.clampNumber(onboardingWeight * 0.3, 0.12, 0.24) : 0;
+		const hasNonLocationPreferenceSignal =
+			profile.preferredTypes.length > 0 ||
+			profile.preferredPurposes.length > 0 ||
+			profile.preferredAmenities.length > 0 ||
+			profile.avgPriceMin !== undefined ||
+			profile.avgPriceMax !== undefined;
+		const strictStageEnabled = profile.preferredLocations.length > 0 && hasNonLocationPreferenceSignal;
+		const relaxedStageEnabled = profile.preferredLocations.length > 0;
+		const strictRatio = strictStageEnabled ? this.clampNumber(onboardingWeight * 0.45, 0.08, 0.34) : 0;
+		const relaxedRatio = relaxedStageEnabled ? this.clampNumber(onboardingWeight * 0.18, 0.05, 0.14) : 0;
 		const strictTarget = strictStageEnabled ? Math.max(1, Math.round(safeLimit * strictRatio)) : 0;
 		const relaxedTarget =
-			strictStageEnabled && strictTarget < safeLimit ? Math.max(0, Math.round(safeLimit * relaxedRatio)) : 0;
+			relaxedStageEnabled && strictTarget < safeLimit ? Math.max(0, Math.round(safeLimit * relaxedRatio)) : 0;
 
 		const strictStage = strictStageEnabled
 			? await this.runRecommendationStage(profile, strictTarget, {
@@ -152,7 +159,7 @@ export class RecommendationService {
 
 		const selectedIdsAfterStrict = strictStage.hotels.map((hotel) => this.toObjectId(hotel._id));
 		const relaxedStageRoom = Math.max(0, Math.min(relaxedTarget, safeLimit - strictStage.hotels.length));
-		const relaxedStage = strictStageEnabled
+		const relaxedStage = relaxedStageEnabled
 			? await this.runRecommendationStage(profile, relaxedStageRoom, {
 					onlyPreferredLocations: true,
 					enforcePreferredPurposes: false,
@@ -165,27 +172,57 @@ export class RecommendationService {
 			...selectedIdsAfterStrict,
 			...relaxedStage.hotels.map((hotel) => this.toObjectId(hotel._id)),
 		];
-		const generalStageRoom = Math.max(0, safeLimit - strictStage.hotels.length - relaxedStage.hotels.length);
+		const remainingRoomAfterLocationStages = Math.max(
+			0,
+			safeLimit - strictStage.hotels.length - relaxedStage.hotels.length,
+		);
+		const explorationStageRoom =
+			profile.preferredLocations.length > 0
+				? Math.min(3, Math.max(2, Math.floor(safeLimit / 2)), remainingRoomAfterLocationStages)
+				: 0;
+		const generalStageRoom = Math.max(0, remainingRoomAfterLocationStages - explorationStageRoom);
 		const generalStage = await this.runRecommendationStage(profile, generalStageRoom, {
 			excludeHotelIds: selectedIdsForGeneral,
 			allowFacetFallback: false,
 		});
+		const selectedIdsForExploration = [
+			...selectedIdsForGeneral,
+			...generalStage.hotels.map((hotel) => this.toObjectId(hotel._id)),
+		];
+		const explorationStage =
+			explorationStageRoom > 0
+				? await this.runRecommendationStage(profile, explorationStageRoom, {
+						excludeHotelIds: selectedIdsForExploration,
+						excludePreferredLocations: true,
+						allowFacetFallback: false,
+					})
+				: this.emptyStageResult();
 
-		const preFallbackList = [...strictStage.hotels, ...relaxedStage.hotels, ...generalStage.hotels];
+		const preFallbackList = [
+			...strictStage.hotels,
+			...relaxedStage.hotels,
+			...generalStage.hotels,
+			...explorationStage.hotels,
+		];
 		const finalExcludedIds = preFallbackList.map((hotel) => this.toObjectId(hotel._id));
 		const globalFallbackRoom = Math.max(0, safeLimit - preFallbackList.length);
 		const globalFallbackHotels = await this.getTopRatedFallbackHotels(profile, globalFallbackRoom, finalExcludedIds);
-		const finalList = [...preFallbackList, ...globalFallbackHotels].slice(0, safeLimit);
 		const explanationStageMap = this.buildExplanationStageMap({
 			strict: strictStage.hotels,
 			relaxed: relaxedStage.hotels,
-			general: generalStage.hotels,
+			general: [...generalStage.hotels, ...explorationStage.hotels],
 			fallback: globalFallbackHotels,
 		});
+		const finalList = this.diversifyRecommendationList(
+			[...preFallbackList, ...globalFallbackHotels],
+			profile,
+			safeLimit,
+			explanationStageMap,
+		);
 		const matchedLocationCount = finalList.filter((hotel) =>
 			profile.preferredLocations.includes(hotel.hotelLocation),
 		).length;
-		const fallbackCount = globalFallbackHotels.length;
+		const stageCounts = this.countRecommendationStages(finalList, explanationStageMap);
 
 		const result: RecommendationResultPayload = {
 			list: finalList,
@@ -194,10 +231,10 @@ export class RecommendationService {
 				onboardingWeight,
 				behaviorWeight,
 				matchedLocationCount,
-				fallbackCount,
-				strictStageCount: strictStage.hotels.length,
-				relaxedStageCount: relaxedStage.hotels.length,
-				generalStageCount: generalStage.hotels.length,
+				fallbackCount: stageCounts.fallback,
+				strictStageCount: stageCounts.strict,
+				relaxedStageCount: stageCounts.relaxed,
+				generalStageCount: stageCounts.general,
 			},
 			explanations: this.buildRecommendationExplanations(profile, finalList, explanationStageMap),
 		};
@@ -489,37 +526,6 @@ export class RecommendationService {
 	private async buildUserProfile(memberId: string): Promise<UserPreferenceProfile> {
 		const memberObjectId = new Types.ObjectId(memberId);
 		const existingProfile = await this.userProfileModel.findOne({ memberId: memberObjectId }).lean().exec();
-
-		const freshComputedThreshold = Date.now() - 2 * 3600000;
-		const hasFreshComputedAt = Boolean(
-			existingProfile?.computedAt && new Date(existingProfile.computedAt).getTime() >= freshComputedThreshold,
-		);
-		const isFreshComputedProfile = Boolean(
-			existingProfile?.source === 'computed' && hasFreshComputedAt && this.isProfileComplete(existingProfile),
-		);
-
-		if (existingProfile && isFreshComputedProfile) {
-			const behaviorMaturity = this.calculateBehaviorMaturity({
-				searchCount: 0,
-				viewCount: existingProfile.viewedHotelIds?.length || 0,
-				likeCount: existingProfile.likedHotelIds?.length || 0,
-				bookingCount: existingProfile.bookedHotelIds?.length || 0,
-			});
-
-			return {
-				preferredLocations: existingProfile.preferredLocations || [],
-				preferredTypes: existingProfile.preferredTypes || [],
-				preferredPurposes: existingProfile.preferredPurposes || [],
-				preferredAmenities: existingProfile.preferredAmenities || [],
-				avgPriceMin: existingProfile.avgPriceMin,
-				avgPriceMax: existingProfile.avgPriceMax,
-				viewedHotelIds: existingProfile.viewedHotelIds || [],
-				likedHotelIds: existingProfile.likedHotelIds || [],
-				bookedHotelIds: existingProfile.bookedHotelIds || [],
-				profileSource: 'computed',
-				behaviorMaturity,
-			};
-		}
 
 		const onboardingSeed =
 			existingProfile && existingProfile.source === 'onboarding' && this.isProfileComplete(existingProfile)
@@ -860,6 +866,127 @@ export class RecommendationService {
 		return stageMap;
 	}
 
+	private countRecommendationStages(
+		hotels: HotelDto[],
+		stageMap: Map<string, RecommendationReasonStage>,
+	): { strict: number; relaxed: number; general: number; fallback: number } {
+		return hotels.reduce(
+			(counts, hotel) => {
+				const stage = stageMap.get(this.toIdString(hotel._id)) ?? 'general';
+				if (stage === 'strict') counts.strict += 1;
+				else if (stage === 'relaxed') counts.relaxed += 1;
+				else if (stage === 'fallback') counts.fallback += 1;
+				else counts.general += 1;
+				return counts;
+			},
+			{ strict: 0, relaxed: 0, general: 0, fallback: 0 },
+		);
+	}
+
+	private diversifyRecommendationList(
+		hotels: HotelDto[],
+		profile: UserPreferenceProfile,
+		limit: number,
+		stageMap: Map<string, RecommendationReasonStage>,
+	): HotelDto[] {
+		if (limit <= 2 || profile.preferredLocations.length === 0) {
+			return hotels.slice(0, limit);
+		}
+
+		const seenIds = new Set<string>();
+		const uniqueHotels = hotels.filter((hotel) => {
+			const hotelId = this.toIdString(hotel._id);
+			if (seenIds.has(hotelId)) {
+				return false;
+			}
+			seenIds.add(hotelId);
+			return true;
+		});
+		const locationMatched = uniqueHotels.filter((hotel) => profile.preferredLocations.includes(hotel.hotelLocation));
+		const nonLocationMatched = uniqueHotels.filter((hotel) => !profile.preferredLocations.includes(hotel.hotelLocation));
+		if (locationMatched.length === 0 || nonLocationMatched.length === 0) {
+			return uniqueHotels.slice(0, limit);
+		}
+
+		const originalIndex = new Map<string, number>();
+		uniqueHotels.forEach((hotel, index) => {
+			originalIndex.set(this.toIdString(hotel._id), index);
+		});
+		const preferredStage = (hotel: HotelDto) => stageMap.get(this.toIdString(hotel._id));
+		const nonLocationPriority = [...nonLocationMatched].sort((left, right) => {
+			const leftStage = preferredStage(left);
+			const rightStage = preferredStage(right);
+			const leftPriority = leftStage === 'general' ? 0 : leftStage === 'fallback' ? 1 : 2;
+			const rightPriority = rightStage === 'general' ? 0 : rightStage === 'fallback' ? 1 : 2;
+			if (leftPriority !== rightPriority) {
+				return leftPriority - rightPriority;
+			}
+			return (
+				(originalIndex.get(this.toIdString(left._id)) ?? Number.MAX_SAFE_INTEGER) -
+				(originalIndex.get(this.toIdString(right._id)) ?? Number.MAX_SAFE_INTEGER)
+			);
+		});
+
+		const targetNonLocationCount = Math.min(
+			nonLocationPriority.length,
+			Math.max(2, Math.floor(limit / 2)),
+		);
+		const maxLocationMatched = Math.max(1, limit - targetNonLocationCount);
+		const targetLocationCount = Math.min(locationMatched.length, limit - targetNonLocationCount);
+
+		const diversified: HotelDto[] = [];
+		let locationIndex = 0;
+		let nonLocationIndex = 0;
+
+		while (diversified.length < limit) {
+			const shouldTakeLocation =
+				locationIndex < targetLocationCount &&
+				(nonLocationIndex >= targetNonLocationCount || diversified.length % 2 === 0);
+			if (shouldTakeLocation) {
+				diversified.push(locationMatched[locationIndex]);
+				locationIndex += 1;
+				continue;
+			}
+
+			if (nonLocationIndex < targetNonLocationCount) {
+				diversified.push(nonLocationPriority[nonLocationIndex]);
+				nonLocationIndex += 1;
+				continue;
+			}
+
+			if (locationIndex < locationMatched.length) {
+				diversified.push(locationMatched[locationIndex]);
+				locationIndex += 1;
+				continue;
+			}
+
+			if (nonLocationIndex < nonLocationPriority.length) {
+				diversified.push(nonLocationPriority[nonLocationIndex]);
+				nonLocationIndex += 1;
+				continue;
+			}
+
+			break;
+		}
+
+		if (diversified.length < limit) {
+			const diversifiedIds = new Set(diversified.map((hotel) => this.toIdString(hotel._id)));
+			for (const hotel of uniqueHotels) {
+				const hotelId = this.toIdString(hotel._id);
+				if (diversifiedIds.has(hotelId)) {
+					continue;
+				}
+				diversified.push(hotel);
+				diversifiedIds.add(hotelId);
+				if (diversified.length >= limit) {
+					break;
+				}
+			}
+		}
+
+		return diversified.slice(0, limit);
+	}
+
 	private buildRecommendationExplanations(
 		profile: UserPreferenceProfile,
 		hotels: HotelDto[],
@@ -1044,6 +1171,7 @@ export class RecommendationService {
 		limit: number,
 		options?: {
 			onlyPreferredLocations?: boolean;
+			excludePreferredLocations?: boolean;
 			enforcePreferredPurposes?: boolean;
 			enforcePriceRange?: boolean;
 			excludeHotelIds?: Types.ObjectId[];
@@ -1073,6 +1201,14 @@ export class RecommendationService {
 			pipeline.push({
 				$match: {
 					hotelLocation: { $in: profile.preferredLocations },
+				},
+			});
+		}
+
+		if (options?.excludePreferredLocations && profile.preferredLocations.length > 0) {
+			pipeline.push({
+				$match: {
+					hotelLocation: { $nin: profile.preferredLocations },
 				},
 			});
 		}
@@ -1111,7 +1247,7 @@ export class RecommendationService {
 
 		// Stage 4: Calculate scores (including seasonal awareness)
 		const amenityScoreFields: any[] = profile.preferredAmenities.map((amenity) => ({
-			$cond: [{ $eq: [`$amenities.${amenity}`, true] }, 2, 0],
+			$cond: [{ $eq: [`$amenities.${amenity}`, true] }, 3, 0],
 		}));
 
 		const seasonal = this.getSeasonalBoosts();
@@ -1125,10 +1261,10 @@ export class RecommendationService {
 					],
 				},
 				locationScore: {
-					$cond: [{ $in: ['$hotelLocation', profile.preferredLocations] }, 30, 0],
+					$cond: [{ $in: ['$hotelLocation', profile.preferredLocations] }, 18, 0],
 				},
 				typeScore: {
-					$cond: [{ $in: ['$hotelType', profile.preferredTypes] }, 15, 0],
+					$cond: [{ $in: ['$hotelType', profile.preferredTypes] }, 16, 0],
 				},
 				purposeScore: {
 					$multiply: [
@@ -1137,7 +1273,7 @@ export class RecommendationService {
 								$setIntersection: [{ $ifNull: ['$suitableFor', []] }, profile.preferredPurposes],
 							},
 						},
-						10,
+						12,
 					],
 				},
 				amenityScore: amenityScoreFields.length > 0 ? { $add: amenityScoreFields } : 0,
@@ -1153,7 +1289,7 @@ export class RecommendationService {
 					],
 				},
 				likedBonus: {
-					$cond: [{ $in: ['$_id', profile.likedHotelIds] }, 20, 0],
+					$cond: [{ $in: ['$_id', profile.likedHotelIds] }, 16, 0],
 				},
 				recencyBonus: {
 					$cond: [
@@ -1173,7 +1309,7 @@ export class RecommendationService {
 										{ $lte: ['$startingPrice', profile.avgPriceMax] },
 									],
 								},
-								15,
+								12,
 								0,
 							],
 						}
@@ -1243,6 +1379,7 @@ export class RecommendationService {
 		limit: number,
 		options?: {
 			onlyPreferredLocations?: boolean;
+			excludePreferredLocations?: boolean;
 			enforcePreferredPurposes?: boolean;
 			enforcePriceRange?: boolean;
 			excludeHotelIds?: Types.ObjectId[];

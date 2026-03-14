@@ -82,6 +82,7 @@ export class HomeService {
 			lastMinuteDeals,
 			testimonials,
 			recommendationMeta: recommendationResult?.meta ?? null,
+			recommendationResult,
 		};
 	}
 

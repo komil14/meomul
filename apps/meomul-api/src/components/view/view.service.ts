@@ -7,6 +7,7 @@ import { ViewDto } from '../../libs/dto/view/view';
 import { ViewGroup } from '../../libs/enums/common.enum';
 import type { MemberJwtPayload } from '../../libs/types/member';
 import type { ViewDocument } from '../../libs/types/view';
+import { RecommendationService } from '../recommendation/recommendation.service';
 import { toViewDto } from '../../libs/types/view';
 
 export interface RecordViewResult {
@@ -18,7 +19,10 @@ export interface RecordViewResult {
 export class ViewService {
 	private readonly logger = new Logger(ViewService.name);
 
-	constructor(@InjectModel('View') private readonly viewModel: Model<ViewDocument>) {}
+	constructor(
+		@InjectModel('View') private readonly viewModel: Model<ViewDocument>,
+		private readonly recommendationService: RecommendationService,
+	) {}
 
 	/**
 	 * Record a view (idempotent - won't create duplicates)
@@ -53,6 +57,10 @@ export class ViewService {
 			memberId,
 			viewGroup: input.viewGroup,
 		});
+
+		if (input.viewGroup === ViewGroup.HOTEL) {
+			void this.recommendationService.invalidateUserCache(currentMember._id);
+		}
 
 		return {
 			view: toViewDto(view),
